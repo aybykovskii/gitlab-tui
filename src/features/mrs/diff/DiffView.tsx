@@ -13,6 +13,7 @@ interface Props {
   rawDiff: string
   refs: DiffRefs
   onAddComment: (position: CommentPosition) => void
+  onOpenInEditor?: (filePath: string, line: number) => void
   onBack: () => void
 }
 
@@ -31,7 +32,7 @@ function lineNo(n: number | null): string {
   return n === null ? '    ' : String(n).padStart(4)
 }
 
-export function DiffView({ filePath, rawDiff, refs, onAddComment, onBack }: Props) {
+export function DiffView({ filePath, rawDiff, refs, onAddComment, onOpenInEditor, onBack }: Props) {
   const rows = parseDiff(rawDiff)
   const [cursor, setCursor] = useState(0)
   const [offset, setOffset] = useState(0)
@@ -66,6 +67,12 @@ export function DiffView({ filePath, rawDiff, refs, onAddComment, onBack }: Prop
         oldLineNo: line.oldLineNo,
         newLineNo: line.newLineNo,
       }))
+    }
+
+    if (input === 'o' && onOpenInEditor) {
+      const row = rows[cursor]
+      const line = row?.right ?? row?.left
+      if (line?.newLineNo) onOpenInEditor(filePath, line.newLineNo)
     }
   })
 

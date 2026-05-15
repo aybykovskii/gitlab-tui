@@ -14,10 +14,11 @@ interface Props {
   loadFiles: () => Promise<DiffFile[]>
   loadThreads: () => Promise<Thread[]>
   onOpenFile: (file: DiffFile) => void
+  onOpenInBrowser?: () => void
   onBack: () => void
 }
 
-export function MRDetail({ mr, loadFiles, loadThreads, onOpenFile, onBack }: Props) {
+export function MRDetail({ mr, loadFiles, loadThreads, onOpenFile, onOpenInBrowser, onBack }: Props) {
   const [tab, setTab] = useState<Tab>('files')
   const [files, setFiles] = useState<DiffFile[]>([])
   const [threads, setThreads] = useState<Thread[]>([])
@@ -39,6 +40,7 @@ export function MRDetail({ mr, loadFiles, loadThreads, onOpenFile, onBack }: Pro
   useInput((input, key) => {
     if (key.tab) setTab((t) => (t === 'files' ? 'threads' : 'files'))
     if (input === 'r') load()
+    if (input === 'b' && onOpenInBrowser) onOpenInBrowser()
     if (input === 'q' || key.escape) onBack()
   })
 
@@ -71,7 +73,7 @@ export function MRDetail({ mr, loadFiles, loadThreads, onOpenFile, onBack }: Pro
         <Text bold={tab === 'threads'} underline={tab === 'threads'}>
           Threads ({threads.filter((t) => !t.resolved).length} open)
         </Text>
-        <Text dimColor>Tab: switch  r: refresh  q: back</Text>
+        <Text dimColor>Tab: switch  r: refresh  b: browser  q: back</Text>
       </Box>
 
       {loading ? <Text dimColor>Loading…</Text> : null}
