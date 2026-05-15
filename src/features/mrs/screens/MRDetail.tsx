@@ -28,6 +28,7 @@ interface Props {
   onOpenFileLine?: (filePath: string, line: number) => void
   onApprove?: () => Promise<void>
   onMerge?: () => Promise<void>
+  onEdit?: () => void
   draftCount?: number
   onBack: () => void
 }
@@ -35,7 +36,7 @@ interface Props {
 export function MRDetail({
   mr, loadFiles, loadThreads, onOpenFile, onOpenInBrowser, onSubmitReview,
   onAddMRComment, onReplyToThread, onResolveThread, onOpenFileLine,
-  onApprove, onMerge,
+  onApprove, onMerge, onEdit,
   draftCount = 0, onBack,
 }: Props) {
   const [tab, setTab] = useState<Tab>('files')
@@ -91,6 +92,8 @@ export function MRDetail({
     if (input === 'M' && onMerge) {
       setModal({ type: 'merge-confirm' })
     }
+
+    if (input === 'e' && onEdit) onEdit()
 
     if (tab === 'threads' && threads.length > 0) {
       if (input === 'j' || key.downArrow) setThreadCursor((c) => Math.min(c + 1, threads.length - 1))
@@ -206,7 +209,7 @@ export function MRDetail({
           Threads ({threads.filter((t) => !t.resolved).length} open)
         </Text>
         <Box gap={2}>
-          <Text dimColor>Tab: switch  a: approve  M: merge  b: browser  m: comment  q: back</Text>
+          <Text dimColor>Tab: switch  a: approve  M: merge  e: edit  b: browser  m: comment  q: back</Text>
           {draftCount > 0 && (
             <Text color="yellow">● {draftCount} draft{draftCount > 1 ? 's' : ''}  S: submit review</Text>
           )}
