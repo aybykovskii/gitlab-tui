@@ -15,10 +15,12 @@ interface Props {
   loadThreads: () => Promise<Thread[]>
   onOpenFile: (file: DiffFile) => void
   onOpenInBrowser?: () => void
+  onSubmitReview?: () => void
+  draftCount?: number
   onBack: () => void
 }
 
-export function MRDetail({ mr, loadFiles, loadThreads, onOpenFile, onOpenInBrowser, onBack }: Props) {
+export function MRDetail({ mr, loadFiles, loadThreads, onOpenFile, onOpenInBrowser, onSubmitReview, draftCount = 0, onBack }: Props) {
   const [tab, setTab] = useState<Tab>('files')
   const [files, setFiles] = useState<DiffFile[]>([])
   const [threads, setThreads] = useState<Thread[]>([])
@@ -41,6 +43,7 @@ export function MRDetail({ mr, loadFiles, loadThreads, onOpenFile, onOpenInBrows
     if (key.tab) setTab((t) => (t === 'files' ? 'threads' : 'files'))
     if (input === 'r') load()
     if (input === 'b' && onOpenInBrowser) onOpenInBrowser()
+    if (input === 'S' && onSubmitReview) onSubmitReview()
     if (input === 'q' || key.escape) onBack()
   })
 
@@ -73,7 +76,12 @@ export function MRDetail({ mr, loadFiles, loadThreads, onOpenFile, onOpenInBrows
         <Text bold={tab === 'threads'} underline={tab === 'threads'}>
           Threads ({threads.filter((t) => !t.resolved).length} open)
         </Text>
-        <Text dimColor>Tab: switch  r: refresh  b: browser  q: back</Text>
+        <Box gap={2}>
+          <Text dimColor>Tab: switch  r: refresh  b: browser  q: back</Text>
+          {draftCount > 0 && (
+            <Text color="yellow">● {draftCount} draft{draftCount > 1 ? 's' : ''}  S: submit review</Text>
+          )}
+        </Box>
       </Box>
 
       {loading ? <Text dimColor>Loading…</Text> : null}

@@ -29,7 +29,7 @@ describe('DiffView', () => {
     expect(frame).toContain('const b = 99')
   })
 
-  it('calls onAddComment with position when c is pressed', () => {
+  it('does not immediately call onAddComment when c is pressed — opens input first', () => {
     const onAddComment = vi.fn()
     const { stdin } = render(
       <DiffView
@@ -43,10 +43,8 @@ describe('DiffView', () => {
 
     stdin.write('c')
 
-    expect(onAddComment).toHaveBeenCalledOnce()
-    const pos = onAddComment.mock.calls[0][0]
-    expect(pos.baseSha).toBe('abc')
-    expect(pos.positionType).toBe('text')
+    // Comment is only sent after body is entered and submitted
+    expect(onAddComment).not.toHaveBeenCalled()
   })
 
   it('calls onBack when q is pressed', () => {

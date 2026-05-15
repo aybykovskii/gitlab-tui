@@ -1,5 +1,6 @@
 import React, { useState } from 'react'
 import { Box, Text, useInput } from 'ink'
+import TextInput from 'ink-text-input'
 import chalk from 'chalk'
 import { parseDiff } from './parser.js'
 import { buildDiffPosition } from './position.js'
@@ -12,7 +13,8 @@ interface Props {
   filePath: string
   rawDiff: string
   refs: DiffRefs
-  onAddComment: (position: CommentPosition) => void
+  draftLineNos?: Set<number>
+  onAddComment: (position: CommentPosition, body: string) => void
   onOpenInEditor?: (filePath: string, line: number) => void
   onBack: () => void
 }
@@ -32,10 +34,12 @@ function lineNo(n: number | null): string {
   return n === null ? '    ' : String(n).padStart(4)
 }
 
-export function DiffView({ filePath, rawDiff, refs, onAddComment, onOpenInEditor, onBack }: Props) {
+export function DiffView({ filePath, rawDiff, refs, draftLineNos, onAddComment, onOpenInEditor, onBack }: Props) {
   const rows = parseDiff(rawDiff)
   const [cursor, setCursor] = useState(0)
   const [offset, setOffset] = useState(0)
+  const [commenting, setCommenting] = useState<CommentPosition | null>(null)
+  const [commentBody, setCommentBody] = useState('')
 
   const colWidth = Math.floor((process.stdout.columns ?? 120) / 2) - 6
 
@@ -57,16 +61,17 @@ export function DiffView({ filePath, rawDiff, refs, onAddComment, onOpenInEditor
       })
     }
 
-    if (input === 'c') {
+    if (input === 'c' && !commenting) {
       const row = rows[cursor]
       const line = row?.right ?? row?.left
       if (!line) return
-      onAddComment(buildDiffPosition(refs, {
+      setCommenting(buildDiffPosition(refs, {
         oldPath: filePath,
         newPath: filePath,
         oldLineNo: line.oldLineNo,
         newLineNo: line.newLineNo,
       }))
+      setCommentBody('')
     }
 
     if (input === 'o' && onOpenInEditor) {
@@ -78,10 +83,27 @@ export function DiffView({ filePath, rawDiff, refs, onAddComment, onOpenInEditor
 
   const visible = rows.slice(offset, offset + VISIBLE_LINES)
 
+  if (commenting) {
+    return (
+      <Box flexDirection="column" gap={1}>
+        <Text>Add draft comment (Enter to save, Esc to cancel):</Text>
+        <TextInput
+          value={commentBody}
+          onChange={setCommentBody}
+          onSubmit={(body) => {
+            if (body.trim()) onAddComment(commenting, body.trim())
+            setCommenting(null)
+            setCommentBody('')
+          }}
+        />
+      </Box>
+    )
+  }
+
   return (
     <Box flexDirection="column">
       <Text bold>{filePath}</Text>
-      <Text dimColor>j/k: navigate  c: comment  q: back</Text>
+      <Text dimColor>j/k: navigate  c: draft comment  o: open in editor  q: back</Text>
       {visible.map((row, i) => {
         const absIdx = offset + i
         const isCursor = absIdx === cursor
@@ -96,8 +118,14 @@ export function DiffView({ filePath, rawDiff, refs, onAddComment, onOpenInEditor
           ? colorLine(pad(rightLine.content, colWidth), rightLine.type)
           : ' '.repeat(colWidth)
 
+        const hasDraft = draftLineNos && (
+          (leftLine?.oldLineNo && draftLineNos.has(leftLine.oldLineNo)) ||
+          (rightLine?.newLineNo && draftLineNos.has(rightLine.newLineNo))
+        )
+
         return (
           <Box key={absIdx}>
+            <Text color="yellow">{hasDraft ? '●' : ' '}</Text>
             <Text inverse={isCursor}>
               {lineNo(leftLine?.oldLineNo ?? null)} {leftContent}
             </Text>
