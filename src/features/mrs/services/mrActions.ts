@@ -21,22 +21,12 @@ export function createMRActionsAPIImpl(
   client: GitLabClient,
   projectPath: string,
 ): MRActionsAPI {
-  const base = `${(client as unknown as { host: string }).host}/api/v4`
-  const token = (client as unknown as { token: string }).token
-  const headers = { 'PRIVATE-TOKEN': token, 'Content-Type': 'application/json' }
-  const projectId = encodeURIComponent(projectPath)
-
-  async function request(method: string, path: string): Promise<void> {
-    const res = await fetch(`${base}${path}`, { method, headers, body: '{}' })
-    if (!res.ok) throw new Error(`GitLab API error ${res.status}: ${await res.text()}`)
-  }
-
   async function approveMR(iid: number): Promise<void> {
-    await request('POST', `/projects/${projectId}/merge_requests/${iid}/approve`)
+    await client.MergeRequestApprovals.approve(projectPath, iid)
   }
 
   async function mergeMR(iid: number): Promise<void> {
-    await request('POST', `/projects/${projectId}/merge_requests/${iid}/merge`)
+    await client.MergeRequests.merge(projectPath, iid)
   }
 
   return { approveMR, mergeMR }
