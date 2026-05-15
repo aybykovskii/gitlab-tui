@@ -1,18 +1,26 @@
 #!/usr/bin/env node
+import React, { useState } from 'react'
 import { render } from 'ink'
-import React from 'react'
+import { createConfigManager, SetupWizard } from './core/config/index.js'
 import { getRegisteredFeatures } from './core/router/index.js'
+import type { Config } from './core/config/index.js'
 
 import './features/mrs/index.js'
 import './features/pipelines/index.js'
 
+const configManager = createConfigManager()
+
 function App() {
-  const features = getRegisteredFeatures()
-  return React.createElement(
-    React.Fragment,
-    null,
-    React.createElement('text', null, `gitlab-tui — ${features.length} feature(s) loaded`),
+  const [config, setConfig] = useState<Config | null>(
+    configManager.configExists() ? configManager.getConfig() : null,
   )
+
+  if (!config) {
+    return <SetupWizard onComplete={setConfig} />
+  }
+
+  const features = getRegisteredFeatures()
+  return <>{features.map((f) => f.name).join(', ')}</>
 }
 
-render(React.createElement(App))
+render(<App />)
