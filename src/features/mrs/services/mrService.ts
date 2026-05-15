@@ -6,6 +6,17 @@ export interface ListMRsOptions {
   state?: MRState | 'all'
 }
 
+export interface CreateMRInput {
+  title: string
+  sourceBranch: string
+  targetBranch: string
+  description?: string
+  labels?: string[]
+  assigneeIds?: number[]
+  reviewerIds?: number[]
+  draft?: boolean
+}
+
 export function createMRService(client: GitLabClient, projectPath: string) {
   async function listMRs(options: ListMRsOptions = {}): Promise<MR[]> {
     const { state = 'opened' } = options
@@ -61,5 +72,36 @@ export function createMRService(client: GitLabClient, projectPath: string) {
     )
   }
 
-  return { listMRs, getMR, getDiffFiles, getThreads }
+  async function getBranches(): Promise<string[]> {
+    const branches = await client.Branches.all(projectPath, { perPage: 100 })
+    return branches.map((b) => String(b.name))
+  }
+
+  async function createMR(input: CreateMRInput): Promise<MR> {
+    const title = input.draft ? `Draft: ${input.title}` : input.title
+    const mr = await client.MergeRequests.create(
+      projectPath,
+      input.sourceBranch,
+      input.targetBranch,
+      title,
+      {
+        description: input.description,
+        labels: input.labels?.join(','),
+        assigneeIds: input.assigneeIds,
+        reviewerIds: input.reviewerIds,
+      },
+    )
+    return {
+      iid: mr.iid,
+      title: mr.title,
+      state: mr.state as MRState,
+      author: { name: mr.author?.name ?? '', username: mr.author?.username ?? '' },
+      sourceBranch: String(mr.source_branch),
+      targetBranch: String(mr.target_branch),
+      webUrl: String(mr.web_url),
+      pipeline: null,
+    }
+  }
+
+  return { listMRs, getMR, getDiffFiles, getThreads, getBranches, createMR }
 }
