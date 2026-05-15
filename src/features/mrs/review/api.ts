@@ -2,6 +2,7 @@ import type { GitLabClient } from '../../../core/gitlab/index.js'
 import type { CommentPosition } from '../diff/position.js'
 import type { DraftComment, DraftNotesAPI } from './session.js'
 import type { InstantCommentsAPI } from './instant.js'
+import type { ThreadActionsAPI } from './threadActions.js'
 
 export function createDraftNotesAPI(
   client: GitLabClient,
@@ -109,4 +110,35 @@ export function createInstantCommentsAPI(
   }
 
   return { postInlineComment, postMRComment }
+}
+
+export function createThreadActionsAPIImpl(
+  client: GitLabClient,
+  projectPath: string,
+  mrIid: number,
+): ThreadActionsAPI {
+  const base = `${(client as unknown as { host: string }).host}/api/v4`
+  const token = (client as unknown as { token: string }).token
+  const headers = { 'PRIVATE-TOKEN': token, 'Content-Type': 'application/json' }
+  const projectId = encodeURIComponent(projectPath)
+  const mrBase = `/projects/${projectId}/merge_requests/${mrIid}`
+
+  async function request(method: string, path: string, body: unknown): Promise<void> {
+    const res = await fetch(`${base}${path}`, {
+      method,
+      headers,
+      body: JSON.stringify(body),
+    })
+    if (!res.ok) throw new Error(`GitLab API error ${res.status}: ${await res.text()}`)
+  }
+
+  async function replyToThread(discussionId: string, body: string): Promise<void> {
+    await request('POST', `${mrBase}/discussions/${discussionId}/notes`, { body })
+  }
+
+  async function resolveThread(discussionId: string, resolved: boolean): Promise<void> {
+    await request('PUT', `${mrBase}/discussions/${discussionId}`, { resolved })
+  }
+
+  return { replyToThread, resolveThread }
 }

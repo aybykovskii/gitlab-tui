@@ -1,5 +1,7 @@
 export { createReviewSession } from './session.js'
-export { createDraftNotesAPI, createInstantCommentsAPI } from './api.js'
+export { createDraftNotesAPI, createInstantCommentsAPI, createThreadActionsAPIImpl } from './api.js'
 export { createInstantCommentService } from './instant.js'
+export { createThreadActionsService } from './threadActions.js'
 export type { DraftComment, DraftNotesAPI } from './session.js'
 export type { InstantCommentsAPI } from './instant.js'
+export type { ThreadActionsAPI } from './threadActions.js'

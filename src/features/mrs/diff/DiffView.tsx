@@ -14,6 +14,7 @@ interface Props {
   rawDiff: string
   refs: DiffRefs
   draftLineNos?: Set<number>
+  threadLineNos?: Set<number>
   onAddComment: (position: CommentPosition, body: string) => void
   onAddInstantComment?: (position: CommentPosition, body: string) => void
   onOpenInEditor?: (filePath: string, line: number) => void
@@ -35,7 +36,7 @@ function lineNo(n: number | null): string {
   return n === null ? '    ' : String(n).padStart(4)
 }
 
-export function DiffView({ filePath, rawDiff, refs, draftLineNos, onAddComment, onAddInstantComment, onOpenInEditor, onBack }: Props) {
+export function DiffView({ filePath, rawDiff, refs, draftLineNos, threadLineNos, onAddComment, onAddInstantComment, onOpenInEditor, onBack }: Props) {
   const rows = parseDiff(rawDiff)
   const [cursor, setCursor] = useState(0)
   const [offset, setOffset] = useState(0)
@@ -134,10 +135,15 @@ export function DiffView({ filePath, rawDiff, refs, draftLineNos, onAddComment, 
           (leftLine?.oldLineNo && draftLineNos.has(leftLine.oldLineNo)) ||
           (rightLine?.newLineNo && draftLineNos.has(rightLine.newLineNo))
         )
+        const hasThread = threadLineNos && (
+          (leftLine?.oldLineNo && threadLineNos.has(leftLine.oldLineNo)) ||
+          (rightLine?.newLineNo && threadLineNos.has(rightLine.newLineNo))
+        )
 
         return (
           <Box key={absIdx}>
             <Text color="yellow">{hasDraft ? '●' : ' '}</Text>
+            <Text color="cyan">{hasThread ? '○' : ' '}</Text>
             <Text inverse={isCursor}>
               {lineNo(leftLine?.oldLineNo ?? null)} {leftContent}
             </Text>
