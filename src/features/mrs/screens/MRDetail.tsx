@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useCallback } from 'react'
 import { Box, Text, useInput } from 'ink'
+import TextInput from 'ink-text-input'
 import SelectInput from 'ink-select-input'
 import type { MRDetail, DiffFile, Thread } from '../services/types.js'
 
@@ -16,15 +17,18 @@ interface Props {
   onOpenFile: (file: DiffFile) => void
   onOpenInBrowser?: () => void
   onSubmitReview?: () => void
+  onAddMRComment?: (body: string) => void
   draftCount?: number
   onBack: () => void
 }
 
-export function MRDetail({ mr, loadFiles, loadThreads, onOpenFile, onOpenInBrowser, onSubmitReview, draftCount = 0, onBack }: Props) {
+export function MRDetail({ mr, loadFiles, loadThreads, onOpenFile, onOpenInBrowser, onSubmitReview, onAddMRComment, draftCount = 0, onBack }: Props) {
   const [tab, setTab] = useState<Tab>('files')
   const [files, setFiles] = useState<DiffFile[]>([])
   const [threads, setThreads] = useState<Thread[]>([])
   const [loading, setLoading] = useState(true)
+  const [commenting, setCommenting] = useState(false)
+  const [commentBody, setCommentBody] = useState('')
 
   const load = useCallback(async () => {
     setLoading(true)
@@ -40,14 +44,33 @@ export function MRDetail({ mr, loadFiles, loadThreads, onOpenFile, onOpenInBrows
   useEffect(() => { load() }, [load])
 
   useInput((input, key) => {
+    if (commenting) return
     if (key.tab) setTab((t) => (t === 'files' ? 'threads' : 'files'))
     if (input === 'r') load()
     if (input === 'b' && onOpenInBrowser) onOpenInBrowser()
     if (input === 'S' && onSubmitReview) onSubmitReview()
+    if (input === 'm' && onAddMRComment) { setCommenting(true); setCommentBody('') }
     if (input === 'q' || key.escape) onBack()
   })
 
   const pipeline = mr.pipeline ? (PIPELINE_ICON[mr.pipeline.status] ?? '?') : '–'
+
+  if (commenting) {
+    return (
+      <Box flexDirection="column" gap={1}>
+        <Text>Add MR comment (Enter to send, Esc to cancel):</Text>
+        <TextInput
+          value={commentBody}
+          onChange={setCommentBody}
+          onSubmit={(body) => {
+            if (body.trim() && onAddMRComment) onAddMRComment(body.trim())
+            setCommenting(false)
+            setCommentBody('')
+          }}
+        />
+      </Box>
+    )
+  }
 
   return (
     <Box flexDirection="column" gap={1}>
@@ -77,7 +100,7 @@ export function MRDetail({ mr, loadFiles, loadThreads, onOpenFile, onOpenInBrows
           Threads ({threads.filter((t) => !t.resolved).length} open)
         </Text>
         <Box gap={2}>
-          <Text dimColor>Tab: switch  r: refresh  b: browser  q: back</Text>
+          <Text dimColor>Tab: switch  r: refresh  b: browser  m: comment  q: back</Text>
           {draftCount > 0 && (
             <Text color="yellow">● {draftCount} draft{draftCount > 1 ? 's' : ''}  S: submit review</Text>
           )}

@@ -15,6 +15,7 @@ interface Props {
   refs: DiffRefs
   draftLineNos?: Set<number>
   onAddComment: (position: CommentPosition, body: string) => void
+  onAddInstantComment?: (position: CommentPosition, body: string) => void
   onOpenInEditor?: (filePath: string, line: number) => void
   onBack: () => void
 }
@@ -34,11 +35,12 @@ function lineNo(n: number | null): string {
   return n === null ? '    ' : String(n).padStart(4)
 }
 
-export function DiffView({ filePath, rawDiff, refs, draftLineNos, onAddComment, onOpenInEditor, onBack }: Props) {
+export function DiffView({ filePath, rawDiff, refs, draftLineNos, onAddComment, onAddInstantComment, onOpenInEditor, onBack }: Props) {
   const rows = parseDiff(rawDiff)
   const [cursor, setCursor] = useState(0)
   const [offset, setOffset] = useState(0)
   const [commenting, setCommenting] = useState<CommentPosition | null>(null)
+  const [commentMode, setCommentMode] = useState<'draft' | 'instant'>('draft')
   const [commentBody, setCommentBody] = useState('')
 
   const colWidth = Math.floor((process.stdout.columns ?? 120) / 2) - 6
@@ -61,7 +63,7 @@ export function DiffView({ filePath, rawDiff, refs, draftLineNos, onAddComment, 
       })
     }
 
-    if (input === 'c' && !commenting) {
+    if ((input === 'c' || input === 'C') && !commenting) {
       const row = rows[cursor]
       const line = row?.right ?? row?.left
       if (!line) return
@@ -71,6 +73,7 @@ export function DiffView({ filePath, rawDiff, refs, draftLineNos, onAddComment, 
         oldLineNo: line.oldLineNo,
         newLineNo: line.newLineNo,
       }))
+      setCommentMode(input === 'C' ? 'instant' : 'draft')
       setCommentBody('')
     }
 
@@ -84,14 +87,23 @@ export function DiffView({ filePath, rawDiff, refs, draftLineNos, onAddComment, 
   const visible = rows.slice(offset, offset + VISIBLE_LINES)
 
   if (commenting) {
+    const label = commentMode === 'instant'
+      ? 'Post comment instantly (Enter to send, Esc to cancel):'
+      : 'Add draft comment (Enter to save, Esc to cancel):'
     return (
       <Box flexDirection="column" gap={1}>
-        <Text>Add draft comment (Enter to save, Esc to cancel):</Text>
+        <Text>{label}</Text>
         <TextInput
           value={commentBody}
           onChange={setCommentBody}
           onSubmit={(body) => {
-            if (body.trim()) onAddComment(commenting, body.trim())
+            if (body.trim()) {
+              if (commentMode === 'instant' && onAddInstantComment) {
+                onAddInstantComment(commenting, body.trim())
+              } else {
+                onAddComment(commenting, body.trim())
+              }
+            }
             setCommenting(null)
             setCommentBody('')
           }}
@@ -103,7 +115,7 @@ export function DiffView({ filePath, rawDiff, refs, draftLineNos, onAddComment, 
   return (
     <Box flexDirection="column">
       <Text bold>{filePath}</Text>
-      <Text dimColor>j/k: navigate  c: draft comment  o: open in editor  q: back</Text>
+      <Text dimColor>j/k: navigate  c: draft comment  C: instant comment  o: open in editor  q: back</Text>
       {visible.map((row, i) => {
         const absIdx = offset + i
         const isCursor = absIdx === cursor

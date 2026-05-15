@@ -1,6 +1,7 @@
 import type { GitLabClient } from '../../../core/gitlab/index.js'
 import type { CommentPosition } from '../diff/position.js'
 import type { DraftComment, DraftNotesAPI } from './session.js'
+import type { InstantCommentsAPI } from './instant.js'
 
 export function createDraftNotesAPI(
   client: GitLabClient,
@@ -65,4 +66,47 @@ export function createDraftNotesAPI(
   }
 
   return { create, list, publishAll, remove }
+}
+
+export function createInstantCommentsAPI(
+  client: GitLabClient,
+  projectPath: string,
+  mrIid: number,
+): InstantCommentsAPI {
+  const base = `${(client as unknown as { host: string }).host}/api/v4`
+  const token = (client as unknown as { token: string }).token
+  const headers = { 'PRIVATE-TOKEN': token, 'Content-Type': 'application/json' }
+  const projectId = encodeURIComponent(projectPath)
+  const mrBase = `/projects/${projectId}/merge_requests/${mrIid}`
+
+  async function request(method: string, path: string, body: unknown): Promise<void> {
+    const res = await fetch(`${base}${path}`, {
+      method,
+      headers,
+      body: JSON.stringify(body),
+    })
+    if (!res.ok) throw new Error(`GitLab API error ${res.status}: ${await res.text()}`)
+  }
+
+  async function postInlineComment(note: string, position: CommentPosition): Promise<void> {
+    await request('POST', `${mrBase}/discussions`, {
+      body: note,
+      position: {
+        base_sha: position.baseSha,
+        head_sha: position.headSha,
+        start_sha: position.startSha,
+        old_path: position.oldPath,
+        new_path: position.newPath,
+        old_line: position.oldLine,
+        new_line: position.newLine,
+        position_type: position.positionType,
+      },
+    })
+  }
+
+  async function postMRComment(note: string): Promise<void> {
+    await request('POST', `${mrBase}/notes`, { body: note })
+  }
+
+  return { postInlineComment, postMRComment }
 }
