@@ -5,7 +5,11 @@ import SelectInput from 'ink-select-input'
 import type { MRDetail, DiffFile, Thread } from '../services/types.js'
 
 type Tab = 'files' | 'threads'
-type ThreadModal = { type: 'reply'; thread: Thread } | { type: 'mr-comment' }
+type Modal =
+  | { type: 'reply'; thread: Thread }
+  | { type: 'mr-comment' }
+  | { type: 'merge-confirm' }
+  | { type: 'error'; message: string }
 
 const PIPELINE_ICON: Record<string, string> = {
   success: '✓', failed: '✗', running: '●', pending: '○',
@@ -22,6 +26,8 @@ interface Props {
   onReplyToThread?: (discussionId: string, body: string) => Promise<void>
   onResolveThread?: (discussionId: string, resolved: boolean) => Promise<void>
   onOpenFileLine?: (filePath: string, line: number) => void
+  onApprove?: () => Promise<void>
+  onMerge?: () => Promise<void>
   draftCount?: number
   onBack: () => void
 }
@@ -29,13 +35,14 @@ interface Props {
 export function MRDetail({
   mr, loadFiles, loadThreads, onOpenFile, onOpenInBrowser, onSubmitReview,
   onAddMRComment, onReplyToThread, onResolveThread, onOpenFileLine,
+  onApprove, onMerge,
   draftCount = 0, onBack,
 }: Props) {
   const [tab, setTab] = useState<Tab>('files')
   const [files, setFiles] = useState<DiffFile[]>([])
   const [threads, setThreads] = useState<Thread[]>([])
   const [loading, setLoading] = useState(true)
-  const [modal, setModal] = useState<ThreadModal | null>(null)
+  const [modal, setModal] = useState<Modal | null>(null)
   const [inputBody, setInputBody] = useState('')
   const [threadCursor, setThreadCursor] = useState(0)
 
@@ -53,14 +60,37 @@ export function MRDetail({
   useEffect(() => { load() }, [load])
 
   useInput((input, key) => {
-    if (modal) return
+    if (modal) {
+      if (modal.type === 'merge-confirm') {
+        if (input === 'y' && onMerge) {
+          onMerge()
+            .then(() => load())
+            .catch((e: unknown) => setModal({ type: 'error', message: String(e) }))
+          setModal(null)
+        }
+        if (input === 'n' || key.escape) setModal(null)
+      }
+      if (modal.type === 'error') {
+        if (input === 'q' || key.escape) setModal(null)
+      }
+      return
+    }
 
     if (key.tab) setTab((t) => (t === 'files' ? 'threads' : 'files'))
-    if (input === 'r' && tab !== 'threads') load()
     if (input === 'b' && onOpenInBrowser) onOpenInBrowser()
     if (input === 'S' && onSubmitReview) onSubmitReview()
     if (input === 'm' && onAddMRComment) { setModal({ type: 'mr-comment' }); setInputBody('') }
     if (input === 'q' || key.escape) onBack()
+
+    if (input === 'a' && onApprove) {
+      onApprove()
+        .then(() => load())
+        .catch((e: unknown) => setModal({ type: 'error', message: String(e) }))
+    }
+
+    if (input === 'M' && onMerge) {
+      setModal({ type: 'merge-confirm' })
+    }
 
     if (tab === 'threads' && threads.length > 0) {
       if (input === 'j' || key.downArrow) setThreadCursor((c) => Math.min(c + 1, threads.length - 1))
@@ -74,7 +104,9 @@ export function MRDetail({
       if (input === 'R' && onResolveThread) {
         const t = threads[threadCursor]
         if (t) {
-          onResolveThread(t.id, !t.resolved).then(() => load()).catch(() => undefined)
+          onResolveThread(t.id, !t.resolved)
+            .then(() => load())
+            .catch((e: unknown) => setModal({ type: 'error', message: String(e) }))
         }
       }
 
@@ -88,6 +120,24 @@ export function MRDetail({
 
   const pipeline = mr.pipeline ? (PIPELINE_ICON[mr.pipeline.status] ?? '?') : '–'
 
+  if (modal?.type === 'merge-confirm') {
+    return (
+      <Box flexDirection="column" gap={1}>
+        <Text bold>Merge MR: {mr.title}</Text>
+        <Text>Are you sure you want to merge this MR? <Text bold>(y/n)</Text></Text>
+      </Box>
+    )
+  }
+
+  if (modal?.type === 'error') {
+    return (
+      <Box flexDirection="column" gap={1}>
+        <Text color="red">Error: {modal.message}</Text>
+        <Text dimColor>q / Esc: dismiss</Text>
+      </Box>
+    )
+  }
+
   if (modal?.type === 'reply') {
     const thread = modal.thread
     return (
@@ -99,7 +149,9 @@ export function MRDetail({
           onChange={setInputBody}
           onSubmit={(body) => {
             if (body.trim() && onReplyToThread) {
-              onReplyToThread(thread.id, body.trim()).then(() => load()).catch(() => undefined)
+              onReplyToThread(thread.id, body.trim())
+                .then(() => load())
+                .catch((e: unknown) => setModal({ type: 'error', message: String(e) }))
             }
             setModal(null)
             setInputBody('')
@@ -154,7 +206,7 @@ export function MRDetail({
           Threads ({threads.filter((t) => !t.resolved).length} open)
         </Text>
         <Box gap={2}>
-          <Text dimColor>Tab: switch  b: browser  m: comment  q: back</Text>
+          <Text dimColor>Tab: switch  a: approve  M: merge  b: browser  m: comment  q: back</Text>
           {draftCount > 0 && (
             <Text color="yellow">● {draftCount} draft{draftCount > 1 ? 's' : ''}  S: submit review</Text>
           )}
