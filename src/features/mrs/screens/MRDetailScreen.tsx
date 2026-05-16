@@ -96,8 +96,8 @@ export function MRDetailScreen({ leftWidth, rightWidth, mr, account, projectPath
     [client, projectPath],
   )
   const makeInstantComments = useCallback((iid: number) =>
-    createInstantCommentService(createInstantCommentsAPI(client, account.url, account.token, projectPath, iid)),
-    [client, account.url, account.token, projectPath],
+    createInstantCommentService(createInstantCommentsAPI(client, projectPath, iid)),
+    [client, projectPath],
   )
   const makeThreadActions = useCallback((iid: number) =>
     createThreadActionsService(createThreadActionsAPIImpl(client, projectPath, iid)),

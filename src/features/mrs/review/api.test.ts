@@ -1,5 +1,5 @@
 import { describe, it, expect, vi } from 'vitest'
-import { createDraftNotesAPI, createThreadActionsAPIImpl } from './api.js'
+import { createDraftNotesAPI, createInstantCommentsAPI, createThreadActionsAPIImpl } from './api.js'
 import type { GitLabClient } from '../../../core/gitlab/index.js'
 
 function makeClient(): GitLabClient {
@@ -15,6 +15,7 @@ function makeClient(): GitLabClient {
     },
     MergeRequestDiscussions: {
       addNote: vi.fn().mockResolvedValue(undefined),
+      create: vi.fn().mockResolvedValue(undefined),
       editNote: vi.fn().mockResolvedValue(undefined),
     },
   } as unknown as GitLabClient
@@ -68,6 +69,36 @@ describe('createDraftNotesAPI', () => {
 
     expect(client.MergeRequestNotes.create).toHaveBeenCalledWith('group/project', 7, 'Review summary')
     expect(client.MergeRequestDraftNotes.publishBulk).toHaveBeenCalledWith('group/project', 7)
+  })
+})
+
+describe('createInstantCommentsAPI', () => {
+  it('posts inline comments through the SDK with camelized position fields', async () => {
+    const client = makeClient()
+    const api = createInstantCommentsAPI(client, 'group/project', 7)
+
+    await api.postInlineComment('Looks wrong', {
+      baseSha: 'base',
+      headSha: 'head',
+      startSha: 'start',
+      oldPath: 'src/foo.ts',
+      newPath: 'src/foo.ts',
+      oldLine: null,
+      newLine: 10,
+      positionType: 'text',
+    })
+
+    expect(client.MergeRequestDiscussions.create).toHaveBeenCalledWith('group/project', 7, 'Looks wrong', {
+      position: {
+        baseSha: 'base',
+        headSha: 'head',
+        startSha: 'start',
+        oldPath: 'src/foo.ts',
+        newPath: 'src/foo.ts',
+        newLine: 10,
+        positionType: 'text',
+      },
+    })
   })
 })
 

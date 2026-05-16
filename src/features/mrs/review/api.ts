@@ -1,5 +1,4 @@
 import { createHash } from 'node:crypto'
-import { appendFileSync } from 'node:fs'
 import type { GitLabClient } from '../../../core/gitlab/index.js'
 import type { CommentPosition, LineRange } from '../diff/position.js'
 import type { DraftComment, DraftNotesAPI } from './session.js'
@@ -22,36 +21,31 @@ function parseLineCode(lc: string): { oldLine: number | null; newLine: number | 
   }
 }
 
-function makeHeaders(token: string) {
-  return { 'PRIVATE-TOKEN': token, 'Content-Type': 'application/json' }
-}
-
-async function request<T>(
-  baseUrl: string,
-  token: string,
-  method: string,
-  path: string,
-  body?: unknown,
-): Promise<T> {
-  if (process.env['GITLAB_TUI_DEBUG']) {
-    appendFileSync('/tmp/gitlab-tui.log', `${method} ${path}\n${JSON.stringify(body, null, 2)}\n\n`)
+function toDiscussionPosition(position: CommentPosition): Record<string, unknown> {
+  const pos: Record<string, unknown> = {
+    baseSha: position.baseSha,
+    headSha: position.headSha,
+    startSha: position.startSha,
+    oldPath: position.oldPath,
+    newPath: position.newPath,
+    positionType: position.positionType,
   }
-  const res = await fetch(`${baseUrl}/api/v4${path}`, {
-    method,
-    headers: makeHeaders(token),
-    body: body !== undefined ? JSON.stringify(body) : undefined,
-  })
-  if (!res.ok) {
-    const text = await res.text()
-    if (process.env['GITLAB_TUI_DEBUG']) appendFileSync('/tmp/gitlab-tui.log', `ERROR ${res.status}: ${text}\n\n`)
-    throw new Error(`GitLab API error ${res.status}: ${text}`)
+  if (position.oldLine != null) pos['oldLine'] = position.oldLine
+  if (position.newLine != null) pos['newLine'] = position.newLine
+  if (position.lineRange) {
+    const lr = position.lineRange
+    pos['lineRange'] = {
+      start: {
+        type: lr.startNewLine != null ? 'new' : 'old',
+        lineCode: fileLineCode(position.newPath, lr.startOldLine, lr.startNewLine),
+      },
+      end: {
+        type: lr.endNewLine != null ? 'new' : 'old',
+        lineCode: fileLineCode(position.newPath, lr.endOldLine, lr.endNewLine),
+      },
+    }
   }
-  if (res.status === 204) return undefined as T
-  const data = await res.json() as T
-  if (process.env['GITLAB_TUI_DEBUG'] && method !== 'GET') {
-    appendFileSync('/tmp/gitlab-tui.log', `RESPONSE: ${JSON.stringify(data, null, 2)}\n\n`)
-  }
-  return data
+  return pos
 }
 
 function rawToDraft(raw: Record<string, unknown>): DraftComment {
@@ -97,35 +91,8 @@ export function createDraftNotesAPI(
   projectPath: string,
   mrIid: number,
 ): DraftNotesAPI {
-  function toDraftPosition(position: CommentPosition): Record<string, unknown> {
-    const pos: Record<string, unknown> = {
-      baseSha: position.baseSha,
-      headSha: position.headSha,
-      startSha: position.startSha,
-      oldPath: position.oldPath,
-      newPath: position.newPath,
-      oldLine: position.oldLine,
-      newLine: position.newLine,
-      positionType: position.positionType,
-    }
-    if (position.lineRange) {
-      const lr = position.lineRange
-      pos['lineRange'] = {
-        start: {
-          type: lr.startNewLine != null ? 'new' : 'old',
-          lineCode: fileLineCode(position.newPath, lr.startOldLine, lr.startNewLine),
-        },
-        end: {
-          type: lr.endNewLine != null ? 'new' : 'old',
-          lineCode: fileLineCode(position.newPath, lr.endOldLine, lr.endNewLine),
-        },
-      }
-    }
-    return pos
-  }
-
   async function create(body: string, position?: CommentPosition | null): Promise<DraftComment> {
-    const options = position ? { position: toDraftPosition(position) } : undefined
+    const options = position ? { position: toDiscussionPosition(position) } : undefined
     const raw = await client.MergeRequestDraftNotes.create(projectPath, mrIid, body, options as never)
     return rawToDraft(raw as Record<string, unknown>)
   }
@@ -161,41 +128,13 @@ export function createDraftNotesAPI(
 
 export function createInstantCommentsAPI(
   client: GitLabClient,
-  baseUrl: string,
-  token: string,
   projectPath: string,
   mrIid: number,
 ): InstantCommentsAPI {
-  const projectId = encodeURIComponent(projectPath)
-
   async function postInlineComment(body: string, position: CommentPosition): Promise<void> {
-    const pos: Record<string, unknown> = {
-      base_sha: position.baseSha,
-      head_sha: position.headSha,
-      start_sha: position.startSha,
-      old_path: position.oldPath,
-      new_path: position.newPath,
-      position_type: 'text',
-    }
-    if (position.oldLine != null) pos['old_line'] = position.oldLine
-    if (position.newLine != null) pos['new_line'] = position.newLine
-    if (position.lineRange) {
-      const lr = position.lineRange
-      pos['line_range'] = {
-        start: {
-          type: lr.startNewLine != null ? 'new' : 'old',
-          line_code: fileLineCode(position.newPath, lr.startOldLine, lr.startNewLine),
-        },
-        end: {
-          type: lr.endNewLine != null ? 'new' : 'old',
-          line_code: fileLineCode(position.newPath, lr.endOldLine, lr.endNewLine),
-        },
-      }
-    }
-    await request(baseUrl, token, 'POST',
-      `/projects/${projectId}/merge_requests/${mrIid}/discussions`,
-      { body, position: pos },
-    )
+    await client.MergeRequestDiscussions.create(projectPath, mrIid, body, {
+      position: toDiscussionPosition(position),
+    } as never)
   }
 
   async function postMRComment(body: string): Promise<void> {

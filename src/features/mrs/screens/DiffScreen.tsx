@@ -92,8 +92,8 @@ export function DiffScreen({
     [client, projectPath, activeMR.iid],
   )
   const instantComments = useMemo(
-    () => createInstantCommentService(createInstantCommentsAPI(client, account.url, account.token, projectPath, activeMR.iid)),
-    [client, account.url, account.token, projectPath, activeMR.iid],
+    () => createInstantCommentService(createInstantCommentsAPI(client, projectPath, activeMR.iid)),
+    [client, projectPath, activeMR.iid],
   )
   const threadActions = useMemo(
     () => createThreadActionsService(createThreadActionsAPIImpl(client, projectPath, activeMR.iid)),
