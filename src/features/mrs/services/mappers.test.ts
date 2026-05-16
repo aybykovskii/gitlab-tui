@@ -17,6 +17,7 @@ const makeRawThread = (overrides = {}) => ({
   id: 'thread-1',
   notes: [
     {
+      id: 1,
       author: { name: 'Alice', username: 'alice' },
       body: 'Looks good',
       position: null,
@@ -26,6 +27,27 @@ const makeRawThread = (overrides = {}) => ({
 })
 
 describe('mapThread', () => {
+  it('preserves note IDs from GitLab discussions', () => {
+    const result = mapThread(
+      makeRawThread({
+        notes: [
+          {
+            id: 123,
+            author: { name: 'Alice', username: 'alice' },
+            body: 'Looks good',
+            position: null,
+          },
+        ],
+      }) as any,
+    )
+
+    expect(result.notes[0]).toEqual({
+      id: 123,
+      author: { name: 'Alice', username: 'alice' },
+      body: 'Looks good',
+    })
+  })
+
   it('maps resolved thread with author and first note', () => {
     const result = mapThread({ ...makeRawThread(), resolved: true } as any)
     expect(result.resolved).toBe(true)
@@ -42,6 +64,7 @@ describe('mapThread', () => {
     const raw = makeRawThread({
       notes: [
         {
+          id: 1,
           author: { name: 'Alice', username: 'alice' },
           body: 'Why this?',
           position: { new_path: 'src/foo.ts', old_line: null, new_line: 42 },

@@ -42,6 +42,7 @@ export interface DiffPosition {
 }
 
 export interface ThreadNote {
+  id: number
   author: { name: string; username: string }
   body: string
 }

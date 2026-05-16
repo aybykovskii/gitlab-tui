@@ -12,6 +12,7 @@ interface RawDiff {
 }
 
 interface RawNote {
+  id: number
   author: { name: string; username: string }
   body: string
   position: {
@@ -64,6 +65,7 @@ export function mapThread(raw: RawThread): Thread {
     : null
 
   const notes: ThreadNote[] = raw.notes.map((n) => ({
+    id: n.id,
     author: { name: n.author.name, username: n.author.username },
     body: n.body,
   }))
