@@ -1,89 +1,70 @@
 #!/usr/bin/env node
-import React, { useState, useEffect } from 'react'
+import React, { useState } from 'react'
 import { render } from 'ink'
 import { createConfigManager, SetupWizard } from './core/config/index.js'
-import { createGitRemoteDetector, ProjectSelect } from './core/git/index.js'
+import { createGitRemoteDetector } from './core/git/index.js'
 import { createGitLabClient, listUserProjects } from './core/gitlab/index.js'
-import type { Account } from './core/config/types.js'
-import { parseDeepLink } from './core/router/index.js'
-import { MRSplitView } from './features/mrs/screens/MRSplitView.js'
-import type { Config } from './core/config/index.js'
-import type { DetectedProject } from './core/git/index.js'
 import { ThemeProvider } from './core/theme/index.js'
+import { Navigator } from './core/navigation/index.js'
+import { HomeScreen } from './features/home/HomeScreen.js'
+import type { Config } from './core/config/types.js'
+import type { Screen, ScreenProps } from './core/navigation/types.js'
+import { Text } from 'ink'
 
 import './features/mrs/index.js'
 import './features/pipelines/index.js'
 
 const configManager = createConfigManager()
-const deepLink = parseDeepLink(process.argv.slice(2))
+
+function ProjectScreenPlaceholder(_: ScreenProps) {
+  return <Text>Project Screen (coming soon)</Text>
+}
+
+function buildInitialScreen(config: Config): Screen {
+  const detected = createGitRemoteDetector(config).detect()
+  const defaultAccount = config.accounts.find((a) => a.name === config.defaultAccount)
+    ?? config.accounts[0]
+
+  const loadProjects = defaultAccount
+    ? () => listUserProjects(createGitLabClient(defaultAccount), defaultAccount.name)
+    : undefined
+
+  if (detected) {
+    return {
+      id: 'project',
+      component: ProjectScreenPlaceholder,
+      props: { project: detected, config },
+    }
+  }
+
+  return {
+    id: 'home',
+    component: HomeScreen,
+    props: { config, configManager: { saveConfig: (c: Config) => configManager.saveConfig(c) }, loadProjects },
+  }
+}
 
 function App() {
   const [config, setConfig] = useState<Config | null>(
     configManager.configExists() ? configManager.getConfig() : null,
   )
-  const [project, setProject] = useState<DetectedProject | null>(null)
-
-  useEffect(() => {
-    if (config && !project) {
-      const detected = createGitRemoteDetector(config).detect()
-      if (detected) setProject(detected)
-    }
-  }, [config])
 
   if (!config) {
-    return <SetupWizard onComplete={setConfig} />
-  }
-
-  if (!project) {
-    const detected = createGitRemoteDetector(config).detect()
-    if (detected) return null
-
-    const defaultAccount = config.accounts.find((a) => a.name === config.defaultAccount)
-      ?? config.accounts[0]
-
-    const loadProjects = defaultAccount
-      ? () => listUserProjects(createGitLabClient(defaultAccount), defaultAccount.name)
-      : undefined
-
     return (
-      <ProjectSelect
-        recentProjects={config.recentProjects}
-        accounts={config.accounts}
-        loadProjects={loadProjects}
-        onSelect={(p) => {
-          const updated = {
-            ...config,
-            recentProjects: [
-              { accountName: p.account.name, projectPath: p.projectPath, localPath: p.localPath || undefined },
-              ...config.recentProjects.filter((r) => r.projectPath !== p.projectPath),
-            ],
-          }
-          configManager.saveConfig(updated)
-          setConfig(updated)
-          setProject(p)
-        }}
-      />
+      <ThemeProvider>
+        <SetupWizard onComplete={(c) => { configManager.saveConfig(c); setConfig(c) }} />
+      </ThemeProvider>
     )
   }
 
   return (
-    <MRSplitView
-      account={project.account}
-      projectPath={project.projectPath}
-      localPath={project.localPath || undefined}
-      editor={config.editor}
-      initialMRState={deepLink.type === 'mr-detail' ? 'opened' : 'opened'}
-    />
-  )
-}
-
-function Root() {
-  const config = configManager.configExists() ? configManager.getConfig() : null
-  return (
-    <ThemeProvider theme={config?.theme}>
-      <App />
+    <ThemeProvider theme={config.theme}>
+      <Navigator
+        initialScreen={buildInitialScreen(config)}
+        leftColumnWidth={config.ui?.leftColumnWidth}
+      />
     </ThemeProvider>
   )
 }
 
-render(<Root />)
+render(<App />)
