@@ -67,3 +67,28 @@
 **Deep Link** — аргумент командной строки, открывающий TUI сразу на конкретном экране: `gitlab-tui mr 123`.
 
 **Manual Refresh** — ручное обновление данных с GitLab API по клавише `r`. Авто-поллинг не используется.
+
+## UI layout
+
+**Navigator** — корневой компонент, управляющий Navigation Stack. Рендерит Left Panel, Right Panel и Status Bar. Предоставляет NavigationContext.
+
+**Navigation Stack** — массив Screen'ов. Текущий экран = последний элемент. `push()` — переход вглубь, `pop()` — возврат (q/Esc). Переход = полная перерисовка без анимации.
+
+**Screen** — единица навигации: `{ id: string, component: ComponentType<ScreenProps>, props? }`. Компонент рендерит обе панели сам, координируя состояние между ними.
+
+**Left Panel** — левая колонка: контекст уровня N-1 (замороженный, без фокуса). Обновляется реактивно при смене выбора в Right Panel (например, подсветка текущего файла). Ширина задаётся через `ui.leftColumnWidth` в Config (default: 30%).
+
+**Right Panel** — правая колонка: активный уровень N с фокусом. Занимает оставшиеся 70% ширины терминала (или `100 - ui.leftColumnWidth`%).
+
+**NavigationContext** — React-контекст, доступный любому компоненту внутри Screen. API: `push(screen)`, `pop()`, `setHints(hints)`.
+
+**Status Bar** — двухстрочная полоса снизу, вне Screen'ов. Первая строка: контекстные хоткеи текущего Screen (задаются через `setHints()`). Вторая строка: глобальные хоткеи (q = назад, всегда видны).
+
+**Theme** — набор смысловых цветовых токенов: `primary`, `secondary`, `success`, `warning`, `error`, `muted`, `border`. Загружается из `Config.theme` (имя пресета или объект с переопределениями). Доступен через `ThemeContext` + `useTheme()`. Встроенные пресеты: `default`, `dracula`, `nord`.
+
+**Navigation Tree** — дерево экранов приложения:
+- HomeScreen: Left = info о приложении, Right = выбор Project
+- ProjectScreen: Left = список Project (selected), Right = выбор раздела (MRs / Issues / Pipelines)
+- MRListScreen: Left = список разделов (selected), Right = список MR
+- MRDetailScreen: Left = список MR (selected), Right = детали MR
+- DiffScreen: Left = список файлов MR (active file highlighted), Right = Diff View

@@ -9,6 +9,7 @@ import { parseDeepLink } from './core/router/index.js'
 import { MRSplitView } from './features/mrs/screens/MRSplitView.js'
 import type { Config } from './core/config/index.js'
 import type { DetectedProject } from './core/git/index.js'
+import { ThemeProvider } from './core/theme/index.js'
 
 import './features/mrs/index.js'
 import './features/pipelines/index.js'
@@ -76,4 +77,13 @@ function App() {
   )
 }
 
-render(<App />)
+function Root() {
+  const config = configManager.configExists() ? configManager.getConfig() : null
+  return (
+    <ThemeProvider theme={config?.theme}>
+      <App />
+    </ThemeProvider>
+  )
+}
+
+render(<Root />)

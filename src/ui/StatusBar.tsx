@@ -1,5 +1,6 @@
 import React from 'react'
 import { Box, Text } from 'ink'
+import { useTheme } from '../core/theme/index.js'
 
 export interface Hint {
   key: string
@@ -11,12 +12,13 @@ interface Props {
 }
 
 export function StatusBar({ hints }: Props) {
+  const theme = useTheme()
   return (
-    <Box borderStyle="single" borderColor="gray" paddingX={1} gap={2} flexWrap="wrap">
+    <Box borderStyle="single" borderColor={theme.border} paddingX={1} gap={2} flexWrap="wrap">
       {hints.map((h) => (
         <Text key={h.key}>
-          <Text bold color="cyan">{h.key}</Text>
-          <Text dimColor>: {h.label}</Text>
+          <Text bold color={theme.primary}>{h.key}</Text>
+          <Text color={theme.muted}>: {h.label}</Text>
         </Text>
       ))}
     </Box>

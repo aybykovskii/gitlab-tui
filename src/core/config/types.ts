@@ -15,4 +15,8 @@ export interface Config {
   defaultAccount: string
   recentProjects: RecentProject[]
   editor: string
+  theme?: string | Record<string, string>
+  ui?: {
+    leftColumnWidth?: number
+  }
 }
