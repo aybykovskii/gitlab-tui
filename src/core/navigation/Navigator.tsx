@@ -9,17 +9,19 @@ const GLOBAL_HINTS: Hint[] = [{ key: 'q', label: 'назад' }]
 const DEFAULT_LEFT_PERCENT = 30
 
 interface Props {
-  initialScreen: Screen
+  initialScreen?: Screen
+  initialStack?: Screen[]
   leftColumnWidth?: number
 }
 
-export function Navigator({ initialScreen, leftColumnWidth = DEFAULT_LEFT_PERCENT }: Props) {
+export function Navigator({ initialScreen, initialStack, leftColumnWidth = DEFAULT_LEFT_PERCENT }: Props) {
   const { stdout } = useStdout()
   const totalWidth = stdout?.columns ?? 80
   const leftWidth = Math.floor((totalWidth * leftColumnWidth) / 100)
   const rightWidth = totalWidth - leftWidth
 
-  const [stack, setStack] = useState<Screen[]>([initialScreen])
+  const startStack = initialStack ?? (initialScreen ? [initialScreen] : [])
+  const [stack, setStack] = useState<Screen[]>(startStack)
   const [hints, setHints] = useState<Hint[]>([])
   const theme = useTheme()
 
