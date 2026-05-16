@@ -88,8 +88,8 @@ export function DiffScreen({
   const client = useMemo(() => createGitLabClient(account), [account.url, account.token])
 
   const draftSession = useMemo(
-    () => createReviewSession(createDraftNotesAPI(account.url, account.token, projectPath, activeMR.iid)),
-    [account.url, account.token, projectPath, activeMR.iid],
+    () => createReviewSession(createDraftNotesAPI(client, projectPath, activeMR.iid)),
+    [client, projectPath, activeMR.iid],
   )
   const instantComments = useMemo(
     () => createInstantCommentService(createInstantCommentsAPI(client, account.url, account.token, projectPath, activeMR.iid)),

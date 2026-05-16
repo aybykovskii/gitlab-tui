@@ -92,8 +92,8 @@ export function MRDetailScreen({ leftWidth, rightWidth, mr, account, projectPath
   )
 
   const makeDraftSession = useCallback((iid: number) =>
-    createReviewSession(createDraftNotesAPI(account.url, account.token, projectPath, iid)),
-    [account.url, account.token, projectPath],
+    createReviewSession(createDraftNotesAPI(client, projectPath, iid)),
+    [client, projectPath],
   )
   const makeInstantComments = useCallback((iid: number) =>
     createInstantCommentService(createInstantCommentsAPI(client, account.url, account.token, projectPath, iid)),

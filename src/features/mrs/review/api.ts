@@ -93,65 +93,62 @@ function rawToDraft(raw: Record<string, unknown>): DraftComment {
 }
 
 export function createDraftNotesAPI(
-  baseUrl: string,
-  token: string,
+  client: GitLabClient,
   projectPath: string,
   mrIid: number,
 ): DraftNotesAPI {
-  const projectId = encodeURIComponent(projectPath)
-  const endpoint = `/projects/${projectId}/merge_requests/${mrIid}/draft_notes`
+  function toDraftPosition(position: CommentPosition): Record<string, unknown> {
+    const pos: Record<string, unknown> = {
+      baseSha: position.baseSha,
+      headSha: position.headSha,
+      startSha: position.startSha,
+      oldPath: position.oldPath,
+      newPath: position.newPath,
+      oldLine: position.oldLine,
+      newLine: position.newLine,
+      positionType: position.positionType,
+    }
+    if (position.lineRange) {
+      const lr = position.lineRange
+      pos['lineRange'] = {
+        start: {
+          type: lr.startNewLine != null ? 'new' : 'old',
+          lineCode: fileLineCode(position.newPath, lr.startOldLine, lr.startNewLine),
+        },
+        end: {
+          type: lr.endNewLine != null ? 'new' : 'old',
+          lineCode: fileLineCode(position.newPath, lr.endOldLine, lr.endNewLine),
+        },
+      }
+    }
+    return pos
+  }
 
   async function create(body: string, position?: CommentPosition | null): Promise<DraftComment> {
-    const payload: Record<string, unknown> = { note: body }
-    if (position) {
-      const pos: Record<string, unknown> = {
-        base_sha: position.baseSha,
-        head_sha: position.headSha,
-        start_sha: position.startSha,
-        old_path: position.oldPath,
-        new_path: position.newPath,
-        old_line: position.oldLine,
-        new_line: position.newLine,
-        position_type: position.positionType,
-      }
-      if (position.lineRange) {
-        const lr = position.lineRange
-        pos['line_range'] = {
-          start: {
-            type: lr.startNewLine != null ? 'new' : 'old',
-            line_code: fileLineCode(position.newPath, lr.startOldLine, lr.startNewLine),
-          },
-          end: {
-            type: lr.endNewLine != null ? 'new' : 'old',
-            line_code: fileLineCode(position.newPath, lr.endOldLine, lr.endNewLine),
-          },
-        }
-      }
-      payload.position = pos
-    }
-    const raw = await request<Record<string, unknown>>(baseUrl, token, 'POST', endpoint, payload)
-    return rawToDraft(raw)
+    const options = position ? { position: toDraftPosition(position) } : undefined
+    const raw = await client.MergeRequestDraftNotes.create(projectPath, mrIid, body, options as never)
+    return rawToDraft(raw as Record<string, unknown>)
   }
 
   async function createReply(discussionId: string, body: string): Promise<DraftComment> {
-    const raw = await request<Record<string, unknown>>(baseUrl, token, 'POST', endpoint, {
-      note: body,
-      discussion_id: discussionId,
-    })
-    return rawToDraft(raw)
+    const raw = await client.MergeRequestDraftNotes.create(projectPath, mrIid, body, {
+      inReplyToDiscussionId: discussionId,
+    } as never)
+    return rawToDraft(raw as Record<string, unknown>)
   }
 
   async function list(): Promise<DraftComment[]> {
-    const raws = await request<Record<string, unknown>[]>(baseUrl, token, 'GET', endpoint)
-    return raws.map(rawToDraft)
+    const raws = await client.MergeRequestDraftNotes.all(projectPath, mrIid)
+    return (raws as Record<string, unknown>[]).map(rawToDraft)
   }
 
   async function publishAll(summary?: string): Promise<void> {
-    await request(baseUrl, token, 'POST', `${endpoint}/bulk_publish`, summary ? { note: summary } : {})
+    if (summary) await client.MergeRequestNotes.create(projectPath, mrIid, summary)
+    await client.MergeRequestDraftNotes.publishBulk(projectPath, mrIid)
   }
 
   async function remove(id: number): Promise<void> {
-    await request(baseUrl, token, 'DELETE', `${endpoint}/${id}`)
+    await client.MergeRequestDraftNotes.remove(projectPath, mrIid, id)
   }
 
   async function removeAll(): Promise<void> {
