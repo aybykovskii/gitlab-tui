@@ -11,6 +11,7 @@ import { createReviewSession } from '../review/session.js'
 import { createInstantCommentService } from '../review/instant.js'
 import { createThreadActionsService } from '../review/threadActions.js'
 import { createGitLabClient } from '../../../core/gitlab/index.js'
+import { DiffScreen } from './DiffScreen.js'
 import { useNavigation } from '../../../core/navigation/index.js'
 import { useTheme } from '../../../core/theme/index.js'
 import type { Account } from '../../../core/config/types.js'
@@ -32,9 +33,6 @@ interface MRDetailScreenProps extends ScreenProps {
   editor?: string
 }
 
-function DiffScreenPlaceholder(_: ScreenProps) {
-  return <Text>Diff View (coming soon)</Text>
-}
 
 function buildDraftData(drafts: DraftComment[], file: DiffFile) {
   const map = new Map<number, string[]>()
@@ -147,13 +145,19 @@ export function MRDetailScreen({ leftWidth, rightWidth, mr, account, projectPath
     const { draftComments, draftRangeLines } = buildDraftData(drafts, file)
     push({
       id: 'diff',
-      component: DiffScreenPlaceholder,
+      component: DiffScreen,
       props: {
-        file, fileIndex: index, files,
-        draftComments, draftRangeLines,
-        threadComments: buildThreadMap(fileThreads),
-        fileThreads,
-        activeMR, account, projectPath, localPath, editor,
+        files,
+        initialFileIndex: index,
+        activeMR,
+        account,
+        projectPath,
+        localPath,
+        editor,
+        allThreads: threads,
+        initialDraftComments: draftComments,
+        initialDraftRangeLines: draftRangeLines,
+        initialThreadComments: buildThreadMap(fileThreads),
       },
     })
   }
