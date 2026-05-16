@@ -96,8 +96,8 @@ export function DiffScreen({
     [client, account.url, account.token, projectPath, activeMR.iid],
   )
   const threadActions = useMemo(
-    () => createThreadActionsService(createThreadActionsAPIImpl(client, account.url, account.token, projectPath, activeMR.iid)),
-    [client, account.url, account.token, projectPath, activeMR.iid],
+    () => createThreadActionsService(createThreadActionsAPIImpl(client, projectPath, activeMR.iid)),
+    [client, projectPath, activeMR.iid],
   )
 
   const openInEditor = localPath
@@ -172,7 +172,7 @@ export function DiffScreen({
                 setDraftCount(all.length)
               })
             }
-            onResolveThread={(id, resolved) => threadActions.resolveThread(id, resolved)}
+            onResolveThread={(id, noteId, resolved) => threadActions.resolveThread(id, noteId, resolved)}
             onOpenInEditor={openInEditor}
             onPrevFile={currentFileIndex > 0 ? () => goToFile(currentFileIndex - 1) : undefined}
             onNextFile={currentFileIndex < files.length - 1 ? () => goToFile(currentFileIndex + 1) : undefined}

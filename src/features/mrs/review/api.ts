@@ -207,20 +207,15 @@ export function createInstantCommentsAPI(
 
 export function createThreadActionsAPIImpl(
   client: GitLabClient,
-  baseUrl: string,
-  token: string,
   projectPath: string,
   mrIid: number,
 ): ThreadActionsAPI {
-  const projectId = encodeURIComponent(projectPath)
-  const mrBase = `/projects/${projectId}/merge_requests/${mrIid}`
-
   async function replyToThread(discussionId: string, body: string): Promise<void> {
     await client.MergeRequestDiscussions.addNote(projectPath, mrIid, discussionId, body)
   }
 
-  async function resolveThread(discussionId: string, resolved: boolean): Promise<void> {
-    await request(baseUrl, token, 'PUT', `${mrBase}/discussions/${discussionId}`, { resolved })
+  async function resolveThread(discussionId: string, noteId: number, resolved: boolean): Promise<void> {
+    await client.MergeRequestDiscussions.editNote(projectPath, mrIid, discussionId, noteId, { resolved })
   }
 
   return { replyToThread, resolveThread }

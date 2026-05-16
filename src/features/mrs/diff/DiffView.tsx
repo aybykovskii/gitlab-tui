@@ -75,7 +75,7 @@ interface Props {
   onAddInstantComment?: (position: CommentPosition, body: string) => void
   onReplyToThread?: (threadId: string, body: string) => Promise<void>
   onDraftReplyToThread?: (threadId: string, body: string) => Promise<void>
-  onResolveThread?: (threadId: string, resolved: boolean) => Promise<void>
+  onResolveThread?: (threadId: string, noteId: number, resolved: boolean) => Promise<void>
   onOpenInEditor?: (filePath: string, line: number) => void
   onPrevFile?: () => void
   onNextFile?: () => void
@@ -159,7 +159,7 @@ export function DiffView({
       setReplyTarget(activeThread); setCommentMode('draft-reply'); setCommentBody(''); return
     }
     if (activeThread && input === 'R' && onResolveThread) {
-      onResolveThread(activeThread.id, !activeThread.resolved); return
+      onResolveThread(activeThread.id, activeThread.notes[0].id, !activeThread.resolved); return
     }
 
     if ((input === 'c' || input === 'C') && !commenting) {

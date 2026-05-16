@@ -26,17 +26,17 @@ describe('resolveThread', () => {
     const api = makeAPI()
     const service = createThreadActionsService(api)
 
-    await service.resolveThread('disc-123', true)
+    await service.resolveThread('disc-123', 456, true)
 
-    expect(api.resolveThread).toHaveBeenCalledWith('disc-123', true)
+    expect(api.resolveThread).toHaveBeenCalledWith('disc-123', 456, true)
   })
 
   it('delegates to api with resolved=false', async () => {
     const api = makeAPI()
     const service = createThreadActionsService(api)
 
-    await service.resolveThread('disc-123', false)
+    await service.resolveThread('disc-123', 456, false)
 
-    expect(api.resolveThread).toHaveBeenCalledWith('disc-123', false)
+    expect(api.resolveThread).toHaveBeenCalledWith('disc-123', 456, false)
   })
 })

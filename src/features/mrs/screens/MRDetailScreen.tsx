@@ -100,8 +100,8 @@ export function MRDetailScreen({ leftWidth, rightWidth, mr, account, projectPath
     [client, account.url, account.token, projectPath],
   )
   const makeThreadActions = useCallback((iid: number) =>
-    createThreadActionsService(createThreadActionsAPIImpl(client, account.url, account.token, projectPath, iid)),
-    [client, account.url, account.token, projectPath],
+    createThreadActionsService(createThreadActionsAPIImpl(client, projectPath, iid)),
+    [client, projectPath],
   )
 
   const openInEditor = localPath
@@ -227,7 +227,7 @@ export function MRDetailScreen({ leftWidth, rightWidth, mr, account, projectPath
             onDraftReplyToThread={(id, body) =>
               makeDraftSession(activeMR.iid).addDraftReply(id, body).then(() => loadDraftCount(activeMR.iid))
             }
-            onResolveThread={(id, resolved) => makeThreadActions(activeMR.iid).resolveThread(id, resolved)}
+            onResolveThread={(id, noteId, resolved) => makeThreadActions(activeMR.iid).resolveThread(id, noteId, resolved)}
             onOpenFileLine={openInEditor}
             onOpenInBrowser={() => { /* browser open handled via webUrl */ }}
             onBack={pop}

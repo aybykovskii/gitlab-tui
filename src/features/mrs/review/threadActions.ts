@@ -1,6 +1,6 @@
 export interface ThreadActionsAPI {
   replyToThread(discussionId: string, body: string): Promise<void>
-  resolveThread(discussionId: string, resolved: boolean): Promise<void>
+  resolveThread(discussionId: string, noteId: number, resolved: boolean): Promise<void>
 }
 
 export function createThreadActionsService(api: ThreadActionsAPI) {
@@ -8,8 +8,8 @@ export function createThreadActionsService(api: ThreadActionsAPI) {
     return api.replyToThread(discussionId, body)
   }
 
-  async function resolveThread(discussionId: string, resolved: boolean): Promise<void> {
-    return api.resolveThread(discussionId, resolved)
+  async function resolveThread(discussionId: string, noteId: number, resolved: boolean): Promise<void> {
+    return api.resolveThread(discussionId, noteId, resolved)
   }
 
   return { replyToThread, resolveThread }

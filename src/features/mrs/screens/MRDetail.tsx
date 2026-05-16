@@ -31,7 +31,7 @@ interface Props {
   onAddMRComment?: (body: string) => void
   onReplyToThread?: (discussionId: string, body: string) => Promise<void>
   onDraftReplyToThread?: (discussionId: string, body: string) => Promise<void>
-  onResolveThread?: (discussionId: string, resolved: boolean) => Promise<void>
+  onResolveThread?: (discussionId: string, noteId: number, resolved: boolean) => Promise<void>
   onOpenFileLine?: (filePath: string, line: number) => void
   onApprove?: () => Promise<void>
   onMerge?: () => Promise<void>
@@ -65,7 +65,7 @@ export function MRDetail({
         setModal({ type: 'draft-reply', thread: threadDetail }); setInputBody(''); setThreadDetail(null); return
       }
       if (input === 'R' && onResolveThread) {
-        onResolveThread(threadDetail.id, !threadDetail.resolved)
+        onResolveThread(threadDetail.id, threadDetail.notes[0].id, !threadDetail.resolved)
           .then(onReload)
           .catch((e: unknown) => setModal({ type: 'error', message: String(e) }))
         setThreadDetail(null)
@@ -127,7 +127,7 @@ export function MRDetail({
       if (input === 'R' && onResolveThread) {
         const t = threads[threadCursor]
         if (t) {
-          onResolveThread(t.id, !t.resolved)
+          onResolveThread(t.id, t.notes[0].id, !t.resolved)
             .then(onReload)
             .catch((e: unknown) => setModal({ type: 'error', message: String(e) }))
         }

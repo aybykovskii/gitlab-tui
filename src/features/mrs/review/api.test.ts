@@ -1,5 +1,5 @@
 import { describe, it, expect, vi } from 'vitest'
-import { createDraftNotesAPI } from './api.js'
+import { createDraftNotesAPI, createThreadActionsAPIImpl } from './api.js'
 import type { GitLabClient } from '../../../core/gitlab/index.js'
 
 function makeClient(): GitLabClient {
@@ -12,6 +12,10 @@ function makeClient(): GitLabClient {
     },
     MergeRequestNotes: {
       create: vi.fn().mockResolvedValue({ id: 2, body: 'summary' }),
+    },
+    MergeRequestDiscussions: {
+      addNote: vi.fn().mockResolvedValue(undefined),
+      editNote: vi.fn().mockResolvedValue(undefined),
     },
   } as unknown as GitLabClient
 }
@@ -64,5 +68,22 @@ describe('createDraftNotesAPI', () => {
 
     expect(client.MergeRequestNotes.create).toHaveBeenCalledWith('group/project', 7, 'Review summary')
     expect(client.MergeRequestDraftNotes.publishBulk).toHaveBeenCalledWith('group/project', 7)
+  })
+})
+
+describe('createThreadActionsAPIImpl', () => {
+  it('resolves threads by editing the first discussion note through the SDK', async () => {
+    const client = makeClient()
+    const api = createThreadActionsAPIImpl(client, 'group/project', 7)
+
+    await api.resolveThread('discussion-123', 456, true)
+
+    expect(client.MergeRequestDiscussions.editNote).toHaveBeenCalledWith(
+      'group/project',
+      7,
+      'discussion-123',
+      456,
+      { resolved: true },
+    )
   })
 })
