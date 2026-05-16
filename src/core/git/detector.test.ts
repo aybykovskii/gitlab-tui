@@ -41,6 +41,7 @@ describe('detect', () => {
     expect(detector.detect(tmpDir)).toEqual({
       account: config.accounts[0],
       projectPath: 'myorg/myproject',
+      localPath: tmpDir,
     })
   })
 
@@ -51,6 +52,7 @@ describe('detect', () => {
     expect(detector.detect(tmpDir)).toEqual({
       account: config.accounts[1],
       projectPath: 'myorg/myproject',
+      localPath: tmpDir,
     })
   })
 
@@ -76,6 +78,7 @@ describe('detect', () => {
     expect(detector.detect(subDir)).toEqual({
       account: config.accounts[0],
       projectPath: 'myorg/myproject',
+      localPath: tmpDir,
     })
   })
 })

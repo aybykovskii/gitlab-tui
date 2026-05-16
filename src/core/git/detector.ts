@@ -5,6 +5,7 @@ import type { Account, Config } from '../config/types.js'
 export interface DetectedProject {
   account: Account
   projectPath: string
+  localPath: string
 }
 
 function findGitConfig(cwd: string): string | null {
@@ -65,7 +66,8 @@ export function createGitRemoteDetector(config: Config) {
     const projectPath = extractProjectPath(remoteUrl)
     if (!projectPath) return null
 
-    return { account, projectPath }
+    const localPath = dirname(dirname(gitConfigPath))
+    return { account, projectPath, localPath }
   }
 
   return { detect }

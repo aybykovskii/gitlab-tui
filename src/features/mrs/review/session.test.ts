@@ -24,9 +24,11 @@ const makeDraft = (overrides: Partial<DraftComment> = {}): DraftComment => ({
 function makeAPI(overrides: Partial<DraftNotesAPI> = {}): DraftNotesAPI {
   return {
     create: vi.fn().mockResolvedValue(makeDraft()),
+    createReply: vi.fn().mockResolvedValue(makeDraft()),
     list: vi.fn().mockResolvedValue([]),
     publishAll: vi.fn().mockResolvedValue(undefined),
     remove: vi.fn().mockResolvedValue(undefined),
+    removeAll: vi.fn().mockResolvedValue(undefined),
     ...overrides,
   }
 }

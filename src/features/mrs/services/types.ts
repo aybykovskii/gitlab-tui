@@ -11,10 +11,17 @@ export interface MR {
   pipeline: { status: string } | null
 }
 
+export interface DiffRefs {
+  baseSha: string
+  headSha: string
+  startSha: string
+}
+
 export interface MRDetail extends MR {
   description: string
   approvalsRequired: number
   approvalsLeft: number
+  diffRefs: DiffRefs | null
 }
 
 export interface DiffFile {
@@ -25,6 +32,7 @@ export interface DiffFile {
   isNew: boolean
   isDeleted: boolean
   isRenamed: boolean
+  rawDiff: string
 }
 
 export interface DiffPosition {
@@ -33,10 +41,16 @@ export interface DiffPosition {
   newLine: number | null
 }
 
+export interface ThreadNote {
+  author: { name: string; username: string }
+  body: string
+}
+
 export interface Thread {
   id: string
   resolved: boolean
   author: { name: string; username: string }
   firstNote: string
   position: DiffPosition | null
+  notes: ThreadNote[]
 }

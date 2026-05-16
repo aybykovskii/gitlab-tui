@@ -51,6 +51,7 @@ export function createMRService(client: GitLabClient, projectPath: string) {
   async function getMR(iid: number): Promise<MRDetail> {
     const mr = await client.MergeRequests.show(projectPath, iid)
     const raw = mr as Record<string, unknown>
+    const rawRefs = raw.diff_refs as Record<string, string> | null
     return {
       iid: mr.iid,
       title: mr.title,
@@ -65,6 +66,9 @@ export function createMRService(client: GitLabClient, projectPath: string) {
       description: String(raw.description ?? ''),
       approvalsRequired: Number(raw.approvals_required ?? 0),
       approvalsLeft: Number(raw.approvals_left ?? 0),
+      diffRefs: rawRefs
+        ? { baseSha: rawRefs.base_sha, headSha: rawRefs.head_sha, startSha: rawRefs.start_sha }
+        : null,
     }
   }
 
@@ -140,6 +144,7 @@ export function createMRService(client: GitLabClient, projectPath: string) {
       description: String(raw['description'] ?? ''),
       approvalsRequired: Number(raw['approvals_required'] ?? 0),
       approvalsLeft: Number(raw['approvals_left'] ?? 0),
+      diffRefs: null,
     }
   }
 

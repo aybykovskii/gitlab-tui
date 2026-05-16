@@ -1,15 +1,14 @@
 #!/usr/bin/env node
-import React, { useState } from 'react'
+import React, { useState, useEffect } from 'react'
 import { render } from 'ink'
 import { createConfigManager, SetupWizard } from './core/config/index.js'
 import { createGitRemoteDetector, ProjectSelect } from './core/git/index.js'
-import { createGitLabClient } from './core/gitlab/index.js'
+import { createGitLabClient, listUserProjects } from './core/gitlab/index.js'
+import type { Account } from './core/config/types.js'
 import { parseDeepLink } from './core/router/index.js'
-import { createMRService } from './features/mrs/services/mrService.js'
-import { MRList } from './features/mrs/screens/MRList.js'
+import { MRSplitView } from './features/mrs/screens/MRSplitView.js'
 import type { Config } from './core/config/index.js'
 import type { DetectedProject } from './core/git/index.js'
-import type { MR } from './features/mrs/services/types.js'
 
 import './features/mrs/index.js'
 import './features/pipelines/index.js'
@@ -22,7 +21,13 @@ function App() {
     configManager.configExists() ? configManager.getConfig() : null,
   )
   const [project, setProject] = useState<DetectedProject | null>(null)
-  const [selectedMR, setSelectedMR] = useState<MR | null>(null)
+
+  useEffect(() => {
+    if (config && !project) {
+      const detected = createGitRemoteDetector(config).detect()
+      if (detected) setProject(detected)
+    }
+  }, [config])
 
   if (!config) {
     return <SetupWizard onComplete={setConfig} />
@@ -30,19 +35,25 @@ function App() {
 
   if (!project) {
     const detected = createGitRemoteDetector(config).detect()
-    if (detected) {
-      setProject(detected)
-      return null
-    }
+    if (detected) return null
+
+    const defaultAccount = config.accounts.find((a) => a.name === config.defaultAccount)
+      ?? config.accounts[0]
+
+    const loadProjects = defaultAccount
+      ? () => listUserProjects(createGitLabClient(defaultAccount), defaultAccount.name)
+      : undefined
+
     return (
       <ProjectSelect
         recentProjects={config.recentProjects}
         accounts={config.accounts}
+        loadProjects={loadProjects}
         onSelect={(p) => {
           const updated = {
             ...config,
             recentProjects: [
-              { accountName: p.account.name, projectPath: p.projectPath },
+              { accountName: p.account.name, projectPath: p.projectPath, localPath: p.localPath || undefined },
               ...config.recentProjects.filter((r) => r.projectPath !== p.projectPath),
             ],
           }
@@ -54,19 +65,13 @@ function App() {
     )
   }
 
-  if (selectedMR) {
-    return <>{`MR !${selectedMR.iid}: ${selectedMR.title}`}</>
-  }
-
-  const client = createGitLabClient(project.account)
-  const mrService = createMRService(client, project.projectPath)
-
   return (
-    <MRList
+    <MRSplitView
+      account={project.account}
       projectPath={project.projectPath}
-      initialState={deepLink.type === 'mr-detail' ? 'opened' : 'opened'}
-      loadMRs={(state) => mrService.listMRs({ state })}
-      onSelect={setSelectedMR}
+      localPath={project.localPath || undefined}
+      editor={config.editor}
+      initialMRState={deepLink.type === 'mr-detail' ? 'opened' : 'opened'}
     />
   )
 }

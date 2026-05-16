@@ -7,6 +7,7 @@ export interface Account {
 export interface RecentProject {
   accountName: string
   projectPath: string
+  localPath?: string
 }
 
 export interface Config {
