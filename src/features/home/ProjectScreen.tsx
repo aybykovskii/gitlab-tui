@@ -3,6 +3,7 @@ import { Box, Text } from 'ink'
 import SelectInput from 'ink-select-input'
 import { useNavigation } from '../../core/navigation/index.js'
 import { useTheme } from '../../core/theme/index.js'
+import { MRListScreen } from '../mrs/screens/MRListScreen.js'
 import type { Config } from '../../core/config/types.js'
 import type { ScreenProps } from '../../core/navigation/types.js'
 import type { DetectedProject } from '../../core/git/index.js'
@@ -28,7 +29,11 @@ export function ProjectScreen({ leftWidth, rightWidth, project, config }: Projec
 
   function handleSelect(item: { value: string }) {
     if (item.value === 'mrs') {
-      push({ id: 'mr-list', component: ComingSoonScreen, props: { project, config } })
+      push({
+        id: 'mr-list',
+        component: MRListScreen,
+        props: { account: project.account, projectPath: project.projectPath, localPath: project.localPath },
+      })
     } else {
       push({ id: item.value, component: ComingSoonScreen })
     }

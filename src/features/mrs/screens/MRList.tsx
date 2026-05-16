@@ -1,7 +1,6 @@
 import React, { useState, useEffect, useCallback } from 'react'
 import { Box, Text, useInput } from 'ink'
 import TextInput from 'ink-text-input'
-import { StatusBar } from '../../../ui/StatusBar.js'
 import { filterMRs } from '../services/filter.js'
 import type { MR, MRState } from '../services/types.js'
 
@@ -116,12 +115,6 @@ export function MRList({ projectPath, initialState = 'opened', onSelect, loadMRs
       ) : (
         <Text dimColor>{query ? 'No matches' : 'No MRs'}</Text>
       )}
-      <StatusBar hints={[
-        { key: 'j/k', label: 'navigate' },
-        { key: 'Enter', label: 'open' },
-        { key: 's', label: 'cycle state' },
-        { key: 'r', label: 'refresh' },
-      ]} />
     </Box>
   )
 }
