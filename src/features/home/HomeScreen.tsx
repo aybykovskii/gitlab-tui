@@ -3,6 +3,7 @@ import { Box, Text } from 'ink'
 import { ProjectSelect } from '../../core/git/index.js'
 import { useNavigation } from '../../core/navigation/index.js'
 import { useTheme } from '../../core/theme/index.js'
+import { ProjectScreen } from './ProjectScreen.js'
 import type { Config } from '../../core/config/types.js'
 import type { ScreenProps } from '../../core/navigation/types.js'
 import type { DetectedProject } from '../../core/git/index.js'
@@ -22,10 +23,6 @@ interface HomeScreenProps extends ScreenProps {
   configManager: { saveConfig(config: Config): void }
 }
 
-function ProjectScreenPlaceholder(_: ScreenProps) {
-  return <Text>Project Screen (coming soon)</Text>
-}
-
 export function HomeScreen({ leftWidth, rightWidth, config, configManager }: HomeScreenProps) {
   const { push } = useNavigation()
   const theme = useTheme()
@@ -39,7 +36,7 @@ export function HomeScreen({ leftWidth, rightWidth, config, configManager }: Hom
       ],
     }
     configManager.saveConfig(updated)
-    push({ id: 'project', component: ProjectScreenPlaceholder, props: { project, config: updated } })
+    push({ id: 'project', component: ProjectScreen, props: { project, config: updated } })
   }
 
   return (

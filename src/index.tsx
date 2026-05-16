@@ -7,18 +7,14 @@ import { createGitLabClient, listUserProjects } from './core/gitlab/index.js'
 import { ThemeProvider } from './core/theme/index.js'
 import { Navigator } from './core/navigation/index.js'
 import { HomeScreen } from './features/home/HomeScreen.js'
+import { ProjectScreen } from './features/home/ProjectScreen.js'
 import type { Config } from './core/config/types.js'
-import type { Screen, ScreenProps } from './core/navigation/types.js'
-import { Text } from 'ink'
+import type { Screen } from './core/navigation/types.js'
 
 import './features/mrs/index.js'
 import './features/pipelines/index.js'
 
 const configManager = createConfigManager()
-
-function ProjectScreenPlaceholder(_: ScreenProps) {
-  return <Text>Project Screen (coming soon)</Text>
-}
 
 function buildInitialScreen(config: Config): Screen {
   const detected = createGitRemoteDetector(config).detect()
@@ -32,7 +28,7 @@ function buildInitialScreen(config: Config): Screen {
   if (detected) {
     return {
       id: 'project',
-      component: ProjectScreenPlaceholder,
+      component: ProjectScreen,
       props: { project: detected, config },
     }
   }
