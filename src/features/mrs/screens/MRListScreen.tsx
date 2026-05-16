@@ -1,6 +1,7 @@
 import React, { useEffect, useMemo } from 'react'
 import { Box, Text } from 'ink'
 import { MRList } from './MRList.js'
+import { MRDetailScreen } from './MRDetailScreen.js'
 import { createMRService } from '../services/mrService.js'
 import { createGitLabClient } from '../../../core/gitlab/index.js'
 import { useNavigation } from '../../../core/navigation/index.js'
@@ -22,10 +23,6 @@ interface MRListScreenProps extends ScreenProps {
   editor?: string
 }
 
-function MRDetailScreenPlaceholder(_: ScreenProps) {
-  return <Text>MR Detail (coming soon)</Text>
-}
-
 export function MRListScreen({ leftWidth, rightWidth, account, projectPath, localPath, editor }: MRListScreenProps) {
   const { push, setHints } = useNavigation()
   const theme = useTheme()
@@ -45,7 +42,7 @@ export function MRListScreen({ leftWidth, rightWidth, account, projectPath, loca
   function handleSelectMR(mr: MR) {
     push({
       id: 'mr-detail',
-      component: MRDetailScreenPlaceholder,
+      component: MRDetailScreen,
       props: { mr, account, projectPath, localPath, editor },
     })
   }
