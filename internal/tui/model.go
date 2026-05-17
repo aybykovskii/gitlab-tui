@@ -22,6 +22,14 @@ const (
 	ModeDiff
 )
 
+type DetailTab int
+
+const (
+	TabSummary DetailTab = iota
+	TabDiscussions
+	TabFiles
+)
+
 type Section string
 
 const (
@@ -53,22 +61,28 @@ const (
 type RefreshFunc func() ([]mr.MergeRequest, error)
 type DiffFunc func(iid int) ([]mr.DiffRow, error)
 type ProjectLoadFunc func(path string) (ProjectData, error)
+type LoadDiscussionsFunc func(iid int) ([]mr.Discussion, error)
+type LoadFilesFunc func(iid int) ([]mr.ChangedFile, error)
 
 type ProjectData struct {
-	Items    []mr.MergeRequest
-	Refresh  RefreshFunc
-	LoadDiff DiffFunc
+	Items           []mr.MergeRequest
+	Refresh         RefreshFunc
+	LoadDiff        DiffFunc
+	LoadDiscussions LoadDiscussionsFunc
+	LoadFiles       LoadFilesFunc
 }
 
 type ProjectOptions struct {
-	Path        string
-	Recents     []string
-	Projects    []string
-	Section     Section
-	EntityID    string
-	Refresh     RefreshFunc
-	LoadDiff    DiffFunc
-	LoadProject ProjectLoadFunc
+	Path            string
+	Recents         []string
+	Projects        []string
+	Section         Section
+	EntityID        string
+	Refresh         RefreshFunc
+	LoadDiff        DiffFunc
+	LoadProject     ProjectLoadFunc
+	LoadDiscussions LoadDiscussionsFunc
+	LoadFiles       LoadFilesFunc
 }
 
 type projectStartedMsg struct {
@@ -79,6 +93,20 @@ type projectFinishedMsg struct {
 	path string
 	data ProjectData
 	err  error
+}
+
+type discussionsStartedMsg struct{ iid int }
+type discussionsFinishedMsg struct {
+	iid         int
+	discussions []mr.Discussion
+	err         error
+}
+
+type filesStartedMsg struct{ iid int }
+type filesFinishedMsg struct {
+	iid   int
+	files []mr.ChangedFile
+	err   error
 }
 
 type refreshStartedMsg struct{}
@@ -114,6 +142,15 @@ type Model struct {
 	sectionCursor  int
 	entityID       string
 	projectLoaded  bool
+	activeTab           DetailTab
+	discussions         map[int][]mr.Discussion
+	changedFiles        map[int][]mr.ChangedFile
+	discussionsLoading  bool
+	filesLoading        bool
+	discussionsError    string
+	filesError          string
+	loadDiscussions     LoadDiscussionsFunc
+	loadFiles           LoadFilesFunc
 	projectInput   string
 	refresh        RefreshFunc
 	loadDiff       DiffFunc
@@ -143,11 +180,15 @@ func NewModelWithProject(items []mr.MergeRequest, options ProjectOptions) Model 
 		recentProjects: options.Recents,
 		gitlabProjects: options.Projects,
 		projectList:    buildProjectList(options.Path, options.Recents, options.Projects),
-		section:        options.Section,
-		entityID:       options.EntityID,
-		refresh:        options.Refresh,
-		loadDiff:       options.LoadDiff,
-		loadProject:    options.LoadProject,
+		section:         options.Section,
+		entityID:        options.EntityID,
+		refresh:         options.Refresh,
+		loadDiff:        options.LoadDiff,
+		loadProject:     options.LoadProject,
+		loadDiscussions: options.LoadDiscussions,
+		loadFiles:       options.LoadFiles,
+		discussions:     map[int][]mr.Discussion{},
+		changedFiles:    map[int][]mr.ChangedFile{},
 	}
 	if model.projectPath == "" {
 		if len(model.projectList) > 0 {
@@ -219,6 +260,8 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.items = msg.data.Items
 		m.refresh = msg.data.Refresh
 		m.loadDiff = msg.data.LoadDiff
+		m.loadDiscussions = msg.data.LoadDiscussions
+		m.loadFiles = msg.data.LoadFiles
 		m.selected = clampSelection(0, len(m.filtered()))
 		m.selectEntity()
 		m.listTop = 0
@@ -229,6 +272,30 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			m.mode = ModeSections
 		}
 		m.focus = FocusList
+		return m, nil
+	case discussionsStartedMsg:
+		m.discussionsLoading = true
+		m.discussionsError = ""
+		return m, nil
+	case discussionsFinishedMsg:
+		m.discussionsLoading = false
+		if msg.err != nil {
+			m.discussionsError = msg.err.Error()
+			return m, nil
+		}
+		m.discussions[msg.iid] = msg.discussions
+		return m, nil
+	case filesStartedMsg:
+		m.filesLoading = true
+		m.filesError = ""
+		return m, nil
+	case filesFinishedMsg:
+		m.filesLoading = false
+		if msg.err != nil {
+			m.filesError = msg.err.Error()
+			return m, nil
+		}
+		m.changedFiles[msg.iid] = msg.files
 		return m, nil
 	case refreshStartedMsg:
 		m.loading = true
@@ -359,10 +426,9 @@ func (m Model) updateKey(msg tea.KeyMsg) (Model, tea.Cmd) {
 		}
 		return m, m.refreshCommand()
 	case "tab":
-		if m.focus == FocusList {
-			m.focus = FocusDetail
-		} else {
-			m.focus = FocusList
+		if m.mode == ModeDetail {
+			m.activeTab = (m.activeTab + 1) % (TabFiles + 1)
+			return m.onTabEntered()
 		}
 	case "up", "k":
 		m.moveSelection(-1)
@@ -411,6 +477,52 @@ func (m Model) openProjectCommand(path string) (Model, tea.Cmd) {
 			return projectFinishedMsg{path: path, data: data, err: err}
 		},
 	)
+}
+
+func (m Model) onTabEntered() (Model, tea.Cmd) {
+	item, ok := m.selectedItem()
+	if !ok {
+		return m, nil
+	}
+	switch m.activeTab {
+	case TabDiscussions:
+		if _, loaded := m.discussions[item.IID]; loaded {
+			return m, nil
+		}
+		if m.loadDiscussions == nil {
+			return m, nil
+		}
+		m.discussionsLoading = true
+		m.discussionsError = ""
+		load := m.loadDiscussions
+		iid := item.IID
+		return m, tea.Sequence(
+			func() tea.Msg { return discussionsStartedMsg{iid: iid} },
+			func() tea.Msg {
+				items, err := load(iid)
+				return discussionsFinishedMsg{iid: iid, discussions: items, err: err}
+			},
+		)
+	case TabFiles:
+		if _, loaded := m.changedFiles[item.IID]; loaded {
+			return m, nil
+		}
+		if m.loadFiles == nil {
+			return m, nil
+		}
+		m.filesLoading = true
+		m.filesError = ""
+		load := m.loadFiles
+		iid := item.IID
+		return m, tea.Sequence(
+			func() tea.Msg { return filesStartedMsg{iid: iid} },
+			func() tea.Msg {
+				files, err := load(iid)
+				return filesFinishedMsg{iid: iid, files: files, err: err}
+			},
+		)
+	}
+	return m, nil
 }
 
 func (m Model) openDiffCommand(item mr.MergeRequest) (Model, tea.Cmd) {
@@ -683,20 +795,100 @@ func (m Model) renderRight() string {
 	if m.mode == ModeDiff {
 		return style.Render(m.renderDiff(item))
 	}
-	lines := []string{
-		fmt.Sprintf("!%d %s", item.IID, item.Title),
-		"",
-		"Author: " + formatAuthor(item),
-		"Branches: " + item.SourceBranch + " → " + item.TargetBranch,
-		"State: " + item.State,
-		"Pipeline: " + pipelineIcon(item.Pipeline) + " " + item.Pipeline,
-		"Approvals: " + item.Approvals,
+	tabs := "[Summary] [Discussions] [Files]"
+	switch m.activeTab {
+	case TabDiscussions:
+		tabs = "[Summary] [>Discussions<] [Files]"
+	case TabFiles:
+		tabs = "[Summary] [Discussions] [>Files<]"
+	default:
+		tabs = "[>Summary<] [Discussions] [Files]"
 	}
-	if item.WebURL != "" {
-		lines = append(lines, "URL: "+item.WebURL)
+	header := fmt.Sprintf("!%d %s\n%s", item.IID, item.Title, tabs)
+
+	switch m.activeTab {
+	case TabDiscussions:
+		return style.Render(header + "\n\n" + m.renderDiscussions(item))
+	case TabFiles:
+		return style.Render(header + "\n\n" + m.renderFiles(item))
+	default:
+		lines := []string{
+			header,
+			"",
+			"Author: " + formatAuthor(item),
+			"Branches: " + item.SourceBranch + " → " + item.TargetBranch,
+			"State: " + item.State,
+			"Pipeline: " + pipelineIcon(item.Pipeline) + " " + item.Pipeline,
+			"Approvals: " + item.Approvals,
+		}
+		if item.WebURL != "" {
+			lines = append(lines, "URL: "+item.WebURL)
+		}
+		lines = append(lines, "", item.Description, "", "Enter/click right pane: open diff  Tab: next tab")
+		return style.Render(strings.Join(lines, "\n"))
 	}
-	lines = append(lines, "", item.Description, "", "Enter/click right pane: open diff")
-	return style.Render(strings.Join(lines, "\n"))
+}
+
+func (m Model) renderDiscussions(item mr.MergeRequest) string {
+	if m.discussionsLoading {
+		return "Loading discussions…"
+	}
+	if m.discussionsError != "" {
+		return "Error: " + m.discussionsError + "\n\nr retry"
+	}
+	discussions, loaded := m.discussions[item.IID]
+	if !loaded {
+		return "Tab to load discussions"
+	}
+	if len(discussions) == 0 {
+		return "No discussions"
+	}
+	lines := []string{}
+	for _, d := range discussions {
+		status := "open"
+		if d.Resolved {
+			status = "resolved"
+		}
+		noteCount := len(d.Notes)
+		firstAuthor := ""
+		firstBody := ""
+		if noteCount > 0 {
+			firstAuthor = d.Notes[0].Author
+			firstBody = d.Notes[0].Body
+		}
+		lines = append(lines, fmt.Sprintf("[%s] %s (%d notes)", status, firstAuthor, noteCount))
+		lines = append(lines, "  "+firstBody)
+	}
+	return strings.Join(lines, "\n")
+}
+
+func (m Model) renderFiles(item mr.MergeRequest) string {
+	if m.filesLoading {
+		return "Loading files…"
+	}
+	if m.filesError != "" {
+		return "Error: " + m.filesError + "\n\nr retry"
+	}
+	files, loaded := m.changedFiles[item.IID]
+	if !loaded {
+		return "Tab to load files"
+	}
+	if len(files) == 0 {
+		return "No changed files"
+	}
+	lines := []string{}
+	for _, f := range files {
+		marker := " "
+		if f.IsNew {
+			marker = "A"
+		} else if f.IsDeleted {
+			marker = "D"
+		} else if f.IsRenamed {
+			marker = "R"
+		}
+		lines = append(lines, fmt.Sprintf("%s %s  +%d -%d", marker, f.Path, f.AddedLines, f.RemovedLines))
+	}
+	return strings.Join(lines, "\n")
 }
 
 func (m Model) renderDiff(item mr.MergeRequest) string {

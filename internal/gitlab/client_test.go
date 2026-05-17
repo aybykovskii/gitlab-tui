@@ -98,6 +98,87 @@ func TestOpenMergeRequestsAddsApprovalCounts(t *testing.T) {
 	}
 }
 
+func TestMapDiscussionMapsNotesAndResolution(t *testing.T) {
+	resolved := true
+	item := MapDiscussion(&glab.Discussion{
+		ID: "abc123",
+		Notes: []*glab.Note{
+			{Author: glab.NoteAuthor{Name: "Alice", Username: "alice"}, Body: "Needs a fix", Resolved: false},
+			{Author: glab.NoteAuthor{Name: "Bob", Username: "bob"}, Body: "Fixed", Resolved: true, Resolvable: true},
+		},
+	})
+	_ = resolved
+	if item.ID != "abc123" {
+		t.Fatalf("expected ID abc123, got %q", item.ID)
+	}
+	if item.Resolved {
+		t.Fatal("expected discussion to be unresolved (first note is unresolved)")
+	}
+	if len(item.Notes) != 2 {
+		t.Fatalf("expected 2 notes, got %d", len(item.Notes))
+	}
+	if item.Notes[0].Author != "Alice" || item.Notes[0].Body != "Needs a fix" {
+		t.Fatalf("unexpected first note: %+v", item.Notes[0])
+	}
+}
+
+func TestMapDiscussionExcludesSystemNotes(t *testing.T) {
+	item := MapDiscussion(&glab.Discussion{
+		ID: "sys1",
+		Notes: []*glab.Note{
+			{Author: glab.NoteAuthor{Name: "GitLab"}, Body: "changed milestone", System: true},
+			{Author: glab.NoteAuthor{Name: "Alice"}, Body: "Real comment"},
+		},
+	})
+	if len(item.Notes) != 1 {
+		t.Fatalf("expected 1 non-system note, got %d", len(item.Notes))
+	}
+	if item.Notes[0].Author != "Alice" {
+		t.Fatalf("expected Alice, got %q", item.Notes[0].Author)
+	}
+}
+
+func TestMapChangedFileMapsPathMarkersAndLineCounts(t *testing.T) {
+	item := MapChangedFile(&glab.MergeRequestDiff{
+		NewPath:     "internal/tui/model.go",
+		OldPath:     "internal/tui/model.go",
+		NewFile:     false,
+		DeletedFile: false,
+		RenamedFile: false,
+		Diff: "@@ -10,3 +10,4 @@\n context\n-old\n+new\n+added\n",
+	})
+	if item.Path != "internal/tui/model.go" {
+		t.Fatalf("expected path, got %q", item.Path)
+	}
+	if item.IsNew || item.IsDeleted || item.IsRenamed {
+		t.Fatalf("unexpected markers: %+v", item)
+	}
+	if item.AddedLines != 2 {
+		t.Fatalf("expected 2 added lines, got %d", item.AddedLines)
+	}
+	if item.RemovedLines != 1 {
+		t.Fatalf("expected 1 removed line, got %d", item.RemovedLines)
+	}
+}
+
+func TestMapChangedFileMarksNewAndDeletedFiles(t *testing.T) {
+	newFile := MapChangedFile(&glab.MergeRequestDiff{NewPath: "new.go", NewFile: true, Diff: "@@ -0,0 +1 @@\n+hello\n"})
+	if !newFile.IsNew {
+		t.Fatal("expected IsNew=true")
+	}
+	if newFile.AddedLines != 1 {
+		t.Fatalf("expected 1 added line, got %d", newFile.AddedLines)
+	}
+
+	deleted := MapChangedFile(&glab.MergeRequestDiff{OldPath: "old.go", DeletedFile: true, Diff: "@@ -1 +0,0 @@\n-bye\n"})
+	if !deleted.IsDeleted {
+		t.Fatal("expected IsDeleted=true")
+	}
+	if deleted.Path != "old.go" {
+		t.Fatalf("expected old.go path for deleted file, got %q", deleted.Path)
+	}
+}
+
 func TestMapMergeRequestKeepsPreviousMRInfo(t *testing.T) {
 	item := MapMergeRequest(&glab.BasicMergeRequest{
 		IID:                 3,

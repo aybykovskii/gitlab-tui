@@ -24,6 +24,28 @@ type DiffRow struct {
 	NewText string
 }
 
+type Note struct {
+	Author   string
+	Body     string
+	Resolved bool
+}
+
+type Discussion struct {
+	ID       string
+	Resolved bool
+	Notes    []Note
+}
+
+type ChangedFile struct {
+	Path         string
+	OldPath      string
+	IsNew        bool
+	IsDeleted    bool
+	IsRenamed    bool
+	AddedLines   int
+	RemovedLines int
+}
+
 func Filter(list []MergeRequest, query string) []MergeRequest {
 	query = strings.ToLower(strings.TrimSpace(query))
 	if query == "" {

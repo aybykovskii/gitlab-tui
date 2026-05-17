@@ -87,6 +87,12 @@ func (a App) runTUI(stdout io.Writer, stderr io.Writer, intent CLIIntent) int {
 		loadDiff := func(iid int) ([]mr.DiffRow, error) {
 			return client.MergeRequestDiff(context.Background(), projectPath, iid)
 		}
+		loadDiscussions := func(iid int) ([]mr.Discussion, error) {
+			return client.MergeRequestDiscussions(context.Background(), projectPath, iid)
+		}
+		loadFiles := func(iid int) ([]mr.ChangedFile, error) {
+			return client.MergeRequestChangedFiles(context.Background(), projectPath, iid)
+		}
 		items, err := loadMRs()
 		if err != nil {
 			return tui.ProjectData{}, fmt.Errorf("load merge requests: %w", err)
@@ -98,7 +104,7 @@ func (a App) runTUI(stdout io.Writer, stderr io.Writer, intent CLIIntent) int {
 			}
 		}
 
-		return tui.ProjectData{Items: items, Refresh: loadMRs, LoadDiff: loadDiff}, nil
+		return tui.ProjectData{Items: items, Refresh: loadMRs, LoadDiff: loadDiff, LoadDiscussions: loadDiscussions, LoadFiles: loadFiles}, nil
 	}
 	options := tui.ProjectOptions{Path: resolution.Path, Section: intent.Section, EntityID: intent.EntityID, LoadProject: loadProject}
 	for _, recent := range resolution.Recents {

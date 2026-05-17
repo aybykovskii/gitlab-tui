@@ -436,3 +436,194 @@ func TestMouseWheelMovesSelection(t *testing.T) {
 		t.Fatalf("expected wheel down to select next item, got %d", model.selected)
 	}
 }
+
+// --- #41: MR detail tabs ---
+
+func discussionOpts() ProjectOptions {
+	return ProjectOptions{
+		Path:    "group/project",
+		Section: SectionMergeRequests,
+		LoadDiscussions: func(iid int) ([]mr.Discussion, error) {
+			return []mr.Discussion{
+				{ID: "d1", Resolved: false, Notes: []mr.Note{
+					{Author: "alice", Body: "Please fix the naming", Resolved: false},
+					{Author: "bob", Body: "Done", Resolved: true},
+				}},
+				{ID: "d2", Resolved: true, Notes: []mr.Note{
+					{Author: "carol", Body: "LGTM", Resolved: true},
+				}},
+			}, nil
+		},
+		LoadFiles: func(iid int) ([]mr.ChangedFile, error) {
+			return []mr.ChangedFile{
+				{Path: "internal/tui/model.go", IsNew: false, AddedLines: 10, RemovedLines: 3},
+				{Path: "internal/mr/model.go", IsNew: true, AddedLines: 25, RemovedLines: 0},
+			}, nil
+		},
+	}
+}
+
+func TestDiscussionsTabTriggersLoadOnFirstVisit(t *testing.T) {
+	model := NewModelWithProject(FakeMergeRequests(), discussionOpts())
+
+	updated, cmd := model.Update(tea.KeyMsg{Type: tea.KeyTab})
+	model = updated.(Model)
+
+	if model.activeTab != TabDiscussions {
+		t.Fatalf("expected TabDiscussions, got %v", model.activeTab)
+	}
+	if cmd == nil {
+		t.Fatal("expected a load command when switching to Discussions tab for the first time")
+	}
+	if !strings.Contains(model.View(), "Loading") {
+		t.Fatalf("expected loading state in Discussions tab, got:\n%s", model.View())
+	}
+}
+
+func TestDiscussionsTabRendersThreadsAfterLoad(t *testing.T) {
+	model := NewModelWithProject(FakeMergeRequests(), discussionOpts())
+	updated, _ := model.Update(tea.KeyMsg{Type: tea.KeyTab})
+	model = updated.(Model)
+
+	updated, _ = model.Update(discussionsFinishedMsg{
+		iid: 42,
+		discussions: []mr.Discussion{
+			{ID: "d1", Resolved: false, Notes: []mr.Note{
+				{Author: "alice", Body: "Please fix the naming", Resolved: false},
+				{Author: "bob", Body: "Done", Resolved: true},
+			}},
+		},
+	})
+	model = updated.(Model)
+
+	view := model.View()
+	for _, want := range []string{"[open]", "alice", "2 notes", "Please fix the naming"} {
+		if !strings.Contains(view, want) {
+			t.Fatalf("expected %q in Discussions view, got:\n%s", want, view)
+		}
+	}
+}
+
+func TestDiscussionsTabShowsEmptyState(t *testing.T) {
+	model := NewModelWithProject(FakeMergeRequests(), discussionOpts())
+	updated, _ := model.Update(tea.KeyMsg{Type: tea.KeyTab})
+	model = updated.(Model)
+	updated, _ = model.Update(discussionsFinishedMsg{iid: 42, discussions: []mr.Discussion{}})
+	model = updated.(Model)
+
+	if !strings.Contains(model.View(), "No discussions") {
+		t.Fatalf("expected empty state, got:\n%s", model.View())
+	}
+}
+
+func TestDiscussionsTabShowsErrorState(t *testing.T) {
+	model := NewModelWithProject(FakeMergeRequests(), discussionOpts())
+	updated, _ := model.Update(tea.KeyMsg{Type: tea.KeyTab})
+	model = updated.(Model)
+	updated, _ = model.Update(discussionsFinishedMsg{iid: 42, err: errors.New("network error")})
+	model = updated.(Model)
+
+	if !strings.Contains(model.View(), "Error:") {
+		t.Fatalf("expected error state, got:\n%s", model.View())
+	}
+}
+
+func TestFilesTabTriggersLoadOnFirstVisit(t *testing.T) {
+	model := NewModelWithProject(FakeMergeRequests(), discussionOpts())
+
+	// Tab twice: Summary → Discussions → Files
+	updated, _ := model.Update(tea.KeyMsg{Type: tea.KeyTab})
+	model = updated.(Model)
+	updated, cmd := model.Update(tea.KeyMsg{Type: tea.KeyTab})
+	model = updated.(Model)
+
+	if model.activeTab != TabFiles {
+		t.Fatalf("expected TabFiles, got %v", model.activeTab)
+	}
+	if cmd == nil {
+		t.Fatal("expected a load command when switching to Files tab for the first time")
+	}
+	if !strings.Contains(model.View(), "Loading") {
+		t.Fatalf("expected loading state in Files tab, got:\n%s", model.View())
+	}
+}
+
+func TestFilesTabRendersChangedFilesAfterLoad(t *testing.T) {
+	model := NewModelWithProject(FakeMergeRequests(), discussionOpts())
+	updated, _ := model.Update(tea.KeyMsg{Type: tea.KeyTab})
+	model = updated.(Model)
+	updated, _ = model.Update(tea.KeyMsg{Type: tea.KeyTab})
+	model = updated.(Model)
+
+	updated, _ = model.Update(filesFinishedMsg{
+		iid: 42,
+		files: []mr.ChangedFile{
+			{Path: "internal/tui/model.go", IsNew: false, AddedLines: 10, RemovedLines: 3},
+			{Path: "cmd/main.go", IsNew: true, AddedLines: 25, RemovedLines: 0},
+		},
+	})
+	model = updated.(Model)
+
+	view := model.View()
+	for _, want := range []string{
+		"internal/tui/model.go", "+10", "-3",
+		"cmd/main.go", "A", "+25",
+	} {
+		if !strings.Contains(view, want) {
+			t.Fatalf("expected %q in Files view, got:\n%s", want, view)
+		}
+	}
+}
+
+func TestFilesTabShowsEmptyState(t *testing.T) {
+	model := NewModelWithProject(FakeMergeRequests(), discussionOpts())
+	updated, _ := model.Update(tea.KeyMsg{Type: tea.KeyTab})
+	model = updated.(Model)
+	updated, _ = model.Update(tea.KeyMsg{Type: tea.KeyTab})
+	model = updated.(Model)
+	updated, _ = model.Update(filesFinishedMsg{iid: 42, files: []mr.ChangedFile{}})
+	model = updated.(Model)
+
+	if !strings.Contains(model.View(), "No changed files") {
+		t.Fatalf("expected empty state, got:\n%s", model.View())
+	}
+}
+
+func TestFilesTabShowsErrorState(t *testing.T) {
+	model := NewModelWithProject(FakeMergeRequests(), discussionOpts())
+	updated, _ := model.Update(tea.KeyMsg{Type: tea.KeyTab})
+	model = updated.(Model)
+	updated, _ = model.Update(tea.KeyMsg{Type: tea.KeyTab})
+	model = updated.(Model)
+	updated, _ = model.Update(filesFinishedMsg{iid: 42, err: errors.New("timeout")})
+	model = updated.(Model)
+
+	if !strings.Contains(model.View(), "Error:") {
+		t.Fatalf("expected error state, got:\n%s", model.View())
+	}
+}
+
+func TestTabKeyCyclesDetailTabs(t *testing.T) {
+	model := NewModelWithProject(FakeMergeRequests(), ProjectOptions{Path: "group/project", Section: SectionMergeRequests})
+
+	// Summary (default) → Discussions
+	updated, _ := model.Update(tea.KeyMsg{Type: tea.KeyTab})
+	model = updated.(Model)
+	if model.activeTab != TabDiscussions {
+		t.Fatalf("expected TabDiscussions after first Tab, got %v", model.activeTab)
+	}
+
+	// Discussions → Files
+	updated, _ = model.Update(tea.KeyMsg{Type: tea.KeyTab})
+	model = updated.(Model)
+	if model.activeTab != TabFiles {
+		t.Fatalf("expected TabFiles after second Tab, got %v", model.activeTab)
+	}
+
+	// Files → Summary (wrap)
+	updated, _ = model.Update(tea.KeyMsg{Type: tea.KeyTab})
+	model = updated.(Model)
+	if model.activeTab != TabSummary {
+		t.Fatalf("expected TabSummary after third Tab, got %v", model.activeTab)
+	}
+}
