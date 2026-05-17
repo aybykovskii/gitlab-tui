@@ -1425,7 +1425,7 @@ func (m *Model) scrollFocused(delta int) {
 
 func (m Model) View() string {
 	if m.mode == ModeProjectSelect || m.mode == ModeProjectInput {
-		return m.renderProjectPicker()
+		return lipgloss.JoinHorizontal(lipgloss.Top, m.renderAppContextPane(), m.renderProjectPicker())
 	}
 	if m.mode == ModeSections {
 		return lipgloss.JoinHorizontal(lipgloss.Top, m.renderProjectList(), m.renderSections())
@@ -1498,8 +1498,15 @@ func (m Model) renderSections() string {
 	return style.Render(strings.Join(lines, "\n"))
 }
 
+func (m Model) renderAppContextPane() string {
+	width := m.leftWidth()
+	style := paneStyle(width, max(8, m.height), false)
+	return style.Render("gitlab-tui")
+}
+
 func (m Model) renderProjectPicker() string {
-	style := paneStyle(max(40, m.width), max(8, m.height), true)
+	width := max(20, m.width-m.leftWidth())
+	style := paneStyle(width, max(8, m.height), true)
 	if m.mode == ModeProjectInput {
 		return style.Render(strings.Join([]string{
 			"Open GitLab project",

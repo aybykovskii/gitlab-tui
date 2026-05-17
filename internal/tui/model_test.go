@@ -2017,6 +2017,43 @@ func TestEKeyInDiffViewOpensFileInEditor(t *testing.T) {
 	}
 }
 
+// --- #48: Two-panel layout on project picker screen ---
+
+func TestProjectPickerRendersLeftContextPane(t *testing.T) {
+	model := NewModelWithProject(nil, ProjectOptions{
+		Recents: []string{"recent/project"},
+	})
+	if model.mode != ModeProjectSelect {
+		t.Fatalf("expected ModeProjectSelect, got %v", model.mode)
+	}
+
+	view := model.View()
+	if !strings.Contains(view, "gitlab-tui") {
+		t.Fatalf("expected left context pane with 'gitlab-tui', got:\n%s", view)
+	}
+	if !strings.Contains(view, "Projects") {
+		t.Fatalf("expected 'Projects' heading in right pane, got:\n%s", view)
+	}
+	if !strings.Contains(view, "recent/project") {
+		t.Fatalf("expected project in right pane, got:\n%s", view)
+	}
+}
+
+func TestProjectInputRendersLeftContextPane(t *testing.T) {
+	model := NewModelWithProject(nil, ProjectOptions{})
+	if model.mode != ModeProjectInput {
+		t.Fatalf("expected ModeProjectInput, got %v", model.mode)
+	}
+
+	view := model.View()
+	if !strings.Contains(view, "gitlab-tui") {
+		t.Fatalf("expected left context pane with 'gitlab-tui', got:\n%s", view)
+	}
+	if !strings.Contains(view, "Open GitLab project") {
+		t.Fatalf("expected 'Open GitLab project' in right pane, got:\n%s", view)
+	}
+}
+
 func TestTabKeyCyclesDetailTabs(t *testing.T) {
 	model := NewModelWithProject(FakeMergeRequests(), ProjectOptions{Path: "group/project", Section: SectionMergeRequests})
 
