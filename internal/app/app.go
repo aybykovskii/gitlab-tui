@@ -11,6 +11,7 @@ import (
 	"github.com/aybykovskii/gitlab-tui/internal/config"
 	gitremote "github.com/aybykovskii/gitlab-tui/internal/git"
 	gitlabclient "github.com/aybykovskii/gitlab-tui/internal/gitlab"
+	"github.com/aybykovskii/gitlab-tui/internal/mr"
 	"github.com/aybykovskii/gitlab-tui/internal/tui"
 )
 
@@ -85,12 +86,16 @@ func (a App) runTUI(stdout io.Writer, stderr io.Writer) int {
 			fmt.Fprintf(stderr, "create GitLab client: %v\n", err)
 			return 1
 		}
-		items, err := client.OpenMergeRequests(context.Background(), resolution.Path)
+		loadMRs := func() ([]mr.MergeRequest, error) {
+			return client.OpenMergeRequests(context.Background(), resolution.Path)
+		}
+		items, err := loadMRs()
 		if err != nil {
 			fmt.Fprintf(stderr, "load merge requests: %v\n", err)
 			return 1
 		}
 		options.Items = items
+		options.Refresh = loadMRs
 		RememberResolvedProject(&cfg, resolution.Account, resolution.Path, time.Now())
 		if configLoaded {
 			if err := config.Save(configPath, cfg); err != nil {

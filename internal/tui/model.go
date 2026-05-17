@@ -28,10 +28,20 @@ const (
 	FocusFilter
 )
 
+type RefreshFunc func() ([]mr.MergeRequest, error)
+
 type ProjectOptions struct {
 	Path    string
 	Recents []string
 	Items   []mr.MergeRequest
+	Refresh RefreshFunc
+}
+
+type refreshStartedMsg struct{}
+
+type refreshFinishedMsg struct {
+	items []mr.MergeRequest
+	err   error
 }
 
 type Model struct {
@@ -47,6 +57,9 @@ type Model struct {
 	projectPath    string
 	recentProjects []string
 	projectInput   string
+	refresh        RefreshFunc
+	loading        bool
+	errorMessage   string
 }
 
 func NewFakeModel() Model {
@@ -68,6 +81,7 @@ func NewModelWithProject(items []mr.MergeRequest, options ProjectOptions) Model 
 		height:         30,
 		projectPath:    options.Path,
 		recentProjects: options.Recents,
+		refresh:        options.Refresh,
 	}
 	if model.projectPath == "" {
 		if len(model.recentProjects) > 0 {
@@ -100,15 +114,29 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.width = msg.Width
 		m.height = msg.Height
 	case tea.KeyMsg:
-		return m.updateKey(msg), nil
+		return m.updateKey(msg)
 	case tea.MouseMsg:
 		return m.updateMouse(msg), nil
+	case refreshStartedMsg:
+		m.loading = true
+		m.errorMessage = ""
+		return m, nil
+	case refreshFinishedMsg:
+		m.loading = false
+		if msg.err != nil {
+			m.errorMessage = msg.err.Error()
+			return m, nil
+		}
+		m.items = msg.items
+		m.selected = clampSelection(m.selected, len(m.filtered()))
+		m.listTop = 0
+		return m, nil
 	}
 
 	return m, nil
 }
 
-func (m Model) updateKey(msg tea.KeyMsg) Model {
+func (m Model) updateKey(msg tea.KeyMsg) (Model, tea.Cmd) {
 	if m.mode == ModeProjectSelect {
 		switch msg.String() {
 		case "up", "k":
@@ -126,7 +154,7 @@ func (m Model) updateKey(msg tea.KeyMsg) Model {
 			m.focus = FocusFilter
 			m.projectInput = ""
 		}
-		return m
+		return m, nil
 	}
 
 	if m.mode == ModeProjectInput {
@@ -144,7 +172,7 @@ func (m Model) updateKey(msg tea.KeyMsg) Model {
 		case tea.KeyRunes:
 			m.projectInput += msg.String()
 		}
-		return m
+		return m, nil
 	}
 
 	if m.focus == FocusFilter {
@@ -160,14 +188,16 @@ func (m Model) updateKey(msg tea.KeyMsg) Model {
 			m.query += msg.String()
 			m.selected = clampSelection(m.selected, len(m.filtered()))
 		}
-		return m
+		return m, nil
 	}
 
 	switch msg.String() {
 	case "q", "ctrl+c":
-		return m
+		return m, tea.Quit
 	case "/":
 		m.focus = FocusFilter
+	case "r":
+		return m, m.refreshCommand()
 	case "tab":
 		if m.focus == FocusList {
 			m.focus = FocusDetail
@@ -191,7 +221,21 @@ func (m Model) updateKey(msg tea.KeyMsg) Model {
 		}
 	}
 
-	return m
+	return m, nil
+}
+
+func (m Model) refreshCommand() tea.Cmd {
+	if m.refresh == nil || m.loading {
+		return nil
+	}
+	refresh := m.refresh
+	return tea.Sequence(
+		func() tea.Msg { return refreshStartedMsg{} },
+		func() tea.Msg {
+			items, err := refresh()
+			return refreshFinishedMsg{items: items, err: err}
+		},
+	)
 }
 
 func (m Model) updateMouse(msg tea.MouseMsg) Model {
@@ -305,6 +349,12 @@ func (m Model) renderList() string {
 	height := max(8, m.height)
 	style := paneStyle(width, height, m.focus == FocusList || m.focus == FocusFilter)
 	lines := []string{"Project: " + m.projectPath, "Merge Requests", "Filter: " + m.query}
+	if m.loading {
+		lines = append(lines, "Refreshing…")
+	}
+	if m.errorMessage != "" {
+		lines = append(lines, "Error: "+m.errorMessage)
+	}
 	items := m.filtered()
 	if len(items) == 0 {
 		lines = append(lines, "No opened MRs")
@@ -319,7 +369,7 @@ func (m Model) renderList() string {
 			lines = append(lines, fmt.Sprintf("%s!%d %s", prefix, items[i].IID, items[i].Title))
 		}
 	}
-	lines = append(lines, "", "↑/↓ select  / filter  Enter diff")
+	lines = append(lines, "", "↑/↓ select  / filter  r refresh  Enter diff")
 	return style.Render(strings.Join(lines, "\n"))
 }
 

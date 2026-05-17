@@ -1,11 +1,16 @@
 package tui
 
 import (
+	"errors"
 	"strings"
 	"testing"
 
 	tea "github.com/charmbracelet/bubbletea"
+
+	"github.com/aybykovskii/gitlab-tui/internal/mr"
 )
+
+var errTestRefresh = errors.New("refresh failed")
 
 func TestKeyboardSelectionAndDiffNavigation(t *testing.T) {
 	model := NewFakeModel()
@@ -92,6 +97,43 @@ func TestManualProjectInputOpensProject(t *testing.T) {
 	}
 	if model.mode != ModeDetail {
 		t.Fatalf("expected detail mode, got %v", model.mode)
+	}
+}
+
+func TestRefreshKeyReturnsCommand(t *testing.T) {
+	model := NewModelWithProject(FakeMergeRequests(), ProjectOptions{
+		Path: "group/project",
+		Refresh: func() ([]mr.MergeRequest, error) {
+			return []mr.MergeRequest{{IID: 99, Title: "Refreshed"}}, nil
+		},
+	})
+
+	_, cmd := model.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune("r")})
+	if cmd == nil {
+		t.Fatal("expected refresh command")
+	}
+}
+
+func TestRefreshFinishedReplacesItems(t *testing.T) {
+	model := NewFakeModel()
+	updated, _ := model.Update(refreshFinishedMsg{items: []mr.MergeRequest{{IID: 99, Title: "Refreshed"}}})
+	model = updated.(Model)
+
+	if len(model.items) != 1 {
+		t.Fatalf("expected refreshed items, got %d", len(model.items))
+	}
+	if model.items[0].IID != 99 {
+		t.Fatalf("unexpected refreshed item: %+v", model.items[0])
+	}
+}
+
+func TestRefreshFinishedStoresError(t *testing.T) {
+	model := NewFakeModel()
+	updated, _ := model.Update(refreshFinishedMsg{err: errTestRefresh})
+	model = updated.(Model)
+
+	if model.errorMessage != errTestRefresh.Error() {
+		t.Fatalf("expected refresh error, got %q", model.errorMessage)
 	}
 }
 
