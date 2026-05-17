@@ -5,6 +5,7 @@ import (
 	"os"
 	"path/filepath"
 	"testing"
+	"time"
 )
 
 func TestPathUsesOverride(t *testing.T) {
@@ -84,6 +85,41 @@ func TestValidateRequiresDefaultAccountToExist(t *testing.T) {
 
 	if err := cfg.Validate(); err == nil {
 		t.Fatal("expected validation error")
+	}
+}
+
+func TestRecentProjectsForAccountSortsByLastUsed(t *testing.T) {
+	cfg := Default()
+	older := time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC)
+	newer := older.Add(time.Hour)
+	cfg.RecentProjects = []RecentProject{
+		{Account: "default", Path: "group/old", LastUsedAt: older},
+		{Account: "other", Path: "group/other", LastUsedAt: newer},
+		{Account: "default", Path: "group/new", LastUsedAt: newer},
+	}
+
+	projects := cfg.RecentProjectsForAccount("default")
+
+	if len(projects) != 2 {
+		t.Fatalf("expected 2 projects, got %d", len(projects))
+	}
+	if projects[0].Path != "group/new" || projects[1].Path != "group/old" {
+		t.Fatalf("unexpected order: %+v", projects)
+	}
+}
+
+func TestRememberProjectUpdatesExistingEntry(t *testing.T) {
+	cfg := Default()
+	older := time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC)
+	newer := older.Add(time.Hour)
+	cfg.RememberProject(RecentProject{Account: "default", Path: "group/project", LastUsedAt: older})
+	cfg.RememberProject(RecentProject{Account: "default", Path: "group/project", LastUsedAt: newer})
+
+	if len(cfg.RecentProjects) != 1 {
+		t.Fatalf("expected 1 recent project, got %d", len(cfg.RecentProjects))
+	}
+	if !cfg.RecentProjects[0].LastUsedAt.Equal(newer) {
+		t.Fatalf("expected newer timestamp, got %s", cfg.RecentProjects[0].LastUsedAt)
 	}
 }
 

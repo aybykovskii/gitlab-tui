@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"sort"
 	"time"
 
 	"gopkg.in/yaml.v3"
@@ -146,6 +147,32 @@ func (c Config) Validate() error {
 	}
 
 	return nil
+}
+
+func (c Config) RecentProjectsForAccount(accountID string) []RecentProject {
+	projects := make([]RecentProject, 0, len(c.RecentProjects))
+	for _, project := range c.RecentProjects {
+		if project.Account == accountID {
+			projects = append(projects, project)
+		}
+	}
+
+	sort.SliceStable(projects, func(i int, j int) bool {
+		return projects[i].LastUsedAt.After(projects[j].LastUsedAt)
+	})
+
+	return projects
+}
+
+func (c *Config) RememberProject(project RecentProject) {
+	for i, existing := range c.RecentProjects {
+		if existing.Account == project.Account && existing.Path == project.Path {
+			c.RecentProjects[i].LastUsedAt = project.LastUsedAt
+			return
+		}
+	}
+
+	c.RecentProjects = append(c.RecentProjects, project)
 }
 
 func (c Config) Account(id string) (Account, bool) {

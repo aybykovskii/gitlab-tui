@@ -1,10 +1,13 @@
 package app
 
 import (
+	"errors"
 	"fmt"
 	"io"
+	"os"
 
 	"github.com/aybykovskii/gitlab-tui/internal/config"
+	gitremote "github.com/aybykovskii/gitlab-tui/internal/git"
 	"github.com/aybykovskii/gitlab-tui/internal/tui"
 )
 
@@ -23,11 +26,7 @@ func NewWithEnv(version string, env []string) App {
 
 func (a App) Run(args []string, stdout io.Writer, stderr io.Writer) int {
 	if len(args) == 0 {
-		if err := tui.Run(stdout); err != nil {
-			fmt.Fprintf(stderr, "run TUI: %v\n", err)
-			return 1
-		}
-		return 0
+		return a.runTUI(stdout, stderr)
 	}
 
 	switch args[0] {
@@ -44,6 +43,37 @@ func (a App) Run(args []string, stdout io.Writer, stderr io.Writer) int {
 		writeUsage(stderr)
 		return 2
 	}
+}
+
+func (a App) runTUI(stdout io.Writer, stderr io.Writer) int {
+	cfg := config.Default()
+	configPath, err := (config.Paths{Env: a.env}).Path()
+	if err == nil {
+		loaded, loadErr := config.Load(configPath)
+		if loadErr == nil {
+			cfg = loaded
+		} else if !errors.Is(loadErr, os.ErrNotExist) {
+			fmt.Fprintf(stderr, "load config: %v\n", loadErr)
+			return 1
+		}
+	}
+
+	cwd, err := os.Getwd()
+	if err != nil {
+		fmt.Fprintf(stderr, "resolve cwd: %v\n", err)
+		return 1
+	}
+	resolution := ProjectResolver{Config: cfg, Remotes: gitremote.CommandRunner{Dir: cwd}}.Resolve()
+	options := tui.ProjectOptions{Path: resolution.Path}
+	for _, recent := range resolution.Recents {
+		options.Recents = append(options.Recents, recent.Path)
+	}
+
+	if err := tui.RunWithProject(stdout, options); err != nil {
+		fmt.Fprintf(stderr, "run TUI: %v\n", err)
+		return 1
+	}
+	return 0
 }
 
 func (a App) runInit(stdout io.Writer, stderr io.Writer) int {

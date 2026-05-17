@@ -14,7 +14,9 @@ import (
 type Mode int
 
 const (
-	ModeDetail Mode = iota
+	ModeProjectSelect Mode = iota
+	ModeProjectInput
+	ModeDetail
 	ModeDiff
 )
 
@@ -26,16 +28,24 @@ const (
 	FocusFilter
 )
 
+type ProjectOptions struct {
+	Path    string
+	Recents []string
+}
+
 type Model struct {
-	items    []mr.MergeRequest
-	query    string
-	selected int
-	mode     Mode
-	focus    Focus
-	width    int
-	height   int
-	listTop  int
-	rightTop int
+	items          []mr.MergeRequest
+	query          string
+	selected       int
+	mode           Mode
+	focus          Focus
+	width          int
+	height         int
+	listTop        int
+	rightTop       int
+	projectPath    string
+	recentProjects []string
+	projectInput   string
 }
 
 func NewFakeModel() Model {
@@ -43,11 +53,37 @@ func NewFakeModel() Model {
 }
 
 func NewModel(items []mr.MergeRequest) Model {
-	return Model{items: items, focus: FocusList, width: 100, height: 30}
+	return NewModelWithProject(items, ProjectOptions{Path: "group/project"})
+}
+
+func NewModelWithProject(items []mr.MergeRequest, options ProjectOptions) Model {
+	model := Model{
+		items:          items,
+		focus:          FocusList,
+		width:          100,
+		height:         30,
+		projectPath:    options.Path,
+		recentProjects: options.Recents,
+	}
+	if model.projectPath == "" {
+		if len(model.recentProjects) > 0 {
+			model.mode = ModeProjectSelect
+		} else {
+			model.mode = ModeProjectInput
+			model.focus = FocusFilter
+		}
+	} else {
+		model.mode = ModeDetail
+	}
+	return model
 }
 
 func Run(stdout io.Writer) error {
-	program := tea.NewProgram(NewFakeModel(), tea.WithMouseCellMotion(), tea.WithOutput(stdout))
+	return RunWithProject(stdout, ProjectOptions{Path: "group/project"})
+}
+
+func RunWithProject(stdout io.Writer, options ProjectOptions) error {
+	program := tea.NewProgram(NewModelWithProject(FakeMergeRequests(), options), tea.WithMouseCellMotion(), tea.WithOutput(stdout))
 	_, err := program.Run()
 	return err
 }
@@ -69,6 +105,44 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 }
 
 func (m Model) updateKey(msg tea.KeyMsg) Model {
+	if m.mode == ModeProjectSelect {
+		switch msg.String() {
+		case "up", "k":
+			m.selected = clamp(m.selected-1, 0, len(m.recentProjects)-1)
+		case "down", "j":
+			m.selected = clamp(m.selected+1, 0, len(m.recentProjects)-1)
+		case "enter":
+			if len(m.recentProjects) > 0 {
+				m.projectPath = m.recentProjects[m.selected]
+				m.mode = ModeDetail
+				m.selected = 0
+			}
+		case "i":
+			m.mode = ModeProjectInput
+			m.focus = FocusFilter
+			m.projectInput = ""
+		}
+		return m
+	}
+
+	if m.mode == ModeProjectInput {
+		switch msg.Type {
+		case tea.KeyEnter:
+			if strings.TrimSpace(m.projectInput) != "" {
+				m.projectPath = strings.TrimSpace(m.projectInput)
+				m.mode = ModeDetail
+				m.focus = FocusList
+			}
+		case tea.KeyBackspace:
+			if len(m.projectInput) > 0 {
+				m.projectInput = m.projectInput[:len(m.projectInput)-1]
+			}
+		case tea.KeyRunes:
+			m.projectInput += msg.String()
+		}
+		return m
+	}
+
 	if m.focus == FocusFilter {
 		switch msg.Type {
 		case tea.KeyEsc, tea.KeyEnter:
@@ -117,6 +191,24 @@ func (m Model) updateKey(msg tea.KeyMsg) Model {
 }
 
 func (m Model) updateMouse(msg tea.MouseMsg) Model {
+	if m.mode == ModeProjectSelect {
+		if msg.Button == tea.MouseButtonLeft && msg.Y >= 2 {
+			idx := msg.Y - 2
+			if idx >= 0 && idx < len(m.recentProjects) {
+				m.selected = idx
+				m.projectPath = m.recentProjects[idx]
+				m.mode = ModeDetail
+			}
+		}
+		if msg.Button == tea.MouseButtonWheelUp {
+			m.selected = clamp(m.selected-1, 0, len(m.recentProjects)-1)
+		}
+		if msg.Button == tea.MouseButtonWheelDown {
+			m.selected = clamp(m.selected+1, 0, len(m.recentProjects)-1)
+		}
+		return m
+	}
+
 	leftWidth := m.leftWidth()
 	if msg.X < leftWidth {
 		m.focus = FocusList
@@ -130,8 +222,8 @@ func (m Model) updateMouse(msg tea.MouseMsg) Model {
 	case tea.MouseButtonWheelDown:
 		m.scrollFocused(1)
 	case tea.MouseButtonLeft:
-		if msg.X < leftWidth && msg.Y >= 3 {
-			idx := m.listTop + msg.Y - 3
+		if msg.X < leftWidth && msg.Y >= 4 {
+			idx := m.listTop + msg.Y - 4
 			if idx >= 0 && idx < len(m.filtered()) {
 				m.selected = idx
 				m.mode = ModeDetail
@@ -170,21 +262,50 @@ func (m *Model) scrollFocused(delta int) {
 }
 
 func (m Model) View() string {
+	if m.mode == ModeProjectSelect || m.mode == ModeProjectInput {
+		return m.renderProjectPicker()
+	}
+
 	left := m.renderList()
 	right := m.renderRight()
 	return lipgloss.JoinHorizontal(lipgloss.Top, left, right)
+}
+
+func (m Model) renderProjectPicker() string {
+	style := paneStyle(max(40, m.width), max(8, m.height), true)
+	if m.mode == ModeProjectInput {
+		return style.Render(strings.Join([]string{
+			"Open GitLab project",
+			"",
+			"Project path:",
+			m.projectInput,
+			"",
+			"Enter: open project",
+		}, "\n"))
+	}
+
+	lines := []string{"Recent projects", ""}
+	for i, project := range m.recentProjects {
+		prefix := "  "
+		if i == m.selected {
+			prefix = "> "
+		}
+		lines = append(lines, prefix+project)
+	}
+	lines = append(lines, "", "Enter/click: open  i: manual input")
+	return style.Render(strings.Join(lines, "\n"))
 }
 
 func (m Model) renderList() string {
 	width := m.leftWidth()
 	height := max(8, m.height)
 	style := paneStyle(width, height, m.focus == FocusList || m.focus == FocusFilter)
-	lines := []string{"Merge Requests", "Filter: " + m.query}
+	lines := []string{"Project: " + m.projectPath, "Merge Requests", "Filter: " + m.query}
 	items := m.filtered()
 	if len(items) == 0 {
 		lines = append(lines, "No opened MRs")
 	} else {
-		visible := max(1, height-4)
+		visible := max(1, height-5)
 		end := min(len(items), m.listTop+visible)
 		for i := m.listTop; i < end; i++ {
 			prefix := "  "
