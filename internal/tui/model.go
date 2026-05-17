@@ -65,8 +65,12 @@ type DiffFunc func(iid int) ([]mr.DiffRow, error)
 type ProjectLoadFunc func(path string) (ProjectData, error)
 type LoadDiscussionsFunc func(iid int) ([]mr.Discussion, error)
 type LoadFilesFunc func(iid int) ([]mr.ChangedFile, error)
-type SubmitDraftsFunc func(iid int, drafts []mr.DraftComment) error
-type DiscardDraftsFunc func(iid int) error
+type SubmitDraftsFunc       func(iid int, drafts []mr.DraftComment) error
+type DiscardDraftsFunc      func(iid int) error
+type ReplyToDiscussionFunc  func(iid int, discussionID string, body string) error
+type DraftReplyFunc         func(iid int, discussionID string, body string) error
+type ResolveDiscussionFunc  func(iid int, discussionID string) error
+type UnresolveDiscussionFunc func(iid int, discussionID string) error
 
 type ProjectData struct {
 	Items           []mr.MergeRequest
@@ -77,18 +81,22 @@ type ProjectData struct {
 }
 
 type ProjectOptions struct {
-	Path            string
-	Recents         []string
-	Projects        []string
-	Section         Section
-	EntityID        string
-	Refresh         RefreshFunc
-	LoadDiff        DiffFunc
-	LoadProject     ProjectLoadFunc
-	LoadDiscussions LoadDiscussionsFunc
-	LoadFiles       LoadFilesFunc
-	SubmitDrafts    SubmitDraftsFunc
-	DiscardDrafts   DiscardDraftsFunc
+	Path                string
+	Recents             []string
+	Projects            []string
+	Section             Section
+	EntityID            string
+	Refresh             RefreshFunc
+	LoadDiff            DiffFunc
+	LoadProject         ProjectLoadFunc
+	LoadDiscussions     LoadDiscussionsFunc
+	LoadFiles           LoadFilesFunc
+	SubmitDrafts        SubmitDraftsFunc
+	DiscardDrafts       DiscardDraftsFunc
+	ReplyToDiscussion   ReplyToDiscussionFunc
+	DraftReply          DraftReplyFunc
+	ResolveDiscussion   ResolveDiscussionFunc
+	UnresolveDiscussion UnresolveDiscussionFunc
 }
 
 type projectStartedMsg struct {
@@ -128,6 +136,21 @@ type draftsSubmittedMsg struct {
 type draftsDiscardedMsg struct {
 	iid int
 	err error
+}
+
+type replyFinishedMsg struct {
+	iid          int
+	discussionID string
+	body         string
+	draft        bool
+	err          error
+}
+
+type resolveFinishedMsg struct {
+	iid          int
+	discussionID string
+	resolved     bool
+	err          error
 }
 
 type refreshStartedMsg struct{}
@@ -175,6 +198,15 @@ type Model struct {
 	drafts              map[int][]mr.DraftComment
 	submitDrafts        SubmitDraftsFunc
 	discardDrafts       DiscardDraftsFunc
+	discussionCursor    int
+	replyInput          bool
+	replyDraft          bool
+	replyDiscussionID   string
+	replyBuffer         string
+	replyToDiscussion   ReplyToDiscussionFunc
+	draftReply          DraftReplyFunc
+	resolveDiscussion   ResolveDiscussionFunc
+	unresolveDiscussion UnresolveDiscussionFunc
 	discussionsLoading  bool
 	filesLoading        bool
 	discussionsError    string
@@ -221,8 +253,12 @@ func NewModelWithProject(items []mr.MergeRequest, options ProjectOptions) Model 
 		changedFiles:    map[int][]mr.ChangedFile{},
 		drafts:          map[int][]mr.DraftComment{},
 		rangeStart:      -1,
-		submitDrafts:    options.SubmitDrafts,
-		discardDrafts:   options.DiscardDrafts,
+		submitDrafts:        options.SubmitDrafts,
+		discardDrafts:       options.DiscardDrafts,
+		replyToDiscussion:   options.ReplyToDiscussion,
+		draftReply:          options.DraftReply,
+		resolveDiscussion:   options.ResolveDiscussion,
+		unresolveDiscussion: options.UnresolveDiscussion,
 	}
 	if model.projectPath == "" {
 		if len(model.projectList) > 0 {
@@ -322,6 +358,31 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case filesStartedMsg:
 		m.filesLoading = true
 		m.filesError = ""
+		return m, nil
+	case replyFinishedMsg:
+		if msg.err == nil && !msg.draft {
+			if ds, ok := m.discussions[msg.iid]; ok {
+				for i, d := range ds {
+					if d.ID == msg.discussionID {
+						m.discussions[msg.iid][i].Notes = append(m.discussions[msg.iid][i].Notes, mr.Note{
+							Author: "me",
+							Body:   msg.body,
+						})
+					}
+				}
+			}
+		}
+		return m, nil
+	case resolveFinishedMsg:
+		if msg.err == nil {
+			if ds, ok := m.discussions[msg.iid]; ok {
+				for i, d := range ds {
+					if d.ID == msg.discussionID {
+						m.discussions[msg.iid][i].Resolved = msg.resolved
+					}
+				}
+			}
+		}
 		return m, nil
 	case draftAddedMsg:
 		m.drafts[msg.iid] = append(m.drafts[msg.iid], msg.draft)
@@ -451,6 +512,52 @@ func (m Model) updateKey(msg tea.KeyMsg) (Model, tea.Cmd) {
 	}
 
 	if m.mode == ModeFileDiff {
+		if m.replyInput {
+			switch msg.Type {
+			case tea.KeyEsc:
+				m.replyInput = false
+				m.replyBuffer = ""
+				m.replyDiscussionID = ""
+			case tea.KeyBackspace:
+				if len(m.replyBuffer) > 0 {
+					m.replyBuffer = m.replyBuffer[:len(m.replyBuffer)-1]
+				}
+			case tea.KeyRunes:
+				m.replyBuffer += msg.String()
+			case tea.KeyEnter:
+				body := m.replyBuffer
+				discussionID := m.replyDiscussionID
+				isDraft := m.replyDraft
+				m.replyInput = false
+				m.replyBuffer = ""
+				m.replyDiscussionID = ""
+				m.replyDraft = false
+				item, ok := m.selectedItem()
+				if !ok {
+					return m, nil
+				}
+				iid := item.IID
+				if isDraft {
+					fn := m.draftReply
+					if fn == nil {
+						return m, nil
+					}
+					return m, func() tea.Msg {
+						err := fn(iid, discussionID, body)
+						return replyFinishedMsg{iid: iid, discussionID: discussionID, body: body, draft: true, err: err}
+					}
+				}
+				fn := m.replyToDiscussion
+				if fn == nil {
+					return m, nil
+				}
+				return m, func() tea.Msg {
+					err := fn(iid, discussionID, body)
+					return replyFinishedMsg{iid: iid, discussionID: discussionID, body: body, draft: false, err: err}
+				}
+			}
+			return m, nil
+		}
 		if m.commentInput {
 			switch msg.Type {
 			case tea.KeyEsc:
@@ -535,6 +642,73 @@ func (m Model) updateKey(msg tea.KeyMsg) (Model, tea.Cmd) {
 		case "c":
 			m.commentInput = true
 			m.commentBuffer = ""
+		case "r", "d":
+			isDraft := msg.String() == "d"
+			item, ok := m.selectedItem()
+			if !ok {
+				break
+			}
+			files := m.currentFiles()
+			if len(files) <= m.selectedFile {
+				break
+			}
+			file := files[m.selectedFile]
+			if m.diffCursor >= len(file.Diff) {
+				break
+			}
+			row := file.Diff[m.diffCursor]
+			ds := m.discussions[item.IID]
+			for _, d := range ds {
+				if d.Position != nil && d.Position.NewPath == file.Path && d.Position.NewLine == row.NewLine && row.NewLine != 0 {
+					m.replyInput = true
+					m.replyDraft = isDraft
+					m.replyDiscussionID = d.ID
+					m.replyBuffer = ""
+					break
+				}
+			}
+		case "x":
+			item, ok := m.selectedItem()
+			if !ok {
+				break
+			}
+			files := m.currentFiles()
+			if len(files) <= m.selectedFile {
+				break
+			}
+			file := files[m.selectedFile]
+			if m.diffCursor >= len(file.Diff) {
+				break
+			}
+			row := file.Diff[m.diffCursor]
+			ds := m.discussions[item.IID]
+			for i, d := range ds {
+				if d.Position != nil && d.Position.NewPath == file.Path && d.Position.NewLine == row.NewLine && row.NewLine != 0 {
+					iid := item.IID
+					dID := d.ID
+					resolved := !d.Resolved
+					if resolved {
+						fn := m.resolveDiscussion
+						if fn == nil {
+							m.discussions[iid][i].Resolved = true
+							return m, nil
+						}
+						return m, func() tea.Msg {
+							err := fn(iid, dID)
+							return resolveFinishedMsg{iid: iid, discussionID: dID, resolved: true, err: err}
+						}
+					}
+					fn := m.unresolveDiscussion
+					if fn == nil {
+						m.discussions[iid][i].Resolved = false
+						return m, nil
+					}
+					return m, func() tea.Msg {
+						err := fn(iid, dID)
+						return resolveFinishedMsg{iid: iid, discussionID: dID, resolved: false, err: err}
+					}
+				}
+			}
 		case "p":
 			item, ok := m.selectedItem()
 			if ok && m.submitDrafts != nil {
@@ -570,6 +744,10 @@ func (m Model) updateKey(msg tea.KeyMsg) (Model, tea.Cmd) {
 			m.fileDiffTop = 0
 		}
 		return m, nil
+	}
+
+	if m.mode == ModeDetail && m.activeTab == TabDiscussions {
+		return m.updateDiscussionsTab(msg)
 	}
 
 	switch msg.String() {
@@ -622,6 +800,127 @@ func (m Model) updateKey(msg tea.KeyMsg) (Model, tea.Cmd) {
 		}
 	}
 
+	return m, nil
+}
+
+func (m Model) focusedDiscussion() (mr.Discussion, bool) {
+	item, ok := m.selectedItem()
+	if !ok {
+		return mr.Discussion{}, false
+	}
+	ds := m.discussions[item.IID]
+	if m.discussionCursor < 0 || m.discussionCursor >= len(ds) {
+		return mr.Discussion{}, false
+	}
+	return ds[m.discussionCursor], true
+}
+
+func (m Model) updateDiscussionsTab(msg tea.KeyMsg) (Model, tea.Cmd) {
+	if m.replyInput {
+		switch msg.Type {
+		case tea.KeyEsc:
+			m.replyInput = false
+			m.replyBuffer = ""
+			m.replyDiscussionID = ""
+		case tea.KeyBackspace:
+			if len(m.replyBuffer) > 0 {
+				m.replyBuffer = m.replyBuffer[:len(m.replyBuffer)-1]
+			}
+		case tea.KeyRunes:
+			m.replyBuffer += msg.String()
+		case tea.KeyEnter:
+			body := m.replyBuffer
+			discussionID := m.replyDiscussionID
+			isDraft := m.replyDraft
+			m.replyInput = false
+			m.replyBuffer = ""
+			m.replyDiscussionID = ""
+			m.replyDraft = false
+			item, ok := m.selectedItem()
+			if !ok {
+				return m, nil
+			}
+			iid := item.IID
+			if isDraft {
+				fn := m.draftReply
+				if fn == nil {
+					return m, nil
+				}
+				return m, func() tea.Msg {
+					err := fn(iid, discussionID, body)
+					return replyFinishedMsg{iid: iid, discussionID: discussionID, body: body, draft: true, err: err}
+				}
+			}
+			fn := m.replyToDiscussion
+			if fn == nil {
+				return m, nil
+			}
+			return m, func() tea.Msg {
+				err := fn(iid, discussionID, body)
+				return replyFinishedMsg{iid: iid, discussionID: discussionID, body: body, draft: false, err: err}
+			}
+		}
+		return m, nil
+	}
+
+	item, ok := m.selectedItem()
+	if !ok {
+		return m, nil
+	}
+	ds := m.discussions[item.IID]
+	count := len(ds)
+
+	switch msg.String() {
+	case "j", "down":
+		m.discussionCursor = clamp(m.discussionCursor+1, 0, max(0, count-1))
+	case "k", "up":
+		m.discussionCursor = clamp(m.discussionCursor-1, 0, max(0, count-1))
+	case "r":
+		if d, ok := m.focusedDiscussion(); ok {
+			m.replyInput = true
+			m.replyDraft = false
+			m.replyDiscussionID = d.ID
+			m.replyBuffer = ""
+		}
+	case "d":
+		if d, ok := m.focusedDiscussion(); ok {
+			m.replyInput = true
+			m.replyDraft = true
+			m.replyDiscussionID = d.ID
+			m.replyBuffer = ""
+		}
+	case "x":
+		if d, ok := m.focusedDiscussion(); ok {
+			iid := item.IID
+			dID := d.ID
+			resolved := !d.Resolved
+			if resolved {
+				fn := m.resolveDiscussion
+				if fn == nil {
+					m.discussions[iid][m.discussionCursor].Resolved = true
+					return m, nil
+				}
+				return m, func() tea.Msg {
+					err := fn(iid, dID)
+					return resolveFinishedMsg{iid: iid, discussionID: dID, resolved: true, err: err}
+				}
+			}
+			fn := m.unresolveDiscussion
+			if fn == nil {
+				m.discussions[iid][m.discussionCursor].Resolved = false
+				return m, nil
+			}
+			return m, func() tea.Msg {
+				err := fn(iid, dID)
+				return resolveFinishedMsg{iid: iid, discussionID: dID, resolved: false, err: err}
+			}
+		}
+	case "tab":
+		m.activeTab = (m.activeTab + 1) % (TabFiles + 1)
+		return m.onTabEntered()
+	case "q", "ctrl+c":
+		return m, tea.Quit
+	}
 	return m, nil
 }
 

@@ -1165,6 +1165,384 @@ func TestDKeyDiscardsAllLocalDrafts(t *testing.T) {
 	}
 }
 
+// --- #44: Discussion write actions ---
+
+func discussionWriteOpts() ProjectOptions {
+	return ProjectOptions{
+		Path:    "group/project",
+		Section: SectionMergeRequests,
+		LoadDiscussions: func(iid int) ([]mr.Discussion, error) {
+			return []mr.Discussion{
+				{ID: "d1", Resolved: false, Notes: []mr.Note{{Author: "alice", Body: "Fix naming"}}},
+				{ID: "d2", Resolved: true, Notes: []mr.Note{{Author: "bob", Body: "LGTM"}}},
+			}, nil
+		},
+		LoadFiles: func(iid int) ([]mr.ChangedFile, error) { return nil, nil },
+	}
+}
+
+func discussionsTabModel(t *testing.T) Model {
+	t.Helper()
+	model := NewModelWithProject(FakeMergeRequests(), discussionWriteOpts())
+	// Navigate to Discussions tab
+	updated, _ := model.Update(tea.KeyMsg{Type: tea.KeyTab})
+	model = updated.(Model)
+	// Load discussions
+	updated, _ = model.Update(discussionsFinishedMsg{iid: 42, discussions: []mr.Discussion{
+		{ID: "d1", Resolved: false, Notes: []mr.Note{{Author: "alice", Body: "Fix naming"}}},
+		{ID: "d2", Resolved: true, Notes: []mr.Note{{Author: "bob", Body: "LGTM"}}},
+	}})
+	return updated.(Model)
+}
+
+func TestDiscussionCursorMovesWithJK(t *testing.T) {
+	model := discussionsTabModel(t)
+
+	if model.discussionCursor != 0 {
+		t.Fatalf("expected initial cursor 0, got %d", model.discussionCursor)
+	}
+
+	updated, _ := model.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune("j")})
+	model = updated.(Model)
+
+	if model.discussionCursor != 1 {
+		t.Fatalf("expected cursor 1 after j, got %d", model.discussionCursor)
+	}
+
+	updated, _ = model.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune("k")})
+	model = updated.(Model)
+
+	if model.discussionCursor != 0 {
+		t.Fatalf("expected cursor 0 after k, got %d", model.discussionCursor)
+	}
+}
+
+func TestDiscussionCursorDoesNotExceedBounds(t *testing.T) {
+	model := discussionsTabModel(t)
+
+	updated, _ := model.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune("k")})
+	model = updated.(Model)
+	if model.discussionCursor != 0 {
+		t.Fatalf("expected cursor to stay at 0 (already first), got %d", model.discussionCursor)
+	}
+
+	// Move to last
+	updated, _ = model.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune("j")})
+	model = updated.(Model)
+	updated, _ = model.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune("j")})
+	model = updated.(Model)
+	if model.discussionCursor != 1 {
+		t.Fatalf("expected cursor to stay at 1 (last), got %d", model.discussionCursor)
+	}
+}
+
+func TestRKeyOpensReplyInputForFocusedDiscussion(t *testing.T) {
+	model := discussionsTabModel(t)
+
+	updated, _ := model.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune("r")})
+	model = updated.(Model)
+
+	if !model.replyInput {
+		t.Fatal("expected replyInput true after r")
+	}
+	if model.replyDraft {
+		t.Fatal("expected replyDraft false for instant reply")
+	}
+	if model.replyDiscussionID != "d1" {
+		t.Fatalf("expected replyDiscussionID d1, got %q", model.replyDiscussionID)
+	}
+}
+
+func TestEnterInReplyInputSendsReplyAndAddsNote(t *testing.T) {
+	called := false
+	opts := discussionWriteOpts()
+	opts.ReplyToDiscussion = func(iid int, discussionID string, body string) error {
+		called = true
+		if discussionID != "d1" {
+			t.Errorf("expected d1, got %q", discussionID)
+		}
+		if body != "My reply" {
+			t.Errorf("expected 'My reply', got %q", body)
+		}
+		return nil
+	}
+
+	model := NewModelWithProject(FakeMergeRequests(), opts)
+	updated, _ := model.Update(tea.KeyMsg{Type: tea.KeyTab})
+	model = updated.(Model)
+	updated, _ = model.Update(discussionsFinishedMsg{iid: 42, discussions: []mr.Discussion{
+		{ID: "d1", Resolved: false, Notes: []mr.Note{{Author: "alice", Body: "Fix naming"}}},
+	}})
+	model = updated.(Model)
+
+	// Open reply
+	updated, _ = model.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune("r")})
+	model = updated.(Model)
+	updated, _ = model.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune("My reply")})
+	model = updated.(Model)
+
+	// Send
+	updated, cmd := model.Update(tea.KeyMsg{Type: tea.KeyEnter})
+	model = updated.(Model)
+
+	if model.replyInput {
+		t.Fatal("expected replyInput closed after Enter")
+	}
+	if cmd == nil {
+		t.Fatal("expected reply command")
+	}
+
+	msg := cmd()
+	updated, _ = model.Update(msg)
+	model = updated.(Model)
+
+	if !called {
+		t.Fatal("expected ReplyToDiscussion to be called")
+	}
+	if len(model.discussions[42][0].Notes) != 2 {
+		t.Fatalf("expected 2 notes after reply, got %d", len(model.discussions[42][0].Notes))
+	}
+	if model.discussions[42][0].Notes[1].Body != "My reply" {
+		t.Fatalf("unexpected note body: %q", model.discussions[42][0].Notes[1].Body)
+	}
+}
+
+func TestDKeyOpensDraftReplyAndEnterCallsService(t *testing.T) {
+	called := false
+	opts := discussionWriteOpts()
+	opts.DraftReply = func(iid int, discussionID string, body string) error {
+		called = true
+		if body != "Draft reply" {
+			t.Errorf("expected 'Draft reply', got %q", body)
+		}
+		return nil
+	}
+
+	model := NewModelWithProject(FakeMergeRequests(), opts)
+	updated, _ := model.Update(tea.KeyMsg{Type: tea.KeyTab})
+	model = updated.(Model)
+	updated, _ = model.Update(discussionsFinishedMsg{iid: 42, discussions: []mr.Discussion{
+		{ID: "d1", Resolved: false, Notes: []mr.Note{{Author: "alice", Body: "Fix"}}},
+	}})
+	model = updated.(Model)
+
+	updated, _ = model.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune("d")})
+	model = updated.(Model)
+
+	if !model.replyInput || !model.replyDraft {
+		t.Fatalf("expected replyInput=true replyDraft=true, got input=%v draft=%v", model.replyInput, model.replyDraft)
+	}
+
+	updated, _ = model.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune("Draft reply")})
+	model = updated.(Model)
+	updated, cmd := model.Update(tea.KeyMsg{Type: tea.KeyEnter})
+	model = updated.(Model)
+
+	if cmd == nil {
+		t.Fatal("expected draft reply command")
+	}
+	cmd()
+	if !called {
+		t.Fatal("expected DraftReply to be called")
+	}
+}
+
+func TestXKeyResolvesOpenDiscussion(t *testing.T) {
+	resolved := false
+	opts := discussionWriteOpts()
+	opts.ResolveDiscussion = func(iid int, discussionID string) error {
+		resolved = true
+		if discussionID != "d1" {
+			t.Errorf("expected d1, got %q", discussionID)
+		}
+		return nil
+	}
+
+	model := NewModelWithProject(FakeMergeRequests(), opts)
+	updated, _ := model.Update(tea.KeyMsg{Type: tea.KeyTab})
+	model = updated.(Model)
+	updated, _ = model.Update(discussionsFinishedMsg{iid: 42, discussions: []mr.Discussion{
+		{ID: "d1", Resolved: false, Notes: []mr.Note{{Author: "alice", Body: "Fix"}}},
+	}})
+	model = updated.(Model)
+
+	updated, cmd := model.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune("x")})
+	model = updated.(Model)
+
+	if cmd == nil {
+		t.Fatal("expected resolve command")
+	}
+	msg := cmd()
+	updated, _ = model.Update(msg)
+	model = updated.(Model)
+
+	if !resolved {
+		t.Fatal("expected ResolveDiscussion to be called")
+	}
+	if !model.discussions[42][0].Resolved {
+		t.Fatal("expected discussion marked resolved")
+	}
+}
+
+func TestXKeyUnresolvesResolvedDiscussion(t *testing.T) {
+	unresolved := false
+	opts := discussionWriteOpts()
+	opts.UnresolveDiscussion = func(iid int, discussionID string) error {
+		unresolved = true
+		return nil
+	}
+
+	model := NewModelWithProject(FakeMergeRequests(), opts)
+	updated, _ := model.Update(tea.KeyMsg{Type: tea.KeyTab})
+	model = updated.(Model)
+	updated, _ = model.Update(discussionsFinishedMsg{iid: 42, discussions: []mr.Discussion{
+		{ID: "d2", Resolved: true, Notes: []mr.Note{{Author: "bob", Body: "LGTM"}}},
+	}})
+	model = updated.(Model)
+
+	updated, cmd := model.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune("x")})
+	model = updated.(Model)
+
+	if cmd == nil {
+		t.Fatal("expected unresolve command")
+	}
+	msg := cmd()
+	updated, _ = model.Update(msg)
+	model = updated.(Model)
+
+	if !unresolved {
+		t.Fatal("expected UnresolveDiscussion to be called")
+	}
+	if model.discussions[42][0].Resolved {
+		t.Fatal("expected discussion marked unresolved")
+	}
+}
+
+func diffViewWithInlineDiscussion(t *testing.T, replyFn ReplyToDiscussionFunc) Model {
+	t.Helper()
+	opts := ProjectOptions{
+		Path:    "group/project",
+		Section: SectionMergeRequests,
+		LoadFiles: func(iid int) ([]mr.ChangedFile, error) {
+			return []mr.ChangedFile{
+				{Path: "main.go", Diff: []mr.DiffRow{
+					{OldLine: 1, NewLine: 1, OldText: "old", NewText: "old"},
+					{OldLine: 0, NewLine: 2, NewText: "new line"},
+				}},
+			}, nil
+		},
+		LoadDiscussions: func(iid int) ([]mr.Discussion, error) { return nil, nil },
+		ReplyToDiscussion: replyFn,
+	}
+
+	model := NewModelWithProject(FakeMergeRequests(), opts)
+	updated, _ := model.Update(tea.KeyMsg{Type: tea.KeyTab})
+	model = updated.(Model)
+	// Load discussions with inline position on new line 1
+	updated, _ = model.Update(discussionsFinishedMsg{iid: 42, discussions: []mr.Discussion{
+		{ID: "inline-d1", Resolved: false, Notes: []mr.Note{{Author: "alice", Body: "inline comment"}},
+			Position: &mr.DiffPosition{NewPath: "main.go", NewLine: 1}},
+	}})
+	model = updated.(Model)
+	updated, _ = model.Update(tea.KeyMsg{Type: tea.KeyTab})
+	model = updated.(Model)
+	updated, _ = model.Update(filesFinishedMsg{iid: 42, files: []mr.ChangedFile{
+		{Path: "main.go", Diff: []mr.DiffRow{
+			{OldLine: 1, NewLine: 1, OldText: "old", NewText: "old"},
+			{OldLine: 0, NewLine: 2, NewText: "new line"},
+		}},
+	}})
+	model = updated.(Model)
+	updated, _ = model.Update(tea.KeyMsg{Type: tea.KeyEnter})
+	return updated.(Model)
+}
+
+func TestRKeyInDiffViewOnInlineDiscussionOpensReplyInput(t *testing.T) {
+	model := diffViewWithInlineDiscussion(t, nil)
+
+	// diffCursor is at 0 which has the inline discussion (NewLine=1)
+	updated, _ := model.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune("r")})
+	model = updated.(Model)
+
+	if !model.replyInput {
+		t.Fatalf("expected replyInput true, got false; mode=%v cursor=%d", model.mode, model.diffCursor)
+	}
+	if model.replyDiscussionID != "inline-d1" {
+		t.Fatalf("expected replyDiscussionID inline-d1, got %q", model.replyDiscussionID)
+	}
+}
+
+func TestDKeyInDiffViewOpensDraftReplyForInlineDiscussion(t *testing.T) {
+	model := diffViewWithInlineDiscussion(t, nil)
+
+	updated, _ := model.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune("d")})
+	model = updated.(Model)
+
+	if !model.replyInput {
+		t.Fatal("expected replyInput true after d")
+	}
+	if !model.replyDraft {
+		t.Fatal("expected replyDraft true after d")
+	}
+	if model.replyDiscussionID != "inline-d1" {
+		t.Fatalf("expected replyDiscussionID inline-d1, got %q", model.replyDiscussionID)
+	}
+}
+
+func TestXKeyInDiffViewResolvesInlineDiscussion(t *testing.T) {
+	resolved := false
+	opts := ProjectOptions{
+		Path:    "group/project",
+		Section: SectionMergeRequests,
+		LoadFiles: func(iid int) ([]mr.ChangedFile, error) {
+			return []mr.ChangedFile{
+				{Path: "main.go", Diff: []mr.DiffRow{
+					{OldLine: 1, NewLine: 1, OldText: "old", NewText: "old"},
+				}},
+			}, nil
+		},
+		LoadDiscussions: func(iid int) ([]mr.Discussion, error) { return nil, nil },
+		ResolveDiscussion: func(iid int, discussionID string) error {
+			resolved = true
+			return nil
+		},
+	}
+
+	model := NewModelWithProject(FakeMergeRequests(), opts)
+	updated, _ := model.Update(tea.KeyMsg{Type: tea.KeyTab})
+	model = updated.(Model)
+	updated, _ = model.Update(discussionsFinishedMsg{iid: 42, discussions: []mr.Discussion{
+		{ID: "inline-d1", Resolved: false, Notes: []mr.Note{{Author: "alice", Body: "fix"}},
+			Position: &mr.DiffPosition{NewPath: "main.go", NewLine: 1}},
+	}})
+	model = updated.(Model)
+	updated, _ = model.Update(tea.KeyMsg{Type: tea.KeyTab})
+	model = updated.(Model)
+	updated, _ = model.Update(filesFinishedMsg{iid: 42, files: []mr.ChangedFile{
+		{Path: "main.go", Diff: []mr.DiffRow{{OldLine: 1, NewLine: 1, OldText: "old", NewText: "old"}}},
+	}})
+	model = updated.(Model)
+	updated, _ = model.Update(tea.KeyMsg{Type: tea.KeyEnter})
+	model = updated.(Model)
+
+	updated, cmd := model.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune("x")})
+	model = updated.(Model)
+
+	if cmd == nil {
+		t.Fatal("expected resolve command from x")
+	}
+	msg := cmd()
+	updated, _ = model.Update(msg)
+	model = updated.(Model)
+
+	if !resolved {
+		t.Fatal("expected ResolveDiscussion to be called")
+	}
+	if !model.discussions[42][0].Resolved {
+		t.Fatal("expected inline discussion marked resolved")
+	}
+}
+
 func TestTabKeyCyclesDetailTabs(t *testing.T) {
 	model := NewModelWithProject(FakeMergeRequests(), ProjectOptions{Path: "group/project", Section: SectionMergeRequests})
 
