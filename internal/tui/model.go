@@ -3,6 +3,7 @@ package tui
 import (
 	"fmt"
 	"io"
+	"strconv"
 	"strings"
 
 	tea "github.com/charmbracelet/bubbletea"
@@ -16,9 +17,12 @@ type Mode int
 const (
 	ModeProjectSelect Mode = iota
 	ModeProjectInput
+	ModeSections
 	ModeDetail
 	ModeDiff
 )
+
+const SectionMergeRequests = "mr"
 
 type Focus int
 
@@ -41,6 +45,9 @@ type ProjectData struct {
 type ProjectOptions struct {
 	Path        string
 	Recents     []string
+	Projects    []string
+	Section     string
+	EntityID    string
 	Items       []mr.MergeRequest
 	Refresh     RefreshFunc
 	LoadDiff    DiffFunc
@@ -84,6 +91,11 @@ type Model struct {
 	rightTop       int
 	projectPath    string
 	recentProjects []string
+	gitlabProjects []string
+	projectList    []string
+	section        string
+	sectionCursor  int
+	entityID       string
 	projectInput   string
 	refresh        RefreshFunc
 	loadDiff       DiffFunc
@@ -100,7 +112,7 @@ func NewFakeModel() Model {
 }
 
 func NewModel(items []mr.MergeRequest) Model {
-	return NewModelWithProject(items, ProjectOptions{Path: "group/project"})
+	return NewModelWithProject(items, ProjectOptions{Path: "group/project", Section: SectionMergeRequests})
 }
 
 func NewModelWithProject(items []mr.MergeRequest, options ProjectOptions) Model {
@@ -114,19 +126,26 @@ func NewModelWithProject(items []mr.MergeRequest, options ProjectOptions) Model 
 		height:         30,
 		projectPath:    options.Path,
 		recentProjects: options.Recents,
+		gitlabProjects: options.Projects,
+		projectList:    buildProjectList(options.Path, options.Recents, options.Projects),
+		section:        options.Section,
+		entityID:       options.EntityID,
 		refresh:        options.Refresh,
 		loadDiff:       options.LoadDiff,
 		loadProject:    options.LoadProject,
 	}
 	if model.projectPath == "" {
-		if len(model.recentProjects) > 0 {
+		if len(model.projectList) > 0 {
 			model.mode = ModeProjectSelect
 		} else {
 			model.mode = ModeProjectInput
 			model.focus = FocusFilter
 		}
-	} else {
+	} else if model.section == SectionMergeRequests {
+		model.selectEntity()
 		model.mode = ModeDetail
+	} else {
+		model.mode = ModeSections
 	}
 	return model
 }
@@ -177,9 +196,14 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.refresh = msg.data.Refresh
 		m.loadDiff = msg.data.LoadDiff
 		m.selected = clampSelection(0, len(m.filtered()))
+		m.selectEntity()
 		m.listTop = 0
 		m.rightTop = 0
-		m.mode = ModeDetail
+		if m.section == SectionMergeRequests {
+			m.mode = ModeDetail
+		} else {
+			m.mode = ModeSections
+		}
 		m.focus = FocusList
 		return m, nil
 	case refreshStartedMsg:
@@ -220,12 +244,12 @@ func (m Model) updateKey(msg tea.KeyMsg) (Model, tea.Cmd) {
 	if m.mode == ModeProjectSelect {
 		switch msg.String() {
 		case "up", "k":
-			m.selected = clamp(m.selected-1, 0, len(m.recentProjects)-1)
+			m.selected = clamp(m.selected-1, 0, len(m.projectList)-1)
 		case "down", "j":
-			m.selected = clamp(m.selected+1, 0, len(m.recentProjects)-1)
+			m.selected = clamp(m.selected+1, 0, len(m.projectList)-1)
 		case "enter":
-			if len(m.recentProjects) > 0 {
-				return m.openProjectCommand(m.recentProjects[m.selected])
+			if len(m.projectList) > 0 {
+				return m.openProjectCommand(m.projectList[m.selected])
 			}
 		case "i":
 			m.mode = ModeProjectInput
@@ -247,6 +271,25 @@ func (m Model) updateKey(msg tea.KeyMsg) (Model, tea.Cmd) {
 			}
 		case tea.KeyRunes:
 			m.projectInput += msg.String()
+		}
+		return m, nil
+	}
+
+	if m.mode == ModeSections {
+		switch msg.String() {
+		case "up", "k":
+			m.sectionCursor = clamp(m.sectionCursor-1, 0, 2)
+		case "down", "j":
+			m.sectionCursor = clamp(m.sectionCursor+1, 0, 2)
+		case "enter":
+			if m.sectionCursor == 0 {
+				m.section = SectionMergeRequests
+				m.mode = ModeDetail
+				m.focus = FocusList
+			}
+		case "esc", "backspace":
+			m.mode = ModeProjectSelect
+			m.focus = FocusList
 		}
 		return m, nil
 	}
@@ -313,7 +356,7 @@ func (m Model) updateKey(msg tea.KeyMsg) (Model, tea.Cmd) {
 
 func (m *Model) returnToProjectPicker() {
 	m.projectPath = ""
-	if len(m.recentProjects) > 0 {
+	if len(m.projectList) > 0 {
 		m.mode = ModeProjectSelect
 		m.focus = FocusList
 		return
@@ -377,16 +420,16 @@ func (m Model) updateMouse(msg tea.MouseMsg) (Model, tea.Cmd) {
 	if m.mode == ModeProjectSelect {
 		if msg.Button == tea.MouseButtonLeft && msg.Y >= 2 {
 			idx := msg.Y - 2
-			if idx >= 0 && idx < len(m.recentProjects) {
+			if idx >= 0 && idx < len(m.projectList) {
 				m.selected = idx
-				return m.openProjectCommand(m.recentProjects[idx])
+				return m.openProjectCommand(m.projectList[idx])
 			}
 		}
 		if msg.Button == tea.MouseButtonWheelUp {
-			m.selected = clamp(m.selected-1, 0, len(m.recentProjects)-1)
+			m.selected = clamp(m.selected-1, 0, len(m.projectList)-1)
 		}
 		if msg.Button == tea.MouseButtonWheelDown {
-			m.selected = clamp(m.selected+1, 0, len(m.recentProjects)-1)
+			m.selected = clamp(m.selected+1, 0, len(m.projectList)-1)
 		}
 		return m, nil
 	}
@@ -420,6 +463,22 @@ func (m Model) updateMouse(msg tea.MouseMsg) (Model, tea.Cmd) {
 	return m, nil
 }
 
+func (m *Model) selectEntity() {
+	if m.entityID == "" {
+		return
+	}
+	iid, err := strconv.Atoi(m.entityID)
+	if err != nil {
+		return
+	}
+	for i, item := range m.filtered() {
+		if item.IID == iid {
+			m.selected = i
+			return
+		}
+	}
+}
+
 func (m *Model) moveSelection(delta int) {
 	count := len(m.filtered())
 	if count == 0 {
@@ -449,10 +508,65 @@ func (m Model) View() string {
 	if m.mode == ModeProjectSelect || m.mode == ModeProjectInput {
 		return m.renderProjectPicker()
 	}
+	if m.mode == ModeSections {
+		return lipgloss.JoinHorizontal(lipgloss.Top, m.renderProjectList(), m.renderSections())
+	}
 
 	left := m.renderList()
 	right := m.renderRight()
 	return lipgloss.JoinHorizontal(lipgloss.Top, left, right)
+}
+
+func buildProjectList(opened string, recents []string, projects []string) []string {
+	seen := map[string]bool{}
+	list := []string{}
+	candidates := []string{}
+	if opened != "" {
+		candidates = append(candidates, opened)
+	}
+	candidates = append(candidates, recents...)
+	candidates = append(candidates, projects...)
+	for _, project := range candidates {
+		if project == "" || seen[project] {
+			continue
+		}
+		seen[project] = true
+		list = append(list, project)
+	}
+	return list
+}
+
+func (m Model) renderProjectList() string {
+	width := m.leftWidth()
+	style := paneStyle(width, max(8, m.height), false)
+	lines := []string{"Projects", ""}
+	for _, project := range m.projectList {
+		prefix := "  "
+		if project == m.projectPath {
+			prefix = "> "
+		}
+		lines = append(lines, prefix+project)
+	}
+	if len(m.projectList) == 0 {
+		lines = append(lines, "No projects")
+	}
+	return style.Render(strings.Join(lines, "\n"))
+}
+
+func (m Model) renderSections() string {
+	width := max(20, m.width-m.leftWidth())
+	style := paneStyle(width, max(8, m.height), true)
+	sections := []string{"Merge Requests", "Issues", "Pipelines"}
+	lines := []string{"Sections", ""}
+	for i, section := range sections {
+		prefix := "  "
+		if i == m.sectionCursor {
+			prefix = "> "
+		}
+		lines = append(lines, prefix+section)
+	}
+	lines = append(lines, "", "Enter: open  Esc: projects")
+	return style.Render(strings.Join(lines, "\n"))
 }
 
 func (m Model) renderProjectPicker() string {
@@ -468,8 +582,8 @@ func (m Model) renderProjectPicker() string {
 		}, "\n"))
 	}
 
-	lines := []string{"Recent projects", ""}
-	for i, project := range m.recentProjects {
+	lines := []string{"Projects", ""}
+	for i, project := range m.projectList {
 		prefix := "  "
 		if i == m.selected {
 			prefix = "> "

@@ -12,6 +12,58 @@ import (
 
 var errTestRefresh = errors.New("refresh failed")
 
+func TestResolvedProjectShowsProjectListAndSections(t *testing.T) {
+	model := NewModelWithProject(FakeMergeRequests(), ProjectOptions{
+		Path:     "group/project",
+		Recents:  []string{"group/project", "recent/other"},
+		Projects: []string{"group/project", "gitlab/other"},
+	})
+
+	view := model.View()
+	for _, want := range []string{
+		"Projects",
+		"> group/project",
+		"recent/other",
+		"gitlab/other",
+		"Sections",
+		"Merge Requests",
+		"Issues",
+		"Pipelines",
+	} {
+		if !strings.Contains(view, want) {
+			t.Fatalf("expected view to contain %q, got %q", want, view)
+		}
+	}
+}
+
+func TestEnterOnMergeRequestsSectionOpensMRList(t *testing.T) {
+	model := NewModelWithProject(FakeMergeRequests(), ProjectOptions{Path: "group/project"})
+	updated, _ := model.Update(tea.KeyMsg{Type: tea.KeyEnter})
+	model = updated.(Model)
+
+	if model.mode != ModeDetail {
+		t.Fatalf("expected MR list/detail mode, got %v", model.mode)
+	}
+	if model.section != SectionMergeRequests {
+		t.Fatalf("expected MR section, got %q", model.section)
+	}
+	if !strings.Contains(model.View(), "Merge Requests") || !strings.Contains(model.View(), "Port TUI shell") {
+		t.Fatalf("expected MR list view, got %q", model.View())
+	}
+}
+
+func TestOpenedProjectMovesToTopOfProjectList(t *testing.T) {
+	model := NewModelWithProject(FakeMergeRequests(), ProjectOptions{
+		Path:     "group/project",
+		Recents:  []string{"recent/other"},
+		Projects: []string{"group/project"},
+	})
+
+	if len(model.projectList) == 0 || model.projectList[0] != "group/project" {
+		t.Fatalf("expected opened project first, got %+v", model.projectList)
+	}
+}
+
 func TestKeyboardSelectionAndDiffNavigation(t *testing.T) {
 	model := NewFakeModel()
 	updated, _ := model.Update(tea.KeyMsg{Type: tea.KeyDown})
@@ -49,6 +101,37 @@ func TestFilterInputNarrowsList(t *testing.T) {
 	}
 }
 
+func TestDirectMRDeepLinkSelectsLoadedMergeRequest(t *testing.T) {
+	model := NewModelWithProject(nil, ProjectOptions{Path: "group/project", Section: SectionMergeRequests, EntityID: "123"})
+	updated, _ := model.Update(projectFinishedMsg{path: "group/project", data: ProjectData{Items: []mr.MergeRequest{
+		{IID: 101, Title: "First MR"},
+		{IID: 123, Title: "Loaded target"},
+	}}})
+	model = updated.(Model)
+
+	if model.selected != 1 {
+		t.Fatalf("expected loaded target MR selected, got %d", model.selected)
+	}
+	if !strings.Contains(model.View(), "!123 Loaded target") {
+		t.Fatalf("expected loaded target MR detail, got %q", model.View())
+	}
+}
+
+func TestDirectMRDeepLinkSelectsMatchingMergeRequest(t *testing.T) {
+	model := NewModelWithProject([]mr.MergeRequest{
+		{IID: 101, Title: "First MR"},
+		{IID: 123, Title: "Target MR", Description: "Deep linked"},
+	}, ProjectOptions{Path: "group/project", Section: SectionMergeRequests, EntityID: "123"})
+
+	if model.selected != 1 {
+		t.Fatalf("expected selected MR index 1, got %d", model.selected)
+	}
+	view := model.View()
+	if !strings.Contains(view, "!123 Target MR") || !strings.Contains(view, "Deep linked") {
+		t.Fatalf("expected target MR detail, got %q", view)
+	}
+}
+
 func TestMRListAndDetailRenderPreviousMRInfo(t *testing.T) {
 	model := NewModelWithProject([]mr.MergeRequest{{
 		IID:            10,
@@ -62,7 +145,7 @@ func TestMRListAndDetailRenderPreviousMRInfo(t *testing.T) {
 		Approvals:      "1/2",
 		Description:    "Review from terminal",
 		WebURL:         "https://gitlab.com/group/project/-/merge_requests/10",
-	}}, ProjectOptions{Path: "group/project"})
+	}}, ProjectOptions{Path: "group/project", Section: SectionMergeRequests})
 
 	view := model.View()
 	for _, want := range []string{
@@ -95,7 +178,19 @@ func TestMouseClickSelectsListItem(t *testing.T) {
 	}
 }
 
-func TestRecentProjectSelectionLoadsProject(t *testing.T) {
+func TestProjectSelectionShowsRecentsAndGitLabProjects(t *testing.T) {
+	model := NewModelWithProject(FakeMergeRequests(), ProjectOptions{
+		Recents:  []string{"recent/project"},
+		Projects: []string{"gitlab/project"},
+	})
+
+	view := model.View()
+	if !strings.Contains(view, "recent/project") || !strings.Contains(view, "gitlab/project") {
+		t.Fatalf("expected recents and GitLab projects, got %q", view)
+	}
+}
+
+func TestProjectSelectionOpensSectionsAfterLoad(t *testing.T) {
 	model := NewModelWithProject(FakeMergeRequests(), ProjectOptions{
 		Recents: []string{"group/one", "group/two"},
 		LoadProject: func(path string) (ProjectData, error) {
@@ -122,8 +217,8 @@ func TestRecentProjectSelectionLoadsProject(t *testing.T) {
 	if model.projectPath != "group/two" {
 		t.Fatalf("expected selected recent project, got %q", model.projectPath)
 	}
-	if model.mode != ModeDetail {
-		t.Fatalf("expected detail mode, got %v", model.mode)
+	if model.mode != ModeSections {
+		t.Fatalf("expected sections mode, got %v", model.mode)
 	}
 	if len(model.items) != 1 || model.items[0].IID != 42 {
 		t.Fatalf("expected loaded items, got %+v", model.items)
@@ -238,8 +333,8 @@ func TestManualProjectInputLoadsProject(t *testing.T) {
 	if model.projectPath != "group/project" {
 		t.Fatalf("expected manual project, got %q", model.projectPath)
 	}
-	if model.mode != ModeDetail {
-		t.Fatalf("expected detail mode, got %v", model.mode)
+	if model.mode != ModeSections {
+		t.Fatalf("expected sections mode, got %v", model.mode)
 	}
 	if len(model.items) != 1 || model.items[0].IID != 7 {
 		t.Fatalf("expected loaded items, got %+v", model.items)
@@ -248,7 +343,8 @@ func TestManualProjectInputLoadsProject(t *testing.T) {
 
 func TestEnterLoadsDiffWhenNeeded(t *testing.T) {
 	model := NewModelWithProject([]mr.MergeRequest{{IID: 1, Title: "Needs diff"}}, ProjectOptions{
-		Path: "group/project",
+		Path:    "group/project",
+		Section: SectionMergeRequests,
 		LoadDiff: func(iid int) ([]mr.DiffRow, error) {
 			return []mr.DiffRow{{OldLine: 1, OldText: "old", NewLine: 1, NewText: "new"}}, nil
 		},
@@ -261,7 +357,7 @@ func TestEnterLoadsDiffWhenNeeded(t *testing.T) {
 }
 
 func TestDiffFinishedStoresRowsAndOpensDiff(t *testing.T) {
-	model := NewModelWithProject([]mr.MergeRequest{{IID: 1, Title: "Needs diff"}}, ProjectOptions{Path: "group/project"})
+	model := NewModelWithProject([]mr.MergeRequest{{IID: 1, Title: "Needs diff"}}, ProjectOptions{Path: "group/project", Section: SectionMergeRequests})
 	updated, _ := model.Update(diffFinishedMsg{iid: 1, rows: []mr.DiffRow{{OldLine: 1, OldText: "old"}}})
 	model = updated.(Model)
 
@@ -274,7 +370,7 @@ func TestDiffFinishedStoresRowsAndOpensDiff(t *testing.T) {
 }
 
 func TestEmptyProjectStateCanReturnToProjectSelection(t *testing.T) {
-	model := NewModelWithProject(FakeMergeRequests(), ProjectOptions{Recents: []string{"group/project"}})
+	model := NewModelWithProject(FakeMergeRequests(), ProjectOptions{Recents: []string{"group/project"}, Section: SectionMergeRequests})
 	updated, _ := model.Update(projectFinishedMsg{path: "group/project", data: ProjectData{Items: []mr.MergeRequest{}}})
 	model = updated.(Model)
 
@@ -295,7 +391,8 @@ func TestEmptyProjectStateCanReturnToProjectSelection(t *testing.T) {
 
 func TestRefreshKeyReturnsCommand(t *testing.T) {
 	model := NewModelWithProject(FakeMergeRequests(), ProjectOptions{
-		Path: "group/project",
+		Path:    "group/project",
+		Section: SectionMergeRequests,
 		Refresh: func() ([]mr.MergeRequest, error) {
 			return []mr.MergeRequest{{IID: 99, Title: "Refreshed"}}, nil
 		},
