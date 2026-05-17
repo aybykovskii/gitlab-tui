@@ -29,27 +29,29 @@ func NewWithEnv(version string, env []string) App {
 }
 
 func (a App) Run(args []string, stdout io.Writer, stderr io.Writer) int {
-	if len(args) == 0 {
-		return a.runTUI(stdout, stderr)
+	if len(args) > 0 {
+		switch args[0] {
+		case "init":
+			return a.runInit(stdout, stderr)
+		case "version", "--version", "-v":
+			fmt.Fprintln(stdout, a.version)
+			return 0
+		case "help", "--help", "-h":
+			writeUsage(stdout)
+			return 0
+		}
 	}
 
-	switch args[0] {
-	case "init":
-		return a.runInit(stdout, stderr)
-	case "version", "--version", "-v":
-		fmt.Fprintln(stdout, a.version)
-		return 0
-	case "help", "--help", "-h":
-		writeUsage(stdout)
-		return 0
-	default:
-		fmt.Fprintf(stderr, "unknown command: %s\n", args[0])
+	intent, err := ParseCLI(args)
+	if err != nil {
+		fmt.Fprintln(stderr, err)
 		writeUsage(stderr)
 		return 2
 	}
+	return a.runTUI(stdout, stderr, intent)
 }
 
-func (a App) runTUI(stdout io.Writer, stderr io.Writer) int {
+func (a App) runTUI(stdout io.Writer, stderr io.Writer, intent CLIIntent) int {
 	cfg := config.Default()
 	configPath, err := (config.Paths{Env: a.env}).Path()
 	configLoaded := false
@@ -69,7 +71,7 @@ func (a App) runTUI(stdout io.Writer, stderr io.Writer) int {
 		fmt.Fprintf(stderr, "resolve cwd: %v\n", err)
 		return 1
 	}
-	resolution := ProjectResolver{Config: cfg, Remotes: gitremote.CommandRunner{Dir: cwd}}.Resolve()
+	resolution := ProjectResolver{Config: cfg, Remotes: gitremote.CommandRunner{Dir: cwd}, ProjectOverride: intent.ProjectOverride}.Resolve()
 	loadProject := func(projectPath string) (tui.ProjectData, error) {
 		account, ok := cfg.Account(resolution.Account)
 		if !ok {
@@ -138,7 +140,7 @@ func (a App) runInit(stdout io.Writer, stderr io.Writer) int {
 }
 
 func writeUsage(w io.Writer) {
-	fmt.Fprintln(w, "Usage: gitlab-tui-go [command]")
+	fmt.Fprintln(w, "Usage: gitlab-tui-go [--project <path>] [mr|issue|pipeline] [entity-id]")
 	fmt.Fprintln(w)
 	fmt.Fprintln(w, "Commands:")
 	fmt.Fprintln(w, "  init     Create YAML config")

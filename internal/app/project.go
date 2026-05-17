@@ -10,7 +10,8 @@ import (
 type ProjectSource int
 
 const (
-	ProjectSourceGitRemote ProjectSource = iota
+	ProjectSourceOverride ProjectSource = iota
+	ProjectSourceGitRemote
 	ProjectSourceRecentProjects
 	ProjectSourceManualInput
 )
@@ -27,12 +28,17 @@ type RemoteReader interface {
 }
 
 type ProjectResolver struct {
-	Config  config.Config
-	Remotes RemoteReader
+	Config          config.Config
+	Remotes         RemoteReader
+	ProjectOverride string
 }
 
 func (r ProjectResolver) Resolve() ProjectResolution {
 	accountID := r.Config.DefaultAccount
+	if r.ProjectOverride != "" {
+		return ProjectResolution{Account: accountID, Path: r.ProjectOverride, Source: ProjectSourceOverride}
+	}
+
 	account, ok := r.Config.Account(accountID)
 	if ok && r.Remotes != nil {
 		if urls, err := r.Remotes.RemoteURLs(); err == nil {

@@ -16,6 +16,22 @@ func (r fakeRemotes) RemoteURLs() ([]string, error) {
 	return r.urls, r.err
 }
 
+func TestProjectResolverUsesProjectOverrideFirst(t *testing.T) {
+	cfg := config.Default()
+	resolution := ProjectResolver{
+		Config:          cfg,
+		Remotes:         fakeRemotes{urls: []string{"git@gitlab.com:group/project.git"}},
+		ProjectOverride: "override/project",
+	}.Resolve()
+
+	if resolution.Source != ProjectSourceOverride {
+		t.Fatalf("expected override source, got %v", resolution.Source)
+	}
+	if resolution.Path != "override/project" {
+		t.Fatalf("expected override/project, got %q", resolution.Path)
+	}
+}
+
 func TestProjectResolverUsesGitRemoteFirst(t *testing.T) {
 	cfg := config.Default()
 	cfg.RecentProjects = []config.RecentProject{{Account: "default", Path: "recent/project", LastUsedAt: time.Now()}}
