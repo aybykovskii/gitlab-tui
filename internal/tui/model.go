@@ -31,6 +31,7 @@ const (
 type ProjectOptions struct {
 	Path    string
 	Recents []string
+	Items   []mr.MergeRequest
 }
 
 type Model struct {
@@ -57,6 +58,9 @@ func NewModel(items []mr.MergeRequest) Model {
 }
 
 func NewModelWithProject(items []mr.MergeRequest, options ProjectOptions) Model {
+	if options.Items != nil {
+		items = options.Items
+	}
 	model := Model{
 		items:          items,
 		focus:          FocusList,
