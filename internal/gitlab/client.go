@@ -8,11 +8,13 @@ import (
 	glab "gitlab.com/gitlab-org/api/client-go"
 
 	"github.com/aybykovskii/gitlab-tui/internal/config"
+	"github.com/aybykovskii/gitlab-tui/internal/diff"
 	"github.com/aybykovskii/gitlab-tui/internal/mr"
 )
 
 type MergeRequestClient interface {
 	ListProjectMergeRequests(pid any, opt *glab.ListProjectMergeRequestsOptions, options ...glab.RequestOptionFunc) ([]*glab.BasicMergeRequest, *glab.Response, error)
+	ListMergeRequestDiffs(pid any, mergeRequest int64, opt *glab.ListMergeRequestDiffsOptions, options ...glab.RequestOptionFunc) ([]*glab.MergeRequestDiff, *glab.Response, error)
 }
 
 type Client struct {
@@ -67,6 +69,34 @@ func (c Client) OpenMergeRequests(ctx context.Context, projectPath string) ([]mr
 	}
 
 	return result, nil
+}
+
+func (c Client) MergeRequestDiff(ctx context.Context, projectPath string, iid int) ([]mr.DiffRow, error) {
+	if c.mergeRequests == nil {
+		return nil, fmt.Errorf("merge requests client is not configured")
+	}
+
+	options := &glab.ListMergeRequestDiffsOptions{
+		ListOptions: glab.ListOptions{PerPage: 50, Page: 1},
+	}
+	rows := []mr.DiffRow{}
+	for {
+		items, response, err := c.mergeRequests.ListMergeRequestDiffs(projectPath, int64(iid), options, glab.WithContext(ctx))
+		if err != nil {
+			return nil, err
+		}
+		for _, item := range items {
+			if item != nil {
+				rows = append(rows, diff.Parse(item.Diff)...)
+			}
+		}
+		if response == nil || response.NextPage == 0 {
+			break
+		}
+		options.Page = response.NextPage
+	}
+
+	return rows, nil
 }
 
 func MapMergeRequest(item *glab.BasicMergeRequest) mr.MergeRequest {

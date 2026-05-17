@@ -89,6 +89,9 @@ func (a App) runTUI(stdout io.Writer, stderr io.Writer) int {
 		loadMRs := func() ([]mr.MergeRequest, error) {
 			return client.OpenMergeRequests(context.Background(), resolution.Path)
 		}
+		loadDiff := func(iid int) ([]mr.DiffRow, error) {
+			return client.MergeRequestDiff(context.Background(), resolution.Path, iid)
+		}
 		items, err := loadMRs()
 		if err != nil {
 			fmt.Fprintf(stderr, "load merge requests: %v\n", err)
@@ -96,6 +99,7 @@ func (a App) runTUI(stdout io.Writer, stderr io.Writer) int {
 		}
 		options.Items = items
 		options.Refresh = loadMRs
+		options.LoadDiff = loadDiff
 		RememberResolvedProject(&cfg, resolution.Account, resolution.Path, time.Now())
 		if configLoaded {
 			if err := config.Save(configPath, cfg); err != nil {

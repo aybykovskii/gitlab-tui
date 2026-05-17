@@ -29,12 +29,14 @@ const (
 )
 
 type RefreshFunc func() ([]mr.MergeRequest, error)
+type DiffFunc func(iid int) ([]mr.DiffRow, error)
 
 type ProjectOptions struct {
-	Path    string
-	Recents []string
-	Items   []mr.MergeRequest
-	Refresh RefreshFunc
+	Path     string
+	Recents  []string
+	Items    []mr.MergeRequest
+	Refresh  RefreshFunc
+	LoadDiff DiffFunc
 }
 
 type refreshStartedMsg struct{}
@@ -42,6 +44,14 @@ type refreshStartedMsg struct{}
 type refreshFinishedMsg struct {
 	items []mr.MergeRequest
 	err   error
+}
+
+type diffStartedMsg struct{}
+
+type diffFinishedMsg struct {
+	iid  int
+	rows []mr.DiffRow
+	err  error
 }
 
 type Model struct {
@@ -58,7 +68,9 @@ type Model struct {
 	recentProjects []string
 	projectInput   string
 	refresh        RefreshFunc
+	loadDiff       DiffFunc
 	loading        bool
+	diffLoading    bool
 	errorMessage   string
 }
 
@@ -82,6 +94,7 @@ func NewModelWithProject(items []mr.MergeRequest, options ProjectOptions) Model 
 		projectPath:    options.Path,
 		recentProjects: options.Recents,
 		refresh:        options.Refresh,
+		loadDiff:       options.LoadDiff,
 	}
 	if model.projectPath == "" {
 		if len(model.recentProjects) > 0 {
@@ -116,7 +129,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case tea.KeyMsg:
 		return m.updateKey(msg)
 	case tea.MouseMsg:
-		return m.updateMouse(msg), nil
+		return m.updateMouse(msg)
 	case refreshStartedMsg:
 		m.loading = true
 		m.errorMessage = ""
@@ -130,6 +143,21 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.items = msg.items
 		m.selected = clampSelection(m.selected, len(m.filtered()))
 		m.listTop = 0
+		return m, nil
+	case diffStartedMsg:
+		m.diffLoading = true
+		m.errorMessage = ""
+		return m, nil
+	case diffFinishedMsg:
+		m.diffLoading = false
+		if msg.err != nil {
+			m.errorMessage = msg.err.Error()
+			return m, nil
+		}
+		m.setDiffRows(msg.iid, msg.rows)
+		m.mode = ModeDiff
+		m.focus = FocusDetail
+		m.rightTop = 0
 		return m, nil
 	}
 
@@ -209,10 +237,8 @@ func (m Model) updateKey(msg tea.KeyMsg) (Model, tea.Cmd) {
 	case "down", "j":
 		m.moveSelection(1)
 	case "enter":
-		if len(m.filtered()) > 0 {
-			m.mode = ModeDiff
-			m.focus = FocusDetail
-			m.rightTop = 0
+		if item, ok := m.selectedItem(); ok {
+			return m.openDiffCommand(item)
 		}
 	case "esc", "backspace":
 		if m.mode == ModeDiff {
@@ -222,6 +248,23 @@ func (m Model) updateKey(msg tea.KeyMsg) (Model, tea.Cmd) {
 	}
 
 	return m, nil
+}
+
+func (m Model) openDiffCommand(item mr.MergeRequest) (Model, tea.Cmd) {
+	if m.loadDiff == nil || len(item.Diff) > 0 {
+		m.mode = ModeDiff
+		m.focus = FocusDetail
+		m.rightTop = 0
+		return m, nil
+	}
+	loadDiff := m.loadDiff
+	return m, tea.Sequence(
+		func() tea.Msg { return diffStartedMsg{} },
+		func() tea.Msg {
+			rows, err := loadDiff(item.IID)
+			return diffFinishedMsg{iid: item.IID, rows: rows, err: err}
+		},
+	)
 }
 
 func (m Model) refreshCommand() tea.Cmd {
@@ -238,7 +281,7 @@ func (m Model) refreshCommand() tea.Cmd {
 	)
 }
 
-func (m Model) updateMouse(msg tea.MouseMsg) Model {
+func (m Model) updateMouse(msg tea.MouseMsg) (Model, tea.Cmd) {
 	if m.mode == ModeProjectSelect {
 		if msg.Button == tea.MouseButtonLeft && msg.Y >= 2 {
 			idx := msg.Y - 2
@@ -254,7 +297,7 @@ func (m Model) updateMouse(msg tea.MouseMsg) Model {
 		if msg.Button == tea.MouseButtonWheelDown {
 			m.selected = clamp(m.selected+1, 0, len(m.recentProjects)-1)
 		}
-		return m
+		return m, nil
 	}
 
 	leftWidth := m.leftWidth()
@@ -276,12 +319,14 @@ func (m Model) updateMouse(msg tea.MouseMsg) Model {
 				m.selected = idx
 				m.mode = ModeDetail
 			}
-		} else if msg.X >= leftWidth && len(m.filtered()) > 0 {
-			m.mode = ModeDiff
+		} else if msg.X >= leftWidth {
+			if item, ok := m.selectedItem(); ok {
+				return m.openDiffCommand(item)
+			}
 		}
 	}
 
-	return m
+	return m, nil
 }
 
 func (m *Model) moveSelection(delta int) {
@@ -355,6 +400,9 @@ func (m Model) renderList() string {
 	if m.errorMessage != "" {
 		lines = append(lines, "Error: "+m.errorMessage)
 	}
+	if m.diffLoading {
+		lines = append(lines, "Loading diff…")
+	}
 	items := m.filtered()
 	if len(items) == 0 {
 		lines = append(lines, "No opened MRs")
@@ -416,6 +464,23 @@ func (m Model) renderDiff(item mr.MergeRequest) string {
 
 func (m Model) filtered() []mr.MergeRequest {
 	return mr.Filter(m.items, m.query)
+}
+
+func (m Model) selectedItem() (mr.MergeRequest, bool) {
+	items := m.filtered()
+	if len(items) == 0 {
+		return mr.MergeRequest{}, false
+	}
+	return items[clampSelection(m.selected, len(items))], true
+}
+
+func (m *Model) setDiffRows(iid int, rows []mr.DiffRow) {
+	for i := range m.items {
+		if m.items[i].IID == iid {
+			m.items[i].Diff = rows
+			return
+		}
+	}
 }
 
 func (m Model) leftWidth() int {

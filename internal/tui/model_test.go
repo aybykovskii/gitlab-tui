@@ -100,6 +100,33 @@ func TestManualProjectInputOpensProject(t *testing.T) {
 	}
 }
 
+func TestEnterLoadsDiffWhenNeeded(t *testing.T) {
+	model := NewModelWithProject([]mr.MergeRequest{{IID: 1, Title: "Needs diff"}}, ProjectOptions{
+		Path: "group/project",
+		LoadDiff: func(iid int) ([]mr.DiffRow, error) {
+			return []mr.DiffRow{{OldLine: 1, OldText: "old", NewLine: 1, NewText: "new"}}, nil
+		},
+	})
+
+	_, cmd := model.Update(tea.KeyMsg{Type: tea.KeyEnter})
+	if cmd == nil {
+		t.Fatal("expected diff load command")
+	}
+}
+
+func TestDiffFinishedStoresRowsAndOpensDiff(t *testing.T) {
+	model := NewModelWithProject([]mr.MergeRequest{{IID: 1, Title: "Needs diff"}}, ProjectOptions{Path: "group/project"})
+	updated, _ := model.Update(diffFinishedMsg{iid: 1, rows: []mr.DiffRow{{OldLine: 1, OldText: "old"}}})
+	model = updated.(Model)
+
+	if model.mode != ModeDiff {
+		t.Fatalf("expected diff mode, got %v", model.mode)
+	}
+	if len(model.items[0].Diff) != 1 {
+		t.Fatalf("expected diff rows to be stored, got %+v", model.items[0].Diff)
+	}
+}
+
 func TestRefreshKeyReturnsCommand(t *testing.T) {
 	model := NewModelWithProject(FakeMergeRequests(), ProjectOptions{
 		Path: "group/project",
