@@ -411,13 +411,18 @@ func TestRefreshFinishedStoresError(t *testing.T) {
 	}
 }
 
-func TestMouseWheelMovesSelection(t *testing.T) {
+func TestMouseWheelScrollsRightPanel(t *testing.T) {
 	model := NewFakeModel()
+	before := model.rightTop
+
 	updated, _ := model.Update(tea.MouseMsg{X: 2, Y: 4, Button: tea.MouseButtonWheelDown})
 	model = updated.(Model)
 
-	if model.selected != 1 {
-		t.Fatalf("expected wheel down to select next item, got %d", model.selected)
+	if model.rightTop != before+1 {
+		t.Fatalf("expected wheel down to scroll right panel (rightTop %d→%d)", before, model.rightTop)
+	}
+	if model.selected != 0 {
+		t.Fatalf("expected wheel not to change MR selection, got selected=%d", model.selected)
 	}
 }
 
@@ -1998,6 +2003,43 @@ func TestEKeyInDiffViewOpensFileInEditor(t *testing.T) {
 	}
 	if openedLine != 11 {
 		t.Fatalf("expected line 11, got %d", openedLine)
+	}
+}
+
+// --- #50: Left panel always read-only, no focus ---
+
+func TestMouseClickOnLeftPanelDoesNotChangeFocus(t *testing.T) {
+	model := NewFakeModel()
+	updated, _ := model.Update(tea.WindowSizeMsg{Width: 100, Height: 20})
+	model = updated.(Model)
+
+	// Click on left side (X=2, well within leftWidth ~35)
+	updated, _ = model.Update(tea.MouseMsg{X: 2, Y: 5, Button: tea.MouseButtonLeft, Action: tea.MouseActionPress})
+	model = updated.(Model)
+
+	if model.focus == FocusList {
+		t.Fatal("expected left panel click not to set FocusList")
+	}
+}
+
+func TestLeftPanelHasNoActiveBorderInDetailMode(t *testing.T) {
+	model := NewFakeModel()
+	// Simulate mouse click that used to set FocusList
+	updated, _ := model.Update(tea.MouseMsg{X: 2, Y: 5, Button: tea.MouseButtonLeft, Action: tea.MouseActionPress})
+	model = updated.(Model)
+
+	if model.focus == FocusList {
+		t.Fatal("focus must never be FocusList in ModeDetail")
+	}
+	// Left panel style uses focused=false → border color 240 (dim), right panel uses focused=true → 63 (bright)
+	// We verify this indirectly: renderList checks m.focus==FocusList||FocusFilter
+	// After our fix, paneStyle(focused=false) is always used for the left panel
+	left := model.renderList()
+	right := model.renderRight()
+	// lipgloss renders dim border with color 240 for inactive, 63 for active
+	// Both panels render — just verify the model state is consistent
+	if left == "" || right == "" {
+		t.Fatal("expected both panels to render")
 	}
 }
 

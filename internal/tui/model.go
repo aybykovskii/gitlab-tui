@@ -303,7 +303,7 @@ func NewModel(items []mr.MergeRequest) Model {
 func NewModelWithProject(items []mr.MergeRequest, options ProjectOptions) Model {
 	model := Model{
 		items:          items,
-		focus:          FocusList,
+		focus:          FocusDetail,
 		width:          100,
 		height:         30,
 		projectPath:    options.Path,
@@ -381,7 +381,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case projectStartedMsg:
 		m.projectPath = msg.path
 		m.mode = ModeDetail
-		m.focus = FocusList
+		m.focus = FocusDetail
 		m.loading = true
 		m.projectLoading = true
 		m.projectLoaded = false
@@ -416,7 +416,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		} else {
 			m.mode = ModeSections
 		}
-		m.focus = FocusList
+		m.focus = FocusDetail
 		return m, nil
 	case discussionsStartedMsg:
 		m.discussionsLoading = true
@@ -610,7 +610,7 @@ func (m Model) updateKey(msg tea.KeyMsg) (Model, tea.Cmd) {
 				m.section = SectionMergeRequests
 				if m.projectLoaded {
 					m.mode = ModeDetail
-					m.focus = FocusList
+					m.focus = FocusDetail
 					return m, nil
 				}
 				return m.openProjectCommand(m.projectPath)
@@ -624,7 +624,7 @@ func (m Model) updateKey(msg tea.KeyMsg) (Model, tea.Cmd) {
 	if m.focus == FocusFilter {
 		switch msg.Type {
 		case tea.KeyEsc, tea.KeyEnter:
-			m.focus = FocusList
+			m.focus = FocusDetail
 		case tea.KeyBackspace:
 			if len(m.query) > 0 {
 				m.query = m.query[:len(m.query)-1]
@@ -1231,7 +1231,7 @@ func (m *Model) returnToProjectPicker() {
 	m.projectPath = ""
 	if len(m.projectList) > 0 {
 		m.mode = ModeProjectSelect
-		m.focus = FocusList
+		m.focus = FocusDetail
 		return
 	}
 	m.mode = ModeProjectInput
@@ -1241,7 +1241,7 @@ func (m *Model) returnToProjectPicker() {
 func (m Model) selectProject(path string) (Model, tea.Cmd) {
 	m.projectPath = path
 	m.mode = ModeSections
-	m.focus = FocusList
+	m.focus = FocusDetail
 	m.selected = 0
 	m.listTop = 0
 	m.rightTop = 0
@@ -1253,7 +1253,7 @@ func (m Model) selectProject(path string) (Model, tea.Cmd) {
 func (m Model) openProjectCommand(path string) (Model, tea.Cmd) {
 	m.projectPath = path
 	m.mode = ModeDetail
-	m.focus = FocusList
+	m.focus = FocusDetail
 	m.selected = 0
 	m.listTop = 0
 	m.rightTop = 0
@@ -1366,11 +1366,7 @@ func (m Model) updateMouse(msg tea.MouseMsg) (Model, tea.Cmd) {
 	}
 
 	leftWidth := m.leftWidth()
-	if msg.X < leftWidth {
-		m.focus = FocusList
-	} else {
-		m.focus = FocusDetail
-	}
+	m.focus = FocusDetail
 
 	switch msg.Button {
 	case tea.MouseButtonWheelUp:
