@@ -572,7 +572,7 @@ func (m Model) updateKey(msg tea.KeyMsg) (Model, tea.Cmd) {
 			m.selected = clamp(m.selected+1, 0, len(m.projectList)-1)
 		case "enter":
 			if len(m.projectList) > 0 {
-				return m.openProjectCommand(m.projectList[m.selected])
+				return m.selectProject(m.projectList[m.selected])
 			}
 		case "i":
 			m.mode = ModeProjectInput
@@ -586,7 +586,7 @@ func (m Model) updateKey(msg tea.KeyMsg) (Model, tea.Cmd) {
 		switch msg.Type {
 		case tea.KeyEnter:
 			if strings.TrimSpace(m.projectInput) != "" {
-				return m.openProjectCommand(strings.TrimSpace(m.projectInput))
+				return m.selectProject(strings.TrimSpace(m.projectInput))
 			}
 		case tea.KeyBackspace:
 			if len(m.projectInput) > 0 {
@@ -1238,6 +1238,18 @@ func (m *Model) returnToProjectPicker() {
 	m.focus = FocusFilter
 }
 
+func (m Model) selectProject(path string) (Model, tea.Cmd) {
+	m.projectPath = path
+	m.mode = ModeSections
+	m.focus = FocusList
+	m.selected = 0
+	m.listTop = 0
+	m.rightTop = 0
+	m.projectLoaded = false
+	m.items = nil
+	return m, nil
+}
+
 func (m Model) openProjectCommand(path string) (Model, tea.Cmd) {
 	m.projectPath = path
 	m.mode = ModeDetail
@@ -1341,7 +1353,7 @@ func (m Model) updateMouse(msg tea.MouseMsg) (Model, tea.Cmd) {
 			idx := msg.Y - 2
 			if idx >= 0 && idx < len(m.projectList) {
 				m.selected = idx
-				return m.openProjectCommand(m.projectList[idx])
+				return m.selectProject(m.projectList[idx])
 			}
 		}
 		if msg.Button == tea.MouseButtonWheelUp {

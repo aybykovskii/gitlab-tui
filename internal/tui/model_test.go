@@ -190,13 +190,10 @@ func TestProjectSelectionShowsRecentsAndGitLabProjects(t *testing.T) {
 	}
 }
 
-func TestProjectSelectionOpensSectionsAfterLoad(t *testing.T) {
-	model := NewModelWithProject(FakeMergeRequests(), ProjectOptions{
+func TestProjectSelectionGoesToSectionsImmediately(t *testing.T) {
+	model := NewModelWithProject(nil, ProjectOptions{
 		Recents: []string{"group/one", "group/two"},
 		LoadProject: func(path string) (ProjectData, error) {
-			if path != "group/two" {
-				t.Fatalf("expected selected recent project path, got %q", path)
-			}
 			return ProjectData{Items: []mr.MergeRequest{{IID: 42, Title: "Loaded"}}}, nil
 		},
 	})
@@ -209,19 +206,14 @@ func TestProjectSelectionOpensSectionsAfterLoad(t *testing.T) {
 	updated, cmd := model.Update(tea.KeyMsg{Type: tea.KeyEnter})
 	model = updated.(Model)
 
-	if cmd == nil {
-		t.Fatal("expected project load command")
-	}
-	updated, _ = model.Update(projectFinishedMsg{path: "group/two", data: ProjectData{Items: []mr.MergeRequest{{IID: 42, Title: "Loaded"}}}})
-	model = updated.(Model)
-	if model.projectPath != "group/two" {
-		t.Fatalf("expected selected recent project, got %q", model.projectPath)
+	if cmd != nil {
+		t.Fatal("expected no loading command on project selection")
 	}
 	if model.mode != ModeSections {
-		t.Fatalf("expected sections mode, got %v", model.mode)
+		t.Fatalf("expected sections mode immediately, got %v", model.mode)
 	}
-	if len(model.items) != 1 || model.items[0].IID != 42 {
-		t.Fatalf("expected loaded items, got %+v", model.items)
+	if model.projectPath != "group/two" {
+		t.Fatalf("expected selected project path, got %q", model.projectPath)
 	}
 }
 
@@ -307,12 +299,9 @@ func TestManualProjectLoadErrorReturnsToInput(t *testing.T) {
 	}
 }
 
-func TestManualProjectInputLoadsProject(t *testing.T) {
-	model := NewModelWithProject(FakeMergeRequests(), ProjectOptions{
+func TestManualProjectInputGoesToSectionsImmediately(t *testing.T) {
+	model := NewModelWithProject(nil, ProjectOptions{
 		LoadProject: func(path string) (ProjectData, error) {
-			if path != "group/project" {
-				t.Fatalf("expected manual project path, got %q", path)
-			}
 			return ProjectData{Items: []mr.MergeRequest{{IID: 7, Title: "Manual"}}}, nil
 		},
 	})
@@ -325,19 +314,14 @@ func TestManualProjectInputLoadsProject(t *testing.T) {
 	updated, cmd := model.Update(tea.KeyMsg{Type: tea.KeyEnter})
 	model = updated.(Model)
 
-	if cmd == nil {
-		t.Fatal("expected project load command")
-	}
-	updated, _ = model.Update(projectFinishedMsg{path: "group/project", data: ProjectData{Items: []mr.MergeRequest{{IID: 7, Title: "Manual"}}}})
-	model = updated.(Model)
-	if model.projectPath != "group/project" {
-		t.Fatalf("expected manual project, got %q", model.projectPath)
+	if cmd != nil {
+		t.Fatal("expected no loading command on manual project input")
 	}
 	if model.mode != ModeSections {
-		t.Fatalf("expected sections mode, got %v", model.mode)
+		t.Fatalf("expected sections mode immediately, got %v", model.mode)
 	}
-	if len(model.items) != 1 || model.items[0].IID != 7 {
-		t.Fatalf("expected loaded items, got %+v", model.items)
+	if model.projectPath != "group/project" {
+		t.Fatalf("expected project path set, got %q", model.projectPath)
 	}
 }
 
@@ -2014,6 +1998,73 @@ func TestEKeyInDiffViewOpensFileInEditor(t *testing.T) {
 	}
 	if openedLine != 11 {
 		t.Fatalf("expected line 11, got %d", openedLine)
+	}
+}
+
+// --- #49: No eager MR loading on project selection ---
+
+func TestMRSectionSelectionTriggersLoadingWhenNotLoaded(t *testing.T) {
+	loadCalled := false
+	model := NewModelWithProject(nil, ProjectOptions{
+		Recents: []string{"group/project"},
+		LoadProject: func(path string) (ProjectData, error) {
+			loadCalled = true
+			return ProjectData{Items: []mr.MergeRequest{{IID: 1, Title: "Loaded MR"}}}, nil
+		},
+	})
+
+	// Select project → ModeSections immediately
+	updated, _ := model.Update(tea.KeyMsg{Type: tea.KeyEnter})
+	model = updated.(Model)
+	if model.mode != ModeSections {
+		t.Fatalf("setup: expected ModeSections, got %v", model.mode)
+	}
+
+	// Select MR section → should trigger loading
+	updated, cmd := model.Update(tea.KeyMsg{Type: tea.KeyEnter})
+	model = updated.(Model)
+
+	if cmd == nil {
+		t.Fatal("expected loading command when selecting MR section with unloaded project")
+	}
+	if loadCalled {
+		t.Fatal("expected LoadProject not yet called (command not executed)")
+	}
+}
+
+func TestMRSectionLoadingCompletionShowsMRList(t *testing.T) {
+	model := NewModelWithProject(nil, ProjectOptions{
+		Recents:     []string{"group/project"},
+		LoadProject: func(path string) (ProjectData, error) { return ProjectData{}, nil },
+	})
+
+	// Project selection → sections
+	updated, _ := model.Update(tea.KeyMsg{Type: tea.KeyEnter})
+	model = updated.(Model)
+
+	// MR section → loading starts
+	updated, _ = model.Update(tea.KeyMsg{Type: tea.KeyEnter})
+	model = updated.(Model)
+
+	// Loading completes
+	updated, _ = model.Update(projectFinishedMsg{
+		path: "group/project",
+		data: ProjectData{Items: []mr.MergeRequest{
+			{IID: 10, Title: "First MR"},
+			{IID: 11, Title: "Second MR"},
+		}},
+	})
+	model = updated.(Model)
+
+	if model.mode != ModeDetail {
+		t.Fatalf("expected ModeDetail after load, got %v", model.mode)
+	}
+	if len(model.items) != 2 {
+		t.Fatalf("expected 2 MRs loaded, got %d", len(model.items))
+	}
+	view := model.View()
+	if !strings.Contains(view, "First MR") {
+		t.Fatalf("expected MR list in view, got:\n%s", view)
 	}
 }
 
