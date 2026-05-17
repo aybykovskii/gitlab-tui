@@ -1755,13 +1755,39 @@ func (m Model) renderFileDiffPane() string {
 	annotated := diff.ProjectDiscussions(file.Diff, discussions, file.Path)
 
 	colWidth := max(10, (max(20, m.width-m.leftWidth())-20)/2)
-	rowFmt := fmt.Sprintf("%%4d │ %%-%ds │ %%4d │ %%s", colWidth)
+	addStyle := lipgloss.NewStyle().Foreground(lipgloss.Color("2"))
+	delStyle := lipgloss.NewStyle().Foreground(lipgloss.Color("1"))
+	ctxStyle := lipgloss.NewStyle().Foreground(lipgloss.Color("240"))
+	rowFmt := fmt.Sprintf("%%s │ %%-%ds │ %%s │ %%s", colWidth)
 	for i, arow := range annotated {
 		cursor := "  "
 		if i == m.diffCursor {
 			cursor = "> "
 		}
-		line := cursor + fmt.Sprintf(rowFmt, arow.OldLine, arow.OldText, arow.NewLine, arow.NewText)
+		var oldNum, newNum, oldContent, newContent string
+		var rowStyle lipgloss.Style
+		switch {
+		case arow.OldLine == 0 && arow.NewLine > 0: // addition
+			oldNum = "    "
+			newNum = fmt.Sprintf("%4d", arow.NewLine)
+			oldContent = strings.Repeat(" ", colWidth)
+			newContent = "+ " + arow.NewText
+			rowStyle = addStyle
+		case arow.NewLine == 0 && arow.OldLine > 0: // deletion
+			oldNum = fmt.Sprintf("%4d", arow.OldLine)
+			newNum = "    "
+			oldContent = "- " + arow.OldText
+			newContent = ""
+			rowStyle = delStyle
+		default: // context
+			oldNum = fmt.Sprintf("%4d", arow.OldLine)
+			newNum = fmt.Sprintf("%4d", arow.NewLine)
+			oldContent = "  " + arow.OldText
+			newContent = "  " + arow.NewText
+			rowStyle = ctxStyle
+		}
+		lineContent := fmt.Sprintf(rowFmt, oldNum, oldContent, newNum, newContent)
+		line := cursor + rowStyle.Render(lineContent)
 		if len(arow.Discussions) > 0 {
 			line += " 💬"
 		}

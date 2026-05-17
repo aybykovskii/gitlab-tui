@@ -2085,6 +2085,80 @@ func TestEKeyInDiffViewOpensFileInEditor(t *testing.T) {
 	}
 }
 
+// --- #52: Diff View — type markers and readability ---
+
+func fileDiffModelWithRows(t *testing.T, rows []mr.DiffRow) Model {
+	t.Helper()
+	opts := ProjectOptions{
+		Path:    "group/project",
+		Section: SectionMergeRequests,
+		LoadFiles: func(iid int) ([]mr.ChangedFile, error) {
+			return []mr.ChangedFile{{Path: "main.go", Diff: rows}}, nil
+		},
+		LoadDiscussions: func(iid int) ([]mr.Discussion, error) { return nil, nil },
+	}
+	model := NewModelWithProject(FakeMergeRequests(), opts)
+	updated, _ := model.Update(tea.KeyMsg{Type: tea.KeyTab})
+	model = updated.(Model)
+	updated, _ = model.Update(tea.KeyMsg{Type: tea.KeyTab})
+	model = updated.(Model)
+	updated, _ = model.Update(filesFinishedMsg{iid: 42, files: []mr.ChangedFile{
+		{Path: "main.go", Diff: rows},
+	}})
+	model = updated.(Model)
+	updated, _ = model.Update(tea.KeyMsg{Type: tea.KeyEnter})
+	return updated.(Model)
+}
+
+func TestDiffAdditionRowHasNoZeroOldLineNumber(t *testing.T) {
+	model := fileDiffModelWithRows(t, []mr.DiffRow{
+		{OldLine: 0, NewLine: 5, NewText: "added"},
+	})
+
+	view := model.View()
+	// Old line number should be blank, not "   0"
+	if strings.Contains(view, "   0 │") {
+		t.Fatalf("expected no '0' old line number for addition row, got:\n%s", view)
+	}
+}
+
+func TestDiffContextRowHasNoTypeMarker(t *testing.T) {
+	model := fileDiffModelWithRows(t, []mr.DiffRow{
+		{OldLine: 1, NewLine: 1, OldText: "unchanged", NewText: "unchanged"},
+	})
+
+	view := model.View()
+	if !strings.Contains(view, "unchanged") {
+		t.Fatalf("expected context row text in view, got:\n%s", view)
+	}
+	// Context rows must not be prefixed with + or -
+	if strings.Contains(view, "+ unchanged") || strings.Contains(view, "- unchanged") {
+		t.Fatalf("expected context row to have no +/- marker, got:\n%s", view)
+	}
+}
+
+func TestDiffDeletionRowIsMarkedWithMinus(t *testing.T) {
+	model := fileDiffModelWithRows(t, []mr.DiffRow{
+		{OldLine: 3, NewLine: 0, OldText: "old code"},
+	})
+
+	view := model.View()
+	if !strings.Contains(view, "- old code") {
+		t.Fatalf("expected deletion row marked with '-', got:\n%s", view)
+	}
+}
+
+func TestDiffAdditionRowIsMarkedWithPlus(t *testing.T) {
+	model := fileDiffModelWithRows(t, []mr.DiffRow{
+		{OldLine: 0, NewLine: 1, NewText: "new feature"},
+	})
+
+	view := model.View()
+	if !strings.Contains(view, "+ new feature") {
+		t.Fatalf("expected addition row marked with '+', got:\n%s", view)
+	}
+}
+
 // --- #50: Left panel always read-only, no focus ---
 
 func TestMouseClickOnLeftPanelDoesNotChangeFocus(t *testing.T) {
