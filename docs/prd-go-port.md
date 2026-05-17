@@ -85,7 +85,9 @@ The first MVP is read-only MR review: resolve a GitLab project, load opened merg
 - Config supports multiple accounts but MVP uses one default account.
 - Account tokens are provided by environment variables named in `account.token_env`.
 - Secrets are not stored in YAML config.
-- Project resolution order is git remote, recent projects list, then manual input.
+- Project resolution order is `--project` override, git remote, recent projects list, first GitLab projects, then manual input.
+- Positional project paths are not part of the CLI grammar; explicit project selection uses `--project <path>`.
+- Optional CLI section aliases (`mr`, `issue`, `pipeline`) can deep-link into project sections; `gitlab-tui mr` inside a git repository opens the current project's merge requests, and `gitlab-tui mr 123` opens a specific merge request.
 - Recent projects are stored in config as objects with account, path, and last-used timestamp.
 - MR list MVP loads opened merge requests only.
 - MR list filtering is local text filtering over already loaded MRs.
