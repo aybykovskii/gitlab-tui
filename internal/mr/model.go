@@ -30,10 +30,18 @@ type Note struct {
 	Resolved bool
 }
 
+type DiffPosition struct {
+	NewPath string
+	NewLine int
+	OldPath string
+	OldLine int
+}
+
 type Discussion struct {
 	ID       string
 	Resolved bool
 	Notes    []Note
+	Position *DiffPosition
 }
 
 type ChangedFile struct {
@@ -44,6 +52,7 @@ type ChangedFile struct {
 	IsRenamed    bool
 	AddedLines   int
 	RemovedLines int
+	Diff         []DiffRow
 }
 
 func Filter(list []MergeRequest, query string) []MergeRequest {

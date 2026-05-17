@@ -1,6 +1,37 @@
 package diff
 
-import "testing"
+import (
+	"testing"
+
+	"github.com/aybykovskii/gitlab-tui/internal/mr"
+)
+
+func TestProjectDiscussionsAttachesToMatchingRow(t *testing.T) {
+	rows := []mr.DiffRow{
+		{OldLine: 10, NewLine: 10, OldText: "ctx", NewText: "ctx"},
+		{OldLine: 0, NewLine: 11, NewText: "new line"},
+	}
+	discussions := []mr.Discussion{
+		{ID: "d1", Notes: []mr.Note{{Author: "alice", Body: "fix this"}}, Position: &mr.DiffPosition{NewPath: "main.go", NewLine: 11}},
+		{ID: "d2", Notes: []mr.Note{{Author: "bob", Body: "LGTM"}}, Position: &mr.DiffPosition{NewPath: "other.go", NewLine: 11}},
+		{ID: "d3", Notes: []mr.Note{{Author: "carol", Body: "general"}}, Position: nil},
+	}
+
+	annotated := ProjectDiscussions(rows, discussions, "main.go")
+
+	if len(annotated) != 2 {
+		t.Fatalf("expected 2 annotated rows, got %d", len(annotated))
+	}
+	if len(annotated[0].Discussions) != 0 {
+		t.Fatalf("expected no discussions on row 0, got %d", len(annotated[0].Discussions))
+	}
+	if len(annotated[1].Discussions) != 1 {
+		t.Fatalf("expected 1 discussion on row 1, got %d", len(annotated[1].Discussions))
+	}
+	if annotated[1].Discussions[0].ID != "d1" {
+		t.Fatalf("expected discussion d1 on row 1, got %q", annotated[1].Discussions[0].ID)
+	}
+}
 
 func TestParseUnifiedDiffRows(t *testing.T) {
 	rows := Parse(`@@ -10,3 +10,4 @@

@@ -603,6 +603,283 @@ func TestFilesTabShowsErrorState(t *testing.T) {
 	}
 }
 
+// --- #42: Changed Files + Diff View ---
+
+func fileDiffOpts() ProjectOptions {
+	return ProjectOptions{
+		Path:    "group/project",
+		Section: SectionMergeRequests,
+		LoadFiles: func(iid int) ([]mr.ChangedFile, error) {
+			return []mr.ChangedFile{
+				{
+					Path: "internal/tui/model.go", AddedLines: 10, RemovedLines: 3,
+					Diff: []mr.DiffRow{
+						{OldLine: 1, NewLine: 1, OldText: "old", NewText: "old"},
+						{OldLine: 0, NewLine: 2, NewText: "new line"},
+					},
+				},
+				{
+					Path: "cmd/main.go", IsNew: true, AddedLines: 5,
+					Diff: []mr.DiffRow{
+						{OldLine: 0, NewLine: 1, NewText: "package main"},
+					},
+				},
+			}, nil
+		},
+		LoadDiscussions: func(iid int) ([]mr.Discussion, error) {
+			return []mr.Discussion{}, nil
+		},
+	}
+}
+
+func TestEnterOnFileInFilesTabOpensFileDiffMode(t *testing.T) {
+	model := NewModelWithProject(FakeMergeRequests(), fileDiffOpts())
+
+	// Navigate to Files tab (Tab twice: Summary → Discussions → Files)
+	updated, _ := model.Update(tea.KeyMsg{Type: tea.KeyTab})
+	model = updated.(Model)
+	updated, _ = model.Update(tea.KeyMsg{Type: tea.KeyTab})
+	model = updated.(Model)
+
+	// Load files
+	updated, _ = model.Update(filesFinishedMsg{iid: 42, files: []mr.ChangedFile{
+		{Path: "internal/tui/model.go", Diff: []mr.DiffRow{{OldLine: 1, NewLine: 1, OldText: "old", NewText: "old"}}},
+		{Path: "cmd/main.go", IsNew: true, Diff: []mr.DiffRow{{OldLine: 0, NewLine: 1, NewText: "package main"}}},
+	}})
+	model = updated.(Model)
+
+	if model.activeTab != TabFiles {
+		t.Fatalf("expected TabFiles, got %v", model.activeTab)
+	}
+
+	// Press Enter to open selected file
+	updated, _ = model.Update(tea.KeyMsg{Type: tea.KeyEnter})
+	model = updated.(Model)
+
+	if model.mode != ModeFileDiff {
+		t.Fatalf("expected ModeFileDiff after Enter on file, got %v", model.mode)
+	}
+}
+
+func TestFileDiffLeftPaneShowsFileListWithCurrentHighlighted(t *testing.T) {
+	model := NewModelWithProject(FakeMergeRequests(), fileDiffOpts())
+
+	updated, _ := model.Update(tea.KeyMsg{Type: tea.KeyTab})
+	model = updated.(Model)
+	updated, _ = model.Update(tea.KeyMsg{Type: tea.KeyTab})
+	model = updated.(Model)
+	updated, _ = model.Update(filesFinishedMsg{iid: 42, files: []mr.ChangedFile{
+		{Path: "internal/tui/model.go", Diff: []mr.DiffRow{{OldLine: 1, NewLine: 1, OldText: "old", NewText: "old"}}},
+		{Path: "cmd/main.go", IsNew: true, Diff: []mr.DiffRow{{OldLine: 0, NewLine: 1, NewText: "package main"}}},
+	}})
+	model = updated.(Model)
+	updated, _ = model.Update(tea.KeyMsg{Type: tea.KeyEnter})
+	model = updated.(Model)
+
+	view := model.View()
+	if !strings.Contains(view, "> internal/tui/model.go") {
+		t.Fatalf("expected selected file highlighted with '>', got:\n%s", view)
+	}
+	if !strings.Contains(view, "cmd/main.go") {
+		t.Fatalf("expected second file in left pane, got:\n%s", view)
+	}
+}
+
+func TestFileDiffRightPaneShowsPerFileDiffRows(t *testing.T) {
+	model := NewModelWithProject(FakeMergeRequests(), fileDiffOpts())
+
+	updated, _ := model.Update(tea.KeyMsg{Type: tea.KeyTab})
+	model = updated.(Model)
+	updated, _ = model.Update(tea.KeyMsg{Type: tea.KeyTab})
+	model = updated.(Model)
+	updated, _ = model.Update(filesFinishedMsg{iid: 42, files: []mr.ChangedFile{
+		{
+			Path: "internal/tui/model.go",
+			Diff: []mr.DiffRow{
+				{OldLine: 5, NewLine: 5, OldText: "before", NewText: "before"},
+				{OldLine: 0, NewLine: 6, NewText: "added line"},
+			},
+		},
+	}})
+	model = updated.(Model)
+	updated, _ = model.Update(tea.KeyMsg{Type: tea.KeyEnter})
+	model = updated.(Model)
+
+	view := model.View()
+	if !strings.Contains(view, "Diff internal/tui/model.go") {
+		t.Fatalf("expected file name in diff header, got:\n%s", view)
+	}
+	if !strings.Contains(view, "before") {
+		t.Fatalf("expected diff row text in right pane, got:\n%s", view)
+	}
+	if !strings.Contains(view, "added line") {
+		t.Fatalf("expected added line in right pane, got:\n%s", view)
+	}
+}
+
+func TestFileDiffShowsInlineDiscussionMarkerOnPositionedRow(t *testing.T) {
+	model := NewModelWithProject(FakeMergeRequests(), ProjectOptions{
+		Path:    "group/project",
+		Section: SectionMergeRequests,
+		LoadFiles: func(iid int) ([]mr.ChangedFile, error) {
+			return []mr.ChangedFile{
+				{
+					Path: "main.go",
+					Diff: []mr.DiffRow{
+						{OldLine: 1, NewLine: 1, OldText: "old", NewText: "old"},
+						{OldLine: 0, NewLine: 2, NewText: "reviewed line"},
+					},
+				},
+			}, nil
+		},
+		LoadDiscussions: func(iid int) ([]mr.Discussion, error) {
+			return []mr.Discussion{
+				{
+					ID:    "d1",
+					Notes: []mr.Note{{Author: "alice", Body: "fix this"}},
+					Position: &mr.DiffPosition{NewPath: "main.go", NewLine: 2},
+				},
+			}, nil
+		},
+	})
+
+	// Load discussions first
+	updated, _ := model.Update(tea.KeyMsg{Type: tea.KeyTab})
+	model = updated.(Model)
+	updated, _ = model.Update(discussionsFinishedMsg{iid: 42, discussions: []mr.Discussion{
+		{ID: "d1", Notes: []mr.Note{{Author: "alice", Body: "fix this"}}, Position: &mr.DiffPosition{NewPath: "main.go", NewLine: 2}},
+	}})
+	model = updated.(Model)
+
+	// Navigate to Files tab and open file
+	updated, _ = model.Update(tea.KeyMsg{Type: tea.KeyTab})
+	model = updated.(Model)
+	updated, _ = model.Update(filesFinishedMsg{iid: 42, files: []mr.ChangedFile{
+		{Path: "main.go", Diff: []mr.DiffRow{
+			{OldLine: 1, NewLine: 1, OldText: "old", NewText: "old"},
+			{OldLine: 0, NewLine: 2, NewText: "reviewed line"},
+		}},
+	}})
+	model = updated.(Model)
+	updated, _ = model.Update(tea.KeyMsg{Type: tea.KeyEnter})
+	model = updated.(Model)
+
+	view := model.View()
+	if !strings.Contains(view, "💬") && !strings.Contains(view, "[D]") && !strings.Contains(view, "discussion") {
+		t.Fatalf("expected inline discussion marker on positioned row, got:\n%s", view)
+	}
+}
+
+func fileDiffModelWithFiles(t *testing.T, files []mr.ChangedFile) Model {
+	t.Helper()
+	model := NewModelWithProject(FakeMergeRequests(), fileDiffOpts())
+	updated, _ := model.Update(tea.KeyMsg{Type: tea.KeyTab})
+	model = updated.(Model)
+	updated, _ = model.Update(tea.KeyMsg{Type: tea.KeyTab})
+	model = updated.(Model)
+	updated, _ = model.Update(filesFinishedMsg{iid: 42, files: files})
+	model = updated.(Model)
+	updated, _ = model.Update(tea.KeyMsg{Type: tea.KeyEnter})
+	return updated.(Model)
+}
+
+func TestRightKeyMovesToNextFile(t *testing.T) {
+	model := fileDiffModelWithFiles(t, []mr.ChangedFile{
+		{Path: "a.go", Diff: []mr.DiffRow{{OldLine: 1, NewLine: 1, OldText: "a", NewText: "a"}}},
+		{Path: "b.go", Diff: []mr.DiffRow{{OldLine: 1, NewLine: 1, OldText: "b", NewText: "b"}}},
+	})
+
+	updated, _ := model.Update(tea.KeyMsg{Type: tea.KeyRight})
+	model = updated.(Model)
+
+	if model.selectedFile != 1 {
+		t.Fatalf("expected selectedFile 1 after right, got %d", model.selectedFile)
+	}
+	if !strings.Contains(model.View(), "> b.go") {
+		t.Fatalf("expected b.go highlighted, got:\n%s", model.View())
+	}
+}
+
+func TestRightKeyDoesNotExceedLastFile(t *testing.T) {
+	model := fileDiffModelWithFiles(t, []mr.ChangedFile{
+		{Path: "a.go", Diff: []mr.DiffRow{{OldLine: 1, NewLine: 1, OldText: "a", NewText: "a"}}},
+	})
+
+	updated, _ := model.Update(tea.KeyMsg{Type: tea.KeyRight})
+	model = updated.(Model)
+
+	if model.selectedFile != 0 {
+		t.Fatalf("expected selectedFile to stay at 0 (last file), got %d", model.selectedFile)
+	}
+}
+
+func TestLeftKeyMovesToPreviousFile(t *testing.T) {
+	model := fileDiffModelWithFiles(t, []mr.ChangedFile{
+		{Path: "a.go", Diff: []mr.DiffRow{{OldLine: 1, NewLine: 1, OldText: "a", NewText: "a"}}},
+		{Path: "b.go", Diff: []mr.DiffRow{{OldLine: 1, NewLine: 1, OldText: "b", NewText: "b"}}},
+	})
+
+	updated, _ := model.Update(tea.KeyMsg{Type: tea.KeyRight})
+	model = updated.(Model)
+	updated, _ = model.Update(tea.KeyMsg{Type: tea.KeyLeft})
+	model = updated.(Model)
+
+	if model.selectedFile != 0 {
+		t.Fatalf("expected selectedFile 0 after left, got %d", model.selectedFile)
+	}
+	if !strings.Contains(model.View(), "> a.go") {
+		t.Fatalf("expected a.go highlighted, got:\n%s", model.View())
+	}
+}
+
+func TestLeftKeyDoesNotGoBelowFirstFile(t *testing.T) {
+	model := fileDiffModelWithFiles(t, []mr.ChangedFile{
+		{Path: "a.go", Diff: []mr.DiffRow{{OldLine: 1, NewLine: 1, OldText: "a", NewText: "a"}}},
+	})
+
+	updated, _ := model.Update(tea.KeyMsg{Type: tea.KeyLeft})
+	model = updated.(Model)
+
+	if model.selectedFile != 0 {
+		t.Fatalf("expected selectedFile to stay at 0, got %d", model.selectedFile)
+	}
+}
+
+func TestEscInFileDiffReturnsToFilesTab(t *testing.T) {
+	model := fileDiffModelWithFiles(t, []mr.ChangedFile{
+		{Path: "a.go", Diff: []mr.DiffRow{{OldLine: 1, NewLine: 1, OldText: "a", NewText: "a"}}},
+	})
+
+	updated, _ := model.Update(tea.KeyMsg{Type: tea.KeyEsc})
+	model = updated.(Model)
+
+	if model.mode != ModeDetail {
+		t.Fatalf("expected ModeDetail after Esc, got %v", model.mode)
+	}
+	if model.activeTab != TabFiles {
+		t.Fatalf("expected TabFiles after Esc, got %v", model.activeTab)
+	}
+}
+
+func TestBackspaceInFileDiffReturnsToFilesTab(t *testing.T) {
+	model := fileDiffModelWithFiles(t, []mr.ChangedFile{
+		{Path: "a.go", Diff: []mr.DiffRow{{OldLine: 1, NewLine: 1, OldText: "a", NewText: "a"}}},
+	})
+
+	updated, _ := model.Update(tea.KeyMsg{Type: tea.KeyBackspace})
+	model = updated.(Model)
+
+	if model.mode != ModeDetail {
+		t.Fatalf("expected ModeDetail after Backspace, got %v", model.mode)
+	}
+	if model.activeTab != TabFiles {
+		t.Fatalf("expected TabFiles after Backspace, got %v", model.activeTab)
+	}
+	if !strings.Contains(model.View(), ">Files<") {
+		t.Fatalf("expected Files tab active in view, got:\n%s", model.View())
+	}
+}
+
 func TestTabKeyCyclesDetailTabs(t *testing.T) {
 	model := NewModelWithProject(FakeMergeRequests(), ProjectOptions{Path: "group/project", Section: SectionMergeRequests})
 

@@ -9,6 +9,7 @@ import (
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
 
+	"github.com/aybykovskii/gitlab-tui/internal/diff"
 	"github.com/aybykovskii/gitlab-tui/internal/mr"
 )
 
@@ -20,6 +21,7 @@ const (
 	ModeSections
 	ModeDetail
 	ModeDiff
+	ModeFileDiff
 )
 
 type DetailTab int
@@ -145,6 +147,8 @@ type Model struct {
 	activeTab           DetailTab
 	discussions         map[int][]mr.Discussion
 	changedFiles        map[int][]mr.ChangedFile
+	selectedFile        int
+	fileDiffTop         int
 	discussionsLoading  bool
 	filesLoading        bool
 	discussionsError    string
@@ -405,6 +409,27 @@ func (m Model) updateKey(msg tea.KeyMsg) (Model, tea.Cmd) {
 		return m, nil
 	}
 
+	if m.mode == ModeFileDiff {
+		files := m.currentFiles()
+		switch msg.String() {
+		case "right", "l":
+			m.selectedFile = clamp(m.selectedFile+1, 0, len(files)-1)
+			m.fileDiffTop = 0
+		case "left", "h":
+			m.selectedFile = clamp(m.selectedFile-1, 0, len(files)-1)
+			m.fileDiffTop = 0
+		case "up", "k":
+			m.fileDiffTop = max(0, m.fileDiffTop-1)
+		case "down", "j":
+			m.fileDiffTop++
+		case "esc", "backspace":
+			m.mode = ModeDetail
+			m.activeTab = TabFiles
+			m.fileDiffTop = 0
+		}
+		return m, nil
+	}
+
 	switch msg.String() {
 	case "q", "ctrl+c":
 		return m, tea.Quit
@@ -435,6 +460,16 @@ func (m Model) updateKey(msg tea.KeyMsg) (Model, tea.Cmd) {
 	case "down", "j":
 		m.moveSelection(1)
 	case "enter":
+		if m.mode == ModeDetail && m.activeTab == TabFiles {
+			if item, ok := m.selectedItem(); ok {
+				if files, loaded := m.changedFiles[item.IID]; loaded && len(files) > 0 {
+					m.mode = ModeFileDiff
+					m.selectedFile = 0
+					m.fileDiffTop = 0
+					return m, nil
+				}
+			}
+		}
 		if item, ok := m.selectedItem(); ok {
 			return m.openDiffCommand(item)
 		}
@@ -650,6 +685,9 @@ func (m Model) View() string {
 	}
 	if m.mode == ModeSections {
 		return lipgloss.JoinHorizontal(lipgloss.Top, m.renderProjectList(), m.renderSections())
+	}
+	if m.mode == ModeFileDiff {
+		return lipgloss.JoinHorizontal(lipgloss.Top, m.renderChangedFilesPane(), m.renderFileDiffPane())
 	}
 
 	left := m.renderList()
@@ -889,6 +927,72 @@ func (m Model) renderFiles(item mr.MergeRequest) string {
 		lines = append(lines, fmt.Sprintf("%s %s  +%d -%d", marker, f.Path, f.AddedLines, f.RemovedLines))
 	}
 	return strings.Join(lines, "\n")
+}
+
+func (m Model) currentFiles() []mr.ChangedFile {
+	item, ok := m.selectedItem()
+	if !ok {
+		return nil
+	}
+	return m.changedFiles[item.IID]
+}
+
+func (m Model) renderChangedFilesPane() string {
+	width := m.leftWidth()
+	height := max(8, m.height)
+	style := paneStyle(width, height, false)
+	files := m.currentFiles()
+	lines := []string{"Changed Files", ""}
+	for i, f := range files {
+		prefix := "  "
+		if i == m.selectedFile {
+			prefix = "> "
+		}
+		lines = append(lines, prefix+f.Path)
+	}
+	lines = append(lines, "", "←/→ files  Esc: back")
+	return style.Render(strings.Join(lines, "\n"))
+}
+
+func (m Model) renderFileDiffPane() string {
+	width := max(20, m.width-m.leftWidth())
+	height := max(8, m.height)
+	style := paneStyle(width, height, true)
+	files := m.currentFiles()
+	if len(files) == 0 {
+		return style.Render("No files")
+	}
+	file := files[m.selectedFile]
+	lines := []string{fmt.Sprintf("Diff %s", file.Path), ""}
+	item, _ := m.selectedItem()
+	discussions := m.discussions[item.IID]
+	annotated := diff.ProjectDiscussions(file.Diff, discussions, file.Path)
+
+	colWidth := max(10, (max(20, m.width-m.leftWidth())-20)/2)
+	rowFmt := fmt.Sprintf("%%4d │ %%-%ds │ %%4d │ %%s", colWidth)
+	for _, arow := range annotated {
+		line := fmt.Sprintf(rowFmt, arow.OldLine, arow.OldText, arow.NewLine, arow.NewText)
+		if len(arow.Discussions) > 0 {
+			line += " 💬"
+		}
+		lines = append(lines, line)
+		for _, d := range arow.Discussions {
+			author := ""
+			body := ""
+			if len(d.Notes) > 0 {
+				author = d.Notes[0].Author
+				body = d.Notes[0].Body
+			}
+			lines = append(lines, fmt.Sprintf("  ↳ [%s] %s", author, body))
+		}
+	}
+	lines = append(lines, "", "Esc/backspace: back to Files")
+	if m.fileDiffTop >= len(lines) {
+		m.fileDiffTop = max(0, len(lines)-1)
+	}
+	visible := max(1, height-2)
+	end := min(len(lines), m.fileDiffTop+visible)
+	return style.Render(strings.Join(lines[m.fileDiffTop:end], "\n"))
 }
 
 func (m Model) renderDiff(item mr.MergeRequest) string {
