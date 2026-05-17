@@ -10,7 +10,7 @@ export interface SideBySideRow {
   right: DiffLine | null
 }
 
-export function parseDiff(rawDiff: string): SideBySideRow[] {
+export function parseDiff (rawDiff: string): SideBySideRow[] {
   const lines = rawDiff.split('\n')
   const rows: SideBySideRow[] = []
 
@@ -20,7 +20,7 @@ export function parseDiff(rawDiff: string): SideBySideRow[] {
   // Collect pending removed lines to pair with following added lines
   const pendingRemoved: DiffLine[] = []
 
-  function flushRemoved() {
+  function flushRemoved () {
     for (const r of pendingRemoved) {
       rows.push({ left: r, right: null })
     }
@@ -30,7 +30,7 @@ export function parseDiff(rawDiff: string): SideBySideRow[] {
   for (const raw of lines) {
     if (raw.startsWith('@@')) {
       flushRemoved()
-      const match = raw.match(/@@ -(\d+)(?:,\d+)? \+(\d+)(?:,\d+)? @@/)
+      const match = /@@ -(\d+)(?:,\d+)? \+(\d+)(?:,\d+)? @@/.exec(raw)
       if (match) {
         oldLine = parseInt(match[1], 10) - 1
         newLine = parseInt(match[2], 10) - 1

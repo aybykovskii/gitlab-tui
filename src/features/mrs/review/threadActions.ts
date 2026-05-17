@@ -3,12 +3,12 @@ export interface ThreadActionsAPI {
   resolveThread(discussionId: string, noteId: number, resolved: boolean): Promise<void>
 }
 
-export function createThreadActionsService(api: ThreadActionsAPI) {
-  async function replyToThread(discussionId: string, body: string): Promise<void> {
+export function createThreadActionsService (api: ThreadActionsAPI) {
+  async function replyToThread (discussionId: string, body: string): Promise<void> {
     return api.replyToThread(discussionId, body)
   }
 
-  async function resolveThread(discussionId: string, noteId: number, resolved: boolean): Promise<void> {
+  async function resolveThread (discussionId: string, noteId: number, resolved: boolean): Promise<void> {
     return api.resolveThread(discussionId, noteId, resolved)
   }
 

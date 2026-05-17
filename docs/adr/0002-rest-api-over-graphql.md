@@ -1,6 +1,6 @@
 # ADR 0002: REST API через @gitbeaker/node вместо GraphQL
 
-**Status:** Accepted
+**Status:** Superseded by ADR-0006
 
 ## Context
 

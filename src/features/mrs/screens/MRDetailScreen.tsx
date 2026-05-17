@@ -1,28 +1,34 @@
-import React, { useState, useEffect, useMemo, useCallback } from 'react'
 import { spawn } from 'node:child_process'
 import { join } from 'node:path'
+
+import React, { useCallback, useEffect, useMemo, useState } from 'react'
 import { Box, Text } from 'ink'
-import { MRDetail } from './MRDetail.js'
-import { EditMRForm } from './EditMRForm.js'
-import { createMRService } from '../services/mrService.js'
-import { createMRActionsAPIImpl, createMRActionsService } from '../services/mrActions.js'
-import { createDraftNotesAPI, createInstantCommentsAPI, createThreadActionsAPIImpl } from '../review/api.js'
-import { createReviewSession } from '../review/session.js'
-import { createInstantCommentService } from '../review/instant.js'
-import { createThreadActionsService } from '../review/threadActions.js'
-import { createGitLabClient } from '../../../core/gitlab/index.js'
-import { DiffScreen } from './DiffScreen.js'
-import { useNavigation } from '../../../core/navigation/index.js'
-import { useTheme } from '../../../core/theme/index.js'
+
 import type { Account } from '../../../core/config/types.js'
+import { createGitLabClient } from '../../../core/gitlab/index.js'
+import { useNavigation } from '../../../core/navigation/index.js'
 import type { ScreenProps } from '../../../core/navigation/types.js'
-import type { MR, MRDetail as MRDetailType, DiffFile, Thread } from '../services/types.js'
-import type { UpdateMRInput } from '../services/mrService.js'
+import { useTheme } from '../../../core/theme/index.js'
 import type { CommentPosition } from '../diff/position.js'
+import { createDraftNotesAPI, createInstantCommentsAPI, createThreadActionsAPIImpl } from '../review/api.js'
+import { createInstantCommentService } from '../review/instant.js'
 import type { DraftComment } from '../review/session.js'
+import { createReviewSession } from '../review/session.js'
+import { createThreadActionsService } from '../review/threadActions.js'
+import { createMRActionsAPIImpl, createMRActionsService } from '../services/mrActions.js'
+import type { UpdateMRInput } from '../services/mrService.js'
+import { createMRService } from '../services/mrService.js'
+import type { DiffFile, MR, MRDetail as MRDetailType, Thread } from '../services/types.js'
+
+import { DiffScreen } from './DiffScreen.js'
+import { EditMRForm } from './EditMRForm.js'
+import { MRDetail } from './MRDetail.js'
 
 const PIPELINE_ICON: Record<string, string> = {
-  success: '✓', failed: '✗', running: '●', pending: '○',
+  success: '✓',
+  failed: '✗',
+  running: '●',
+  pending: '○',
 }
 
 interface MRDetailScreenProps extends ScreenProps {
@@ -33,8 +39,7 @@ interface MRDetailScreenProps extends ScreenProps {
   editor?: string
 }
 
-
-function buildDraftData(drafts: DraftComment[], file: DiffFile) {
+function buildDraftData (drafts: DraftComment[], file: DiffFile) {
   const map = new Map<number, string[]>()
   const rangeLines = new Set<number>()
   for (const d of drafts) {
@@ -47,14 +52,16 @@ function buildDraftData(drafts: DraftComment[], file: DiffFile) {
       const startLine = d.position.lineRange.startNewLine ?? d.position.lineRange.startOldLine
       if (startLine != null && startLine !== endLine) {
         map.set(startLine, [...(map.get(startLine) ?? []), d.body])
-        for (let l = startLine + 1; l < endLine; l++) rangeLines.add(l)
+        for (let l = startLine + 1; l < endLine; l++) {
+          rangeLines.add(l)
+        }
       }
     }
   }
   return { draftComments: map, draftRangeLines: rangeLines }
 }
 
-function buildThreadMap(threads: Thread[]) {
+function buildThreadMap (threads: Thread[]) {
   const map = new Map<number, Thread[]>()
   for (const t of threads) {
     if (!t.position) continue
@@ -65,15 +72,22 @@ function buildThreadMap(threads: Thread[]) {
   return map
 }
 
-function editorArgs(editor: string, filePath: string, line: number): string[] {
+function editorArgs (editor: string, filePath: string, line: number): string[] {
   switch (editor) {
-    case 'nvim': case 'vim': case 'vi': return [`+${line}`, filePath]
-    case 'idea': return ['--line', String(line), filePath]
-    default: return ['--goto', `${filePath}:${line}`]
+    case 'nvim':
+    case 'vim':
+    case 'vi':
+      return [`+${line}`, filePath]
+    case 'idea':
+      return ['--line', String(line), filePath]
+    default:
+      return ['--goto', `${filePath}:${line}`]
   }
 }
 
-export function MRDetailScreen({ leftWidth, rightWidth, mr, account, projectPath, localPath, editor = 'code' }: MRDetailScreenProps) {
+export function MRDetailScreen ({ leftWidth, rightWidth, mr, account, projectPath, localPath, editor = 'code' }:
+  MRDetailScreenProps)
+{
   const { push, pop } = useNavigation()
   const theme = useTheme()
 
@@ -91,31 +105,33 @@ export function MRDetailScreen({ leftWidth, rightWidth, mr, account, projectPath
     [client, projectPath],
   )
 
-  const makeDraftSession = useCallback((iid: number) =>
-    createReviewSession(createDraftNotesAPI(client, projectPath, iid)),
+  const makeDraftSession = useCallback(
+    (iid: number) => createReviewSession(createDraftNotesAPI(client, projectPath, iid)),
     [client, projectPath],
   )
-  const makeInstantComments = useCallback((iid: number) =>
-    createInstantCommentService(createInstantCommentsAPI(client, projectPath, iid)),
+  const makeInstantComments = useCallback(
+    (iid: number) => createInstantCommentService(createInstantCommentsAPI(client, projectPath, iid)),
     [client, projectPath],
   )
-  const makeThreadActions = useCallback((iid: number) =>
-    createThreadActionsService(createThreadActionsAPIImpl(client, projectPath, iid)),
+  const makeThreadActions = useCallback(
+    (iid: number) => createThreadActionsService(createThreadActionsAPIImpl(client, projectPath, iid)),
     [client, projectPath],
   )
 
   const openInEditor = localPath
     ? (filePath: string, line: number) => {
-        const absolute = join(localPath, filePath)
-        spawn(editor, editorArgs(editor, absolute, line), { detached: true, stdio: 'ignore' }).unref()
-      }
+      const absolute = join(localPath, filePath)
+      spawn(editor, editorArgs(editor, absolute, line), { detached: true, stdio: 'ignore' }).unref()
+    }
     : undefined
 
   const loadDraftCount = useCallback(async (iid: number) => {
     try {
       const drafts = await makeDraftSession(iid).getDraftComments()
       setDraftCount(drafts.length)
-    } catch { setDraftCount(0) }
+    } catch {
+      setDraftCount(0)
+    }
   }, [makeDraftSession])
 
   const reloadMRData = useCallback(async (iid: number) => {
@@ -124,7 +140,9 @@ export function MRDetailScreen({ leftWidth, rightWidth, mr, account, projectPath
       const [f, t] = await Promise.all([mrService.getDiffFiles(iid), mrService.getThreads(iid)])
       setFiles(f)
       setThreads(t)
-    } finally { setLoading(false) }
+    } finally {
+      setLoading(false)
+    }
   }, [mrService])
 
   useEffect(() => {
@@ -136,11 +154,11 @@ export function MRDetailScreen({ leftWidth, rightWidth, mr, account, projectPath
       .catch(() => setLoading(false))
   }, [mr.iid])
 
-  async function openDiff(file: DiffFile, index: number) {
+  async function openDiff (file: DiffFile, index: number) {
     if (!activeMR?.diffRefs) return
     const drafts = await makeDraftSession(activeMR.iid).getDraftComments().catch(() => [] as DraftComment[])
     const fileThreads = threads.filter((t) =>
-      t.position && (t.position.filePath === file.newPath || t.position.filePath === file.oldPath),
+      t.position && (t.position.filePath === file.newPath || t.position.filePath === file.oldPath)
     )
     const { draftComments, draftRangeLines } = buildDraftData(drafts, file)
     push({
@@ -185,12 +203,12 @@ export function MRDetailScreen({ leftWidth, rightWidth, mr, account, projectPath
     )
   }
 
-  function renderLeftPanel() {
+  function renderLeftPanel () {
     return (
       <>
         <Text bold color={theme.secondary}>MR</Text>
         <Text bold color={theme.primary}>!{mr.iid} {mr.title}</Text>
-        <Text color={theme.muted}>{mr.state}  {pipeline}</Text>
+        <Text color={theme.muted}>{mr.state} {pipeline}</Text>
         <Text color={theme.muted}>{mr.sourceBranch} → {mr.targetBranch}</Text>
       </>
     )
@@ -202,37 +220,34 @@ export function MRDetailScreen({ leftWidth, rightWidth, mr, account, projectPath
         {renderLeftPanel()}
       </Box>
       <Box width={rightWidth} flexDirection="column">
-        {!activeMR ? (
-          <Text color={theme.muted}>Loading…</Text>
-        ) : (
-          <MRDetail
-            mr={activeMR}
-            files={files}
-            threads={threads}
-            loading={loading}
-            draftCount={draftCount}
-            onReload={() => reloadMRData(activeMR.iid)}
-            onOpenFile={(file, index) => openDiff(file, index)}
-            onApprove={() => mrActions.approveMR(activeMR.iid)}
-            onMerge={() => mrActions.mergeMR(activeMR.iid).then(pop)}
-            onEdit={() => setMode('edit')}
-            onSubmitReview={() =>
-              makeDraftSession(activeMR.iid).publishReview().then(() => loadDraftCount(activeMR.iid))
-            }
-            onDiscardDrafts={() =>
-              makeDraftSession(activeMR.iid).discardAll().then(() => setDraftCount(0))
-            }
-            onAddMRComment={(body) => makeInstantComments(activeMR.iid).postMRComment(body)}
-            onReplyToThread={(id, body) => makeThreadActions(activeMR.iid).replyToThread(id, body)}
-            onDraftReplyToThread={(id, body) =>
-              makeDraftSession(activeMR.iid).addDraftReply(id, body).then(() => loadDraftCount(activeMR.iid))
-            }
-            onResolveThread={(id, noteId, resolved) => makeThreadActions(activeMR.iid).resolveThread(id, noteId, resolved)}
-            onOpenFileLine={openInEditor}
-            onOpenInBrowser={() => { /* browser open handled via webUrl */ }}
-            onBack={pop}
-          />
-        )}
+        {!activeMR
+          ? <Text color={theme.muted}>Loading…</Text>
+          : (
+            <MRDetail
+              mr={activeMR}
+              files={files}
+              threads={threads}
+              loading={loading}
+              draftCount={draftCount}
+              onReload={() => reloadMRData(activeMR.iid)}
+              onOpenFile={(file, index) => openDiff(file, index)}
+              onApprove={() => mrActions.approveMR(activeMR.iid)}
+              onMerge={() => mrActions.mergeMR(activeMR.iid).then(pop)}
+              onEdit={() => setMode('edit')}
+              onSubmitReview={() =>
+                makeDraftSession(activeMR.iid).publishReview().then(() => loadDraftCount(activeMR.iid))}
+              onDiscardDrafts={() => makeDraftSession(activeMR.iid).discardAll().then(() => setDraftCount(0))}
+              onAddMRComment={(body) => makeInstantComments(activeMR.iid).postMRComment(body)}
+              onReplyToThread={(id, body) => makeThreadActions(activeMR.iid).replyToThread(id, body)}
+              onDraftReplyToThread={(id, body) =>
+                makeDraftSession(activeMR.iid).addDraftReply(id, body).then(() => loadDraftCount(activeMR.iid))}
+              onResolveThread={(id, noteId, resolved) =>
+                makeThreadActions(activeMR.iid).resolveThread(id, noteId, resolved)}
+              onOpenFileLine={openInEditor}
+              onOpenInBrowser={() => {/* browser open handled via webUrl */}}
+              onBack={pop}
+            />
+          )}
       </Box>
     </Box>
   )

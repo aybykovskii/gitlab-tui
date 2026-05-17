@@ -12,7 +12,12 @@
     "build": "tsup src/index.tsx --format esm --dts --clean",
     "test": "vitest run",
     "test:watch": "vitest",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "lint": "eslint .",
+    "lint:fix": "eslint . --fix",
+    "format": "dprint fmt",
+    "format:check": "dprint check",
+    "check": "bun run typecheck && bun run lint && bun run format:check && bun run test"
   },
   "dependencies": {
     "@gitbeaker/rest": "^43.8.0",
@@ -25,12 +30,24 @@
     "react": "^19.2.6"
   },
   "devDependencies": {
+    "@eslint/js": "^9",
     "@types/node": "^25.8.0",
     "@types/react": "^19.2.14",
+    "dprint": "^0.54.0",
+    "eslint": "^9",
+    "eslint-config-prettier": "^10.1.8",
+    "eslint-plugin-astro": "^1.7.0",
+    "eslint-plugin-jsx-a11y": "^6.10.2",
+    "eslint-plugin-only-warn": "^1.2.1",
+    "eslint-plugin-react": "^7.37.5",
+    "eslint-plugin-react-hooks": "^7.1.1",
+    "eslint-plugin-simple-import-sort": "^13.0.0",
+    "globals": "^17.6.0",
     "ink-testing-library": "^4.0.0",
     "tsup": "^8.5.1",
     "tsx": "^4.22.0",
     "typescript": "^6.0.3",
+    "typescript-eslint": "^8.59.3",
     "vitest": "^4.1.6"
   },
   "engines": {

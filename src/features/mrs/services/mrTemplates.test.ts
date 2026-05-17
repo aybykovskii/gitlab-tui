@@ -1,4 +1,5 @@
-import { describe, it, expect } from 'vitest'
+import { describe, expect, it } from 'vitest'
+
 import { createMRTemplateLoader } from './mrTemplates.js'
 
 describe('listTemplates', () => {
@@ -15,7 +16,9 @@ describe('listTemplates', () => {
 
   it('returns empty array when directory does not exist', async () => {
     const loader = createMRTemplateLoader('/repo', {
-      readDir: async () => { throw Object.assign(new Error('ENOENT'), { code: 'ENOENT' }) },
+      readDir: async () => {
+        throw Object.assign(new Error('ENOENT'), { code: 'ENOENT' })
+      },
       readFile: async () => '',
     })
 

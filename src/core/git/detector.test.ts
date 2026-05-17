@@ -1,9 +1,12 @@
-import { describe, it, expect, beforeEach, afterEach } from 'vitest'
-import { mkdtempSync, rmSync, mkdirSync, writeFileSync } from 'node:fs'
+import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
-import { createGitRemoteDetector } from './detector.js'
+
+import { afterEach, beforeEach, describe, expect, it } from 'vitest'
+
 import type { Config } from '../config/types.js'
+
+import { createGitRemoteDetector } from './detector.js'
 
 const config: Config = {
   accounts: [
@@ -17,7 +20,7 @@ const config: Config = {
 
 let tmpDir: string
 
-function makeGitRepo(dir: string, remoteUrl: string) {
+function makeGitRepo (dir: string, remoteUrl: string) {
   mkdirSync(join(dir, '.git'), { recursive: true })
   writeFileSync(
     join(dir, '.git', 'config'),

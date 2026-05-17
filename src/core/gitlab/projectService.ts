@@ -5,7 +5,7 @@ export interface ProjectSummary {
   projectPath: string
 }
 
-export async function listUserProjects(
+export async function listUserProjects (
   client: GitLabClient,
   accountName: string,
   limit = 10,
@@ -15,8 +15,8 @@ export async function listUserProjects(
     perPage: limit,
     maxPages: 1,
   })
-  return (projects as Array<Record<string, unknown>>).map((p) => ({
+  return (projects as Record<string, unknown>[]).map((p) => ({
     accountName,
-    projectPath: String(p['path_with_namespace'] ?? ''),
+    projectPath: String(p.path_with_namespace ?? ''),
   }))
 }

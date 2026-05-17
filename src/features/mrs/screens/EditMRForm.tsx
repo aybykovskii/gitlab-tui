@@ -1,10 +1,11 @@
 import React, { useState } from 'react'
 import { Box, Text, useInput } from 'ink'
-import TextInput from 'ink-text-input'
 import SelectInput from 'ink-select-input'
-import type { MRDetail } from '../services/types.js'
+import TextInput from 'ink-text-input'
+
 import type { UpdateMRInput } from '../services/mrService.js'
 import { parseMRTitle } from '../services/mrTitle.js'
+import type { MRDetail } from '../services/types.js'
 
 type Step = 'title' | 'description' | 'labels' | 'draft' | 'confirm'
 
@@ -14,7 +15,7 @@ interface Props {
   onBack: () => void
 }
 
-export function EditMRForm({ mr, onSubmit, onBack }: Props) {
+export function EditMRForm ({ mr, onSubmit, onBack }: Props) {
   const parsed = parseMRTitle(mr.title)
   const [step, setStep] = useState<Step>('title')
   const [title, setTitle] = useState(parsed.title)
@@ -34,7 +35,12 @@ export function EditMRForm({ mr, onSubmit, onBack }: Props) {
         <TextInput
           value={title}
           onChange={setTitle}
-          onSubmit={(v) => { if (v.trim()) { setTitle(v.trim()); setStep('description') } }}
+          onSubmit={(v) => {
+            if (v.trim()) {
+              setTitle(v.trim())
+              setStep('description')
+            }
+          }}
         />
       </Box>
     )
@@ -44,11 +50,7 @@ export function EditMRForm({ mr, onSubmit, onBack }: Props) {
     return (
       <Box flexDirection="column" gap={1}>
         <Text bold>Edit MR — Description</Text>
-        <TextInput
-          value={description}
-          onChange={setDescription}
-          onSubmit={() => setStep('labels')}
-        />
+        <TextInput value={description} onChange={setDescription} onSubmit={() => setStep('labels')} />
       </Box>
     )
   }
@@ -56,12 +58,10 @@ export function EditMRForm({ mr, onSubmit, onBack }: Props) {
   if (step === 'labels') {
     return (
       <Box flexDirection="column" gap={1}>
-        <Text bold>Edit MR — Labels <Text dimColor>(comma-separated, Enter to skip)</Text></Text>
-        <TextInput
-          value={labels}
-          onChange={setLabels}
-          onSubmit={() => setStep('draft')}
-        />
+        <Text bold>
+          Edit MR — Labels <Text dimColor>(comma-separated, Enter to skip)</Text>
+        </Text>
+        <TextInput value={labels} onChange={setLabels} onSubmit={() => setStep('draft')} />
       </Box>
     )
   }
@@ -76,7 +76,10 @@ export function EditMRForm({ mr, onSubmit, onBack }: Props) {
             { label: 'Yes — draft / WIP', value: 'yes' },
           ]}
           initialIndex={draft ? 1 : 0}
-          onSelect={(item) => { setDraft(item.value === 'yes'); setStep('confirm') }}
+          onSelect={(item) => {
+            setDraft(item.value === 'yes')
+            setStep('confirm')
+          }}
         />
       </Box>
     )
@@ -87,9 +90,24 @@ export function EditMRForm({ mr, onSubmit, onBack }: Props) {
   return (
     <Box flexDirection="column" gap={1}>
       <Text bold>Edit MR — Confirm</Text>
-      <Text><Text dimColor>Title: </Text>{draft ? 'Draft: ' : ''}{title}</Text>
-      {description ? <Text><Text dimColor>Desc:  </Text>{description.slice(0, 60)}</Text> : null}
-      {labelList.length > 0 && <Text><Text dimColor>Labels:</Text> {labelList.join(', ')}</Text>}
+      <Text>
+        <Text dimColor>Title:</Text>
+        {draft ? 'Draft: ' : ''}
+        {title}
+      </Text>
+      {description
+        ? (
+          <Text>
+            <Text dimColor>Desc:</Text>
+            {description.slice(0, 60)}
+          </Text>
+        )
+        : null}
+      {labelList.length > 0 && (
+        <Text>
+          <Text dimColor>Labels:</Text> {labelList.join(', ')}
+        </Text>
+      )}
       <SelectInput
         items={[
           { label: 'Save changes', value: 'save' },

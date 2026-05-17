@@ -1,7 +1,8 @@
-import { describe, it, expect, vi } from 'vitest'
+import { describe, expect, it, vi } from 'vitest'
+
 import { createIDELauncher } from './launcher.js'
 
-function makeSpawn() {
+function makeSpawn () {
   const fn = vi.fn()
   return { spawn: fn, lastCall: () => fn.mock.calls[0] as [string, string[]] }
 }

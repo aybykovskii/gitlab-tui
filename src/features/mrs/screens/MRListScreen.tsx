@@ -1,14 +1,16 @@
 import React, { useEffect, useMemo } from 'react'
 import { Box, Text } from 'ink'
-import { MRList } from './MRList.js'
-import { MRDetailScreen } from './MRDetailScreen.js'
-import { createMRService } from '../services/mrService.js'
+
+import type { Account } from '../../../core/config/types.js'
 import { createGitLabClient } from '../../../core/gitlab/index.js'
 import { useNavigation } from '../../../core/navigation/index.js'
-import { useTheme } from '../../../core/theme/index.js'
-import type { Account } from '../../../core/config/types.js'
 import type { ScreenProps } from '../../../core/navigation/types.js'
+import { useTheme } from '../../../core/theme/index.js'
+import { createMRService } from '../services/mrService.js'
 import type { MR } from '../services/types.js'
+
+import { MRDetailScreen } from './MRDetailScreen.js'
+import { MRList } from './MRList.js'
 
 const SECTIONS = [
   { label: 'Merge Requests', value: 'mrs' },
@@ -23,7 +25,7 @@ interface MRListScreenProps extends ScreenProps {
   editor?: string
 }
 
-export function MRListScreen({ leftWidth, rightWidth, account, projectPath, localPath, editor }: MRListScreenProps) {
+export function MRListScreen ({ leftWidth, rightWidth, account, projectPath, localPath, editor }: MRListScreenProps) {
   const { push, setHints } = useNavigation()
   const theme = useTheme()
 
@@ -39,7 +41,7 @@ export function MRListScreen({ leftWidth, rightWidth, account, projectPath, loca
   const client = useMemo(() => createGitLabClient(account), [account.url, account.token])
   const mrService = useMemo(() => createMRService(client, projectPath), [client, projectPath])
 
-  function handleSelectMR(mr: MR) {
+  function handleSelectMR (mr: MR) {
     push({
       id: 'mr-detail',
       component: MRDetailScreen,
@@ -55,17 +57,14 @@ export function MRListScreen({ leftWidth, rightWidth, account, projectPath, loca
           const isActive = s.value === 'mrs'
           return (
             <Text key={s.value} color={isActive ? theme.primary : theme.muted} bold={isActive}>
-              {isActive ? '▶ ' : '  '}{s.label}
+              {isActive ? '▶ ' : '  '}
+              {s.label}
             </Text>
           )
         })}
       </Box>
       <Box width={rightWidth} flexDirection="column">
-        <MRList
-          projectPath={projectPath}
-          onSelect={handleSelectMR}
-          loadMRs={(state) => mrService.listMRs({ state })}
-        />
+        <MRList projectPath={projectPath} onSelect={handleSelectMR} loadMRs={(state) => mrService.listMRs({ state })} />
       </Box>
     </Box>
   )

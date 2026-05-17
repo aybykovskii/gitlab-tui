@@ -1,6 +1,8 @@
 import React, { createContext, useContext } from 'react'
-import type { Screen } from './types.js'
+
 import type { Hint } from '../../ui/StatusBar.js'
+
+import type { Screen } from './types.js'
 
 export interface NavigationContextValue {
   push: (screen: Screen) => void
@@ -14,7 +16,7 @@ const NavigationContext = createContext<NavigationContextValue>({
   setHints: () => {},
 })
 
-export function NavigationProvider({
+export function NavigationProvider ({
   value,
   children,
 }: {
@@ -24,6 +26,6 @@ export function NavigationProvider({
   return <NavigationContext.Provider value={value}>{children}</NavigationContext.Provider>
 }
 
-export function useNavigation(): NavigationContextValue {
+export function useNavigation (): NavigationContextValue {
   return useContext(NavigationContext)
 }

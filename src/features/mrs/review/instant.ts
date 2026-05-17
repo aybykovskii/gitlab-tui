@@ -5,12 +5,12 @@ export interface InstantCommentsAPI {
   postMRComment(body: string): Promise<void>
 }
 
-export function createInstantCommentService(api: InstantCommentsAPI) {
-  async function postInlineComment(position: CommentPosition, body: string): Promise<void> {
+export function createInstantCommentService (api: InstantCommentsAPI) {
+  async function postInlineComment (position: CommentPosition, body: string): Promise<void> {
     return api.postInlineComment(body, position)
   }
 
-  async function postMRComment(body: string): Promise<void> {
+  async function postMRComment (body: string): Promise<void> {
     return api.postMRComment(body)
   }
 

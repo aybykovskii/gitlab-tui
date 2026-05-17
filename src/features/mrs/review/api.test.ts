@@ -1,8 +1,10 @@
-import { describe, it, expect, vi } from 'vitest'
-import { createDraftNotesAPI, createInstantCommentsAPI, createThreadActionsAPIImpl } from './api.js'
+import { describe, expect, it, vi } from 'vitest'
+
 import type { GitLabClient } from '../../../core/gitlab/index.js'
 
-function makeClient(): GitLabClient {
+import { createDraftNotesAPI, createInstantCommentsAPI, createThreadActionsAPIImpl } from './api.js'
+
+function makeClient (): GitLabClient {
   return {
     MergeRequestDraftNotes: {
       all: vi.fn().mockResolvedValue([]),

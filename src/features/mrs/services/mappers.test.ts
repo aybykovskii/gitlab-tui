@@ -1,4 +1,5 @@
-import { describe, it, expect } from 'vitest'
+import { describe, expect, it } from 'vitest'
+
 import { mapDiffFile, mapThread } from './mappers.js'
 
 const makeRawDiff = (overrides = {}) => ({
@@ -38,7 +39,7 @@ describe('mapThread', () => {
             position: null,
           },
         ],
-      }) as any,
+      }),
     )
 
     expect(result.notes[0]).toEqual({
@@ -49,14 +50,14 @@ describe('mapThread', () => {
   })
 
   it('maps resolved thread with author and first note', () => {
-    const result = mapThread({ ...makeRawThread(), resolved: true } as any)
+    const result = mapThread({ ...makeRawThread(), resolved: true })
     expect(result.resolved).toBe(true)
     expect(result.author).toEqual({ name: 'Alice', username: 'alice' })
     expect(result.firstNote).toBe('Looks good')
   })
 
   it('maps unresolved thread', () => {
-    const result = mapThread({ ...makeRawThread(), resolved: false } as any)
+    const result = mapThread({ ...makeRawThread(), resolved: false })
     expect(result.resolved).toBe(false)
   })
 
@@ -71,12 +72,12 @@ describe('mapThread', () => {
         },
       ],
     })
-    const result = mapThread(raw as any)
+    const result = mapThread(raw)
     expect(result.position).toEqual({ filePath: 'src/foo.ts', oldLine: null, newLine: 42 })
   })
 
   it('maps general thread without position', () => {
-    const result = mapThread(makeRawThread() as any)
+    const result = mapThread(makeRawThread())
     expect(result.position).toBeNull()
   })
 })

@@ -1,7 +1,8 @@
 import React, { useState } from 'react'
 import { Box, Text, useApp } from 'ink'
-import TextInput from 'ink-text-input'
 import SelectInput from 'ink-select-input'
+import TextInput from 'ink-text-input'
+
 import { createConfigManager } from './manager.js'
 import type { Config } from './types.js'
 
@@ -18,22 +19,22 @@ interface Props {
   onComplete: (config: Config) => void
 }
 
-export function SetupWizard({ onComplete }: Props) {
+export function SetupWizard ({ onComplete }: Props) {
   const [step, setStep] = useState<Step>('url')
   const [url, setUrl] = useState('https://gitlab.com')
   const [token, setToken] = useState('')
 
-  function handleUrlSubmit(value: string) {
+  function handleUrlSubmit (value: string) {
     setUrl(value)
     setStep('token')
   }
 
-  function handleTokenSubmit(value: string) {
+  function handleTokenSubmit (value: string) {
     setToken(value)
     setStep('editor')
   }
 
-  function handleEditorSelect(item: { value: string }) {
+  function handleEditorSelect (item: { value: string }) {
     const config: Config = {
       accounts: [{ name: 'default', url, token }],
       defaultAccount: 'default',

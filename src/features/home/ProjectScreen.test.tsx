@@ -1,12 +1,14 @@
-import { describe, it, expect } from 'vitest'
-import { render } from 'ink-testing-library'
 import React from 'react'
-import { ThemeProvider } from '../../core/theme/index.js'
-import { Navigator } from '../../core/navigation/index.js'
-import { ProjectScreen } from './ProjectScreen.js'
+import { render } from 'ink-testing-library'
+import { describe, expect, it } from 'vitest'
+
 import type { Config } from '../../core/config/types.js'
-import type { Screen } from '../../core/navigation/types.js'
 import type { DetectedProject } from '../../core/git/index.js'
+import { Navigator } from '../../core/navigation/index.js'
+import type { Screen } from '../../core/navigation/types.js'
+import { ThemeProvider } from '../../core/theme/index.js'
+
+import { ProjectScreen } from './ProjectScreen.js'
 
 const mockAccount = { name: 'work', url: 'https://gitlab.com', token: 'tok' }
 
@@ -32,11 +34,13 @@ const projectScreen: Screen = {
   props: { project: mockProject, config: mockConfig },
 }
 
-function renderProject() {
+function renderProject () {
   return render(
-    <ThemeProvider>
-      <Navigator initialScreen={projectScreen} />
-    </ThemeProvider>,
+    (
+      <ThemeProvider>
+        <Navigator initialScreen={projectScreen} />
+      </ThemeProvider>
+    ),
   )
 }
 

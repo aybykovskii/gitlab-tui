@@ -1,0 +1,61 @@
+{
+  "lineWidth": 120,
+  "indentWidth": 2,
+  "useTabs": false,
+  "newLineKind": "lf",
+  "typescript": {
+    "semiColons": "asi",
+    "quoteStyle": "preferSingle",
+    "quoteProps": "asNeeded",
+    "trailingCommas": "onlyMultiLine",
+    "singleBodyPosition": "nextLine",
+    "ifStatement.singleBodyPosition": "sameLine",
+    "preferHanging": true,
+    "constructor.spaceBeforeParentheses": true,
+    "arrowFunction.useParentheses": "force",
+    "parameters.preferHanging": "onlySingleItem",
+    "arguments.preferSingleLine": false,
+    "functionDeclaration.spaceBeforeParentheses": true,
+    "method.spaceBeforeParentheses": true,
+    "getAccessor.spaceBeforeParentheses": true,
+    "setAccessor.spaceBeforeParentheses": true,
+    "binaryExpression.operatorPosition": "nextLine",
+    "binaryExpression.preferSingleLine": true,
+    "jsx.quoteStyle": "preferDouble",
+    "jsx.bracketPosition": "nextLine",
+    "jsxAttributes.preferSingleLine": true,
+    "jsxAttributes.preferHanging": false,
+    "jsx.forceNewLinesSurroundingContent": false,
+    "jsxSelfClosingElement.bracketPosition": "nextLine",
+    "jsx.multiLineParens": "always",
+    "module.sortImportDeclarations": "maintain",
+    "importDeclaration.sortNamedImports": "maintain",
+    "importDeclaration.preferHanging": false,
+    "ignoreNodeCommentText": "dprint-ignore",
+    "ignoreFileCommentText": "dprint-ignore-file"
+  },
+  "json": {},
+  "malva": {
+    "indentWidth": 2,
+    "useTabs": false,
+    "printWidth": 120,
+    "quotes": "alwaysSingle",
+    "hexCase": "lower",
+    "declarationOrder": "smacss",
+    "blockSelectorLinebreak": "consistent",
+    "declarationOrderGroupBy": "nonDeclarationAndEmptyLine"
+  },
+  "markup": {},
+  "excludes": [
+    "**/node_modules",
+    "**/dist",
+    "**/*-lock.json",
+    "*.gen.ts"
+  ],
+  "plugins": [
+    "https://plugins.dprint.dev/typescript-0.95.11.wasm",
+    "https://plugins.dprint.dev/json-0.20.0.wasm",
+    "https://plugins.dprint.dev/g-plane/malva-v0.14.3.wasm",
+    "https://plugins.dprint.dev/g-plane/markup_fmt-v0.27.0.wasm"
+  ]
+}

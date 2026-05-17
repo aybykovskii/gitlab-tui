@@ -5,27 +5,27 @@ export interface MRActionsAPI {
   mergeMR(iid: number): Promise<void>
 }
 
-export function createMRActionsService(api: MRActionsAPI) {
-  async function approveMR(iid: number): Promise<void> {
+export function createMRActionsService (api: MRActionsAPI) {
+  async function approveMR (iid: number): Promise<void> {
     return api.approveMR(iid)
   }
 
-  async function mergeMR(iid: number): Promise<void> {
+  async function mergeMR (iid: number): Promise<void> {
     return api.mergeMR(iid)
   }
 
   return { approveMR, mergeMR }
 }
 
-export function createMRActionsAPIImpl(
+export function createMRActionsAPIImpl (
   client: GitLabClient,
   projectPath: string,
 ): MRActionsAPI {
-  async function approveMR(iid: number): Promise<void> {
+  async function approveMR (iid: number): Promise<void> {
     await client.MergeRequestApprovals.approve(projectPath, iid)
   }
 
-  async function mergeMR(iid: number): Promise<void> {
+  async function mergeMR (iid: number): Promise<void> {
     await client.MergeRequests.merge(projectPath, iid)
   }
 

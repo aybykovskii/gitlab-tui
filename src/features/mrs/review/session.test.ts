@@ -1,7 +1,9 @@
-import { describe, it, expect, vi } from 'vitest'
-import { createReviewSession } from './session.js'
-import type { DraftNotesAPI, DraftComment } from './session.js'
+import { describe, expect, it, vi } from 'vitest'
+
 import type { CommentPosition } from '../diff/position.js'
+
+import type { DraftComment, DraftNotesAPI } from './session.js'
+import { createReviewSession } from './session.js'
 
 const position: CommentPosition = {
   baseSha: 'abc',
@@ -21,7 +23,7 @@ const makeDraft = (overrides: Partial<DraftComment> = {}): DraftComment => ({
   ...overrides,
 })
 
-function makeAPI(overrides: Partial<DraftNotesAPI> = {}): DraftNotesAPI {
+function makeAPI (overrides: Partial<DraftNotesAPI> = {}): DraftNotesAPI {
   return {
     create: vi.fn().mockResolvedValue(makeDraft()),
     createReply: vi.fn().mockResolvedValue(makeDraft()),

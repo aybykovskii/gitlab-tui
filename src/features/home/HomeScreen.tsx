@@ -1,12 +1,14 @@
 import React from 'react'
 import { Box, Text } from 'ink'
+
+import type { Config } from '../../core/config/types.js'
+import type { DetectedProject } from '../../core/git/index.js'
 import { ProjectSelect } from '../../core/git/index.js'
 import { useNavigation } from '../../core/navigation/index.js'
-import { useTheme } from '../../core/theme/index.js'
-import { ProjectScreen } from './ProjectScreen.js'
-import type { Config } from '../../core/config/types.js'
 import type { ScreenProps } from '../../core/navigation/types.js'
-import type { DetectedProject } from '../../core/git/index.js'
+import { useTheme } from '../../core/theme/index.js'
+
+import { ProjectScreen } from './ProjectScreen.js'
 
 const VERSION = '0.1.0'
 
@@ -23,15 +25,16 @@ interface HomeScreenProps extends ScreenProps {
   configManager: { saveConfig(config: Config): void }
 }
 
-export function HomeScreen({ leftWidth, rightWidth, config, configManager }: HomeScreenProps) {
+export function HomeScreen ({ leftWidth, rightWidth, config, configManager }: HomeScreenProps) {
   const { push } = useNavigation()
   const theme = useTheme()
 
-  function handleSelectProject(project: DetectedProject) {
+  function handleSelectProject (project: DetectedProject) {
     const updated: Config = {
       ...config,
       recentProjects: [
-        { accountName: project.account.name, projectPath: project.projectPath, localPath: project.localPath || undefined },
+        { accountName: project.account.name, projectPath: project.projectPath,
+          localPath: project.localPath || undefined },
         ...config.recentProjects.filter((r) => r.projectPath !== project.projectPath),
       ],
     }
@@ -49,8 +52,7 @@ export function HomeScreen({ leftWidth, rightWidth, config, configManager }: Hom
           <Text bold color={theme.secondary}>Hotkeys</Text>
           {HOTKEYS.map((h) => (
             <Text key={h.key} color={theme.muted}>
-              <Text color={theme.primary}>{h.key}</Text>
-              {' '}{h.label}
+              <Text color={theme.primary}>{h.key}</Text> {h.label}
             </Text>
           ))}
         </Box>

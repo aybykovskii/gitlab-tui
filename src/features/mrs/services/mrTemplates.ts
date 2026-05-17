@@ -7,7 +7,7 @@ interface TemplateFS {
   readFile(path: string): Promise<string>
 }
 
-export function createMRTemplateLoader(repoRoot: string, fs?: TemplateFS) {
+export function createMRTemplateLoader (repoRoot: string, fs?: TemplateFS) {
   const resolvedFs: TemplateFS = fs ?? {
     readDir: async (p) => {
       const { readdir } = await import('node:fs/promises')
@@ -21,7 +21,7 @@ export function createMRTemplateLoader(repoRoot: string, fs?: TemplateFS) {
 
   const templatesDir = node_path.join(repoRoot, TEMPLATES_DIR)
 
-  async function listTemplates(): Promise<string[]> {
+  async function listTemplates (): Promise<string[]> {
     try {
       const files = await resolvedFs.readDir(templatesDir)
       return files
@@ -33,7 +33,7 @@ export function createMRTemplateLoader(repoRoot: string, fs?: TemplateFS) {
     }
   }
 
-  async function getTemplateContent(name: string): Promise<string> {
+  async function getTemplateContent (name: string): Promise<string> {
     return resolvedFs.readFile(node_path.join(templatesDir, `${name}.md`))
   }
 

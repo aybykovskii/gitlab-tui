@@ -1,23 +1,29 @@
-import { describe, it, expect, vi } from 'vitest'
-import { render } from 'ink-testing-library'
 import React from 'react'
 import { Text } from 'ink'
-import { Navigator } from './Navigator.js'
-import { useNavigation } from './context.js'
+import { render } from 'ink-testing-library'
+import { describe, expect, it, vi } from 'vitest'
+
 import { ThemeProvider } from '../theme/index.js'
+
+import { useNavigation } from './context.js'
+import { Navigator } from './Navigator.js'
 import type { Screen, ScreenProps } from './types.js'
 
-function wrap(node: React.ReactNode) {
+function wrap (node: React.ReactNode) {
   return <ThemeProvider>{node}</ThemeProvider>
 }
 
-function ScreenA({ leftWidth, rightWidth }: ScreenProps) {
+function ScreenA ({ leftWidth, rightWidth }: ScreenProps) {
   return <Text>Screen A lw={leftWidth} rw={rightWidth}</Text>
 }
 
-function ScreenWithCallbacks({ onContextReady }: ScreenProps & { onContextReady?: (nav: ReturnType<typeof useNavigation>) => void }) {
+function ScreenWithCallbacks ({ onContextReady }: ScreenProps & {
+  onContextReady?: (nav: ReturnType<typeof useNavigation>) => void
+}) {
   const nav = useNavigation()
-  React.useEffect(() => { onContextReady?.(nav) }, [])
+  React.useEffect(() => {
+    onContextReady?.(nav)
+  }, [])
   return <Text>Screen with nav</Text>
 }
 
@@ -48,7 +54,12 @@ describe('Navigator', () => {
     const screen: Screen = {
       id: 'cb',
       component: (props: ScreenProps) => (
-        <ScreenWithCallbacks {...props} onContextReady={(nav) => { navRef.current = nav }} />
+        <ScreenWithCallbacks
+          {...props}
+          onContextReady={(nav) => {
+            navRef.current = nav
+          }}
+        />
       ),
     }
     render(wrap(<Navigator initialScreen={screen} />))

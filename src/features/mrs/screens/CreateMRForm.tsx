@@ -1,7 +1,8 @@
-import React, { useState, useEffect } from 'react'
+import React, { useEffect, useState } from 'react'
 import { Box, Text, useInput } from 'ink'
-import TextInput from 'ink-text-input'
 import SelectInput from 'ink-select-input'
+import TextInput from 'ink-text-input'
+
 import type { CreateMRInput } from '../services/mrService.js'
 
 type Step = 'title' | 'target' | 'template' | 'description' | 'labels' | 'draft' | 'confirm'
@@ -15,7 +16,9 @@ interface Props {
   onBack: () => void
 }
 
-export function CreateMRForm({ sourceBranch, loadBranches, loadTemplates, loadTemplateContent, onSubmit, onBack }: Props) {
+export function CreateMRForm ({ sourceBranch, loadBranches, loadTemplates, loadTemplateContent, onSubmit, onBack }:
+  Props)
+{
   const [step, setStep] = useState<Step>('title')
   const [title, setTitle] = useState('')
   const [targetBranch, setTargetBranch] = useState('')
@@ -29,7 +32,10 @@ export function CreateMRForm({ sourceBranch, loadBranches, loadTemplates, loadTe
   useEffect(() => {
     setLoading(true)
     Promise.all([loadBranches(), loadTemplates()])
-      .then(([b, t]) => { setBranches(b); setTemplates(t) })
+      .then(([b, t]) => {
+        setBranches(b)
+        setTemplates(t)
+      })
       .finally(() => setLoading(false))
   }, [loadBranches, loadTemplates])
 
@@ -43,12 +49,17 @@ export function CreateMRForm({ sourceBranch, loadBranches, loadTemplates, loadTe
     return (
       <Box flexDirection="column" gap={1}>
         <Text bold>Create MR — Title</Text>
-        <Text dimColor>Source: <Text color="cyan">{sourceBranch}</Text>  Esc: cancel</Text>
+        <Text dimColor>
+          Source: <Text color="cyan">{sourceBranch}</Text> Esc: cancel
+        </Text>
         <TextInput
           value={title}
           onChange={setTitle}
           onSubmit={(v) => {
-            if (v.trim()) { setTitle(v.trim()); setStep('target') }
+            if (v.trim()) {
+              setTitle(v.trim())
+              setStep('target')
+            }
           }}
         />
       </Box>
@@ -60,11 +71,20 @@ export function CreateMRForm({ sourceBranch, loadBranches, loadTemplates, loadTe
     return (
       <Box flexDirection="column" gap={1}>
         <Text bold>Create MR — Target branch</Text>
-        <Text dimColor>Title: <Text color="cyan">{title}</Text></Text>
+        <Text dimColor>
+          Title: <Text color="cyan">{title}</Text>
+        </Text>
         {items.length > 0
-          ? <SelectInput items={items} onSelect={(item) => { setTargetBranch(item.value); setStep(templates.length > 0 ? 'template' : 'description') }} />
-          : <Text dimColor>No branches found</Text>
-        }
+          ? (
+            <SelectInput
+              items={items}
+              onSelect={(item) => {
+                setTargetBranch(item.value)
+                setStep(templates.length > 0 ? 'template' : 'description')
+              }}
+            />
+          )
+          : <Text dimColor>No branches found</Text>}
       </Box>
     )
   }
@@ -94,12 +114,10 @@ export function CreateMRForm({ sourceBranch, loadBranches, loadTemplates, loadTe
   if (step === 'description') {
     return (
       <Box flexDirection="column" gap={1}>
-        <Text bold>Create MR — Description <Text dimColor>(Enter to continue, leave empty to skip)</Text></Text>
-        <TextInput
-          value={description}
-          onChange={setDescription}
-          onSubmit={() => setStep('labels')}
-        />
+        <Text bold>
+          Create MR — Description <Text dimColor>(Enter to continue, leave empty to skip)</Text>
+        </Text>
+        <TextInput value={description} onChange={setDescription} onSubmit={() => setStep('labels')} />
       </Box>
     )
   }
@@ -107,12 +125,10 @@ export function CreateMRForm({ sourceBranch, loadBranches, loadTemplates, loadTe
   if (step === 'labels') {
     return (
       <Box flexDirection="column" gap={1}>
-        <Text bold>Create MR — Labels <Text dimColor>(comma-separated, Enter to skip)</Text></Text>
-        <TextInput
-          value={labels}
-          onChange={setLabels}
-          onSubmit={() => setStep('draft')}
-        />
+        <Text bold>
+          Create MR — Labels <Text dimColor>(comma-separated, Enter to skip)</Text>
+        </Text>
+        <TextInput value={labels} onChange={setLabels} onSubmit={() => setStep('draft')} />
       </Box>
     )
   }
@@ -120,7 +136,9 @@ export function CreateMRForm({ sourceBranch, loadBranches, loadTemplates, loadTe
   if (step === 'draft') {
     return (
       <Box flexDirection="column" gap={1}>
-        <Text bold>Create as draft? <Text dimColor>(y/n)</Text></Text>
+        <Text bold>
+          Create as draft? <Text dimColor>(y/n)</Text>
+        </Text>
         <Text dimColor>Current: {draft ? 'yes' : 'no'}</Text>
         <Text dimColor>Press y or n, then Enter to confirm</Text>
         <SelectInput
@@ -128,7 +146,10 @@ export function CreateMRForm({ sourceBranch, loadBranches, loadTemplates, loadTe
             { label: 'No — ready for review', value: 'no' },
             { label: 'Yes — draft / WIP', value: 'yes' },
           ]}
-          onSelect={(item) => { setDraft(item.value === 'yes'); setStep('confirm') }}
+          onSelect={(item) => {
+            setDraft(item.value === 'yes')
+            setStep('confirm')
+          }}
         />
       </Box>
     )
@@ -139,12 +160,34 @@ export function CreateMRForm({ sourceBranch, loadBranches, loadTemplates, loadTe
   return (
     <Box flexDirection="column" gap={1}>
       <Text bold>Create MR — Confirm</Text>
-      <Text><Text dimColor>Title:  </Text>{draft ? 'Draft: ' : ''}{title}</Text>
-      <Text><Text dimColor>Source: </Text>{sourceBranch}</Text>
-      <Text><Text dimColor>Target: </Text>{targetBranch}</Text>
-      {description ? <Text><Text dimColor>Desc:   </Text>{description.slice(0, 60)}…</Text> : null}
-      {labelList.length > 0 && <Text><Text dimColor>Labels: </Text>{labelList.join(', ')}</Text>}
-      <Text dimColor>Enter: create  Esc: cancel</Text>
+      <Text>
+        <Text dimColor>Title:</Text>
+        {draft ? 'Draft: ' : ''}
+        {title}
+      </Text>
+      <Text>
+        <Text dimColor>Source:</Text>
+        {sourceBranch}
+      </Text>
+      <Text>
+        <Text dimColor>Target:</Text>
+        {targetBranch}
+      </Text>
+      {description
+        ? (
+          <Text>
+            <Text dimColor>Desc:</Text>
+            {description.slice(0, 60)}…
+          </Text>
+        )
+        : null}
+      {labelList.length > 0 && (
+        <Text>
+          <Text dimColor>Labels:</Text>
+          {labelList.join(', ')}
+        </Text>
+      )}
+      <Text dimColor>Enter: create Esc: cancel</Text>
       <SelectInput
         items={[
           { label: 'Create MR', value: 'create' },

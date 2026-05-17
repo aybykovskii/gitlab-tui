@@ -1,5 +1,6 @@
 import { existsSync, readFileSync } from 'node:fs'
-import { join, dirname } from 'node:path'
+import { dirname, join } from 'node:path'
+
 import type { Account, Config } from '../config/types.js'
 
 export interface DetectedProject {
@@ -8,7 +9,7 @@ export interface DetectedProject {
   localPath: string
 }
 
-function findGitConfig(cwd: string): string | null {
+function findGitConfig (cwd: string): string | null {
   let dir = cwd
   while (true) {
     const candidate = join(dir, '.git', 'config')
@@ -19,14 +20,14 @@ function findGitConfig(cwd: string): string | null {
   }
 }
 
-function parseRemoteOriginUrl(gitConfigContent: string): string | null {
-  const match = gitConfigContent.match(/\[remote "origin"\][\s\S]*?url\s*=\s*(.+)/)
+function parseRemoteOriginUrl (gitConfigContent: string): string | null {
+  const match = /\[remote "origin"\][\s\S]*?url\s*=\s*(.+)/.exec(gitConfigContent)
   return match ? match[1].trim() : null
 }
 
-function extractProjectPath(remoteUrl: string): string | null {
+function extractProjectPath (remoteUrl: string): string | null {
   // SSH: git@gitlab.com:namespace/project.git
-  const sshMatch = remoteUrl.match(/^git@[^:]+:(.+?)(?:\.git)?$/)
+  const sshMatch = /^git@[^:]+:(.+?)(?:\.git)?$/.exec(remoteUrl)
   if (sshMatch) return sshMatch[1]
 
   // HTTPS: https://gitlab.com/namespace/project.git
@@ -38,8 +39,8 @@ function extractProjectPath(remoteUrl: string): string | null {
   }
 }
 
-function extractHostname(remoteUrl: string): string | null {
-  const sshMatch = remoteUrl.match(/^git@([^:]+):/)
+function extractHostname (remoteUrl: string): string | null {
+  const sshMatch = /^git@([^:]+):/.exec(remoteUrl)
   if (sshMatch) return sshMatch[1]
   try {
     return new URL(remoteUrl).hostname
@@ -48,8 +49,8 @@ function extractHostname(remoteUrl: string): string | null {
   }
 }
 
-export function createGitRemoteDetector(config: Config) {
-  function detect(cwd = process.cwd()): DetectedProject | null {
+export function createGitRemoteDetector (config: Config) {
+  function detect (cwd = process.cwd()): DetectedProject | null {
     const gitConfigPath = findGitConfig(cwd)
     if (!gitConfigPath) return null
 

@@ -1,4 +1,4 @@
-import type { DiffFile, Thread, ThreadNote, DiffPosition } from './types.js'
+import type { DiffFile, DiffPosition, Thread, ThreadNote } from './types.js'
 
 interface RawDiff {
   old_path: string
@@ -28,7 +28,7 @@ interface RawThread {
   notes: RawNote[]
 }
 
-function countDiffLines(diff: string): { added: number; removed: number } {
+function countDiffLines (diff: string): { added: number; removed: number } {
   let added = 0
   let removed = 0
   for (const line of diff.split('\n')) {
@@ -38,7 +38,7 @@ function countDiffLines(diff: string): { added: number; removed: number } {
   return { added, removed }
 }
 
-export function mapDiffFile(raw: RawDiff): DiffFile {
+export function mapDiffFile (raw: RawDiff): DiffFile {
   const counts = countDiffLines(raw.diff)
   return {
     oldPath: raw.old_path,
@@ -52,16 +52,16 @@ export function mapDiffFile(raw: RawDiff): DiffFile {
   }
 }
 
-export function mapThread(raw: RawThread): Thread {
+export function mapThread (raw: RawThread): Thread {
   const first = raw.notes[0]
   const pos = first?.position
 
   const position: DiffPosition | null = pos
     ? {
-        filePath: pos.new_path ?? '',
-        oldLine: pos.old_line ?? null,
-        newLine: pos.new_line ?? null,
-      }
+      filePath: pos.new_path ?? '',
+      oldLine: pos.old_line ?? null,
+      newLine: pos.new_line ?? null,
+    }
     : null
 
   const notes: ThreadNote[] = raw.notes.map((n) => ({

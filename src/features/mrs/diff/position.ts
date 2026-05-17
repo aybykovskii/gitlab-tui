@@ -30,7 +30,7 @@ export interface CommentPosition {
   lineRange?: LineRange
 }
 
-export function buildDiffPosition(
+export function buildDiffPosition (
   refs: DiffRefs,
   line: LineInfo,
   range?: LineRange,

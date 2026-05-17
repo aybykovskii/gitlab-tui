@@ -1,11 +1,13 @@
-import { describe, it, expect } from 'vitest'
-import { render } from 'ink-testing-library'
 import React from 'react'
-import { ThemeProvider } from '../../../core/theme/index.js'
+import { render } from 'ink-testing-library'
+import { describe, expect, it } from 'vitest'
+
 import { Navigator } from '../../../core/navigation/index.js'
-import { MRDetailScreen } from './MRDetailScreen.js'
 import type { Screen } from '../../../core/navigation/types.js'
+import { ThemeProvider } from '../../../core/theme/index.js'
 import type { MR } from '../services/types.js'
+
+import { MRDetailScreen } from './MRDetailScreen.js'
 
 const mockAccount = { name: 'work', url: 'https://gitlab.example.com', token: 'tok' }
 
@@ -26,11 +28,13 @@ const screen: Screen = {
   props: { mr: mockMR, account: mockAccount, projectPath: 'myorg/myrepo' },
 }
 
-function renderScreen() {
+function renderScreen () {
   return render(
-    <ThemeProvider>
-      <Navigator initialScreen={screen} />
-    </ThemeProvider>,
+    (
+      <ThemeProvider>
+        <Navigator initialScreen={screen} />
+      </ThemeProvider>
+    ),
   )
 }
 

@@ -1,14 +1,16 @@
-import React, { useState, useEffect } from 'react'
-import { Box, Text, useInput } from 'ink'
-import TextInput from 'ink-text-input'
+import React, { useEffect, useState } from 'react'
 import chalk from 'chalk'
 import { highlight } from 'cli-highlight'
+import { Box, Text, useInput } from 'ink'
+import TextInput from 'ink-text-input'
+
 import { StatusBar } from '../../../ui/StatusBar.js'
-import { parseDiff } from './parser.js'
-import { buildDiffPosition } from './position.js'
-import type { DiffRefs, CommentPosition, LineRange } from './position.js'
-import type { SideBySideRow } from './parser.js'
 import type { Thread } from '../services/types.js'
+
+import type { SideBySideRow } from './parser.js'
+import { parseDiff } from './parser.js'
+import type { CommentPosition, DiffRefs, LineRange } from './position.js'
+import { buildDiffPosition } from './position.js'
 
 const VISIBLE_LINES = 25
 // Layout per row:
@@ -16,36 +18,54 @@ const VISIBLE_LINES = 25
 const FIXED_COLS = 17
 
 const LANG_MAP: Record<string, string> = {
-  ts: 'typescript', tsx: 'typescript', js: 'javascript', jsx: 'javascript',
-  py: 'python', go: 'go', rs: 'rust',
-  yaml: 'yaml', yml: 'yaml', json: 'json',
-  css: 'css', scss: 'scss', html: 'html', md: 'markdown',
-  sh: 'bash', bash: 'bash', sql: 'sql',
-  rb: 'ruby', java: 'java', kt: 'kotlin', swift: 'swift',
-  c: 'c', cpp: 'cpp', h: 'c', php: 'php',
+  ts: 'typescript',
+  tsx: 'typescript',
+  js: 'javascript',
+  jsx: 'javascript',
+  py: 'python',
+  go: 'go',
+  rs: 'rust',
+  yaml: 'yaml',
+  yml: 'yaml',
+  json: 'json',
+  css: 'css',
+  scss: 'scss',
+  html: 'html',
+  md: 'markdown',
+  sh: 'bash',
+  bash: 'bash',
+  sql: 'sql',
+  rb: 'ruby',
+  java: 'java',
+  kt: 'kotlin',
+  swift: 'swift',
+  c: 'c',
+  cpp: 'cpp',
+  h: 'c',
+  php: 'php',
 }
 
-function detectLang(filePath: string): string | undefined {
+function detectLang (filePath: string): string | undefined {
   const ext = filePath.split('.').pop()?.toLowerCase()
   return ext ? LANG_MAP[ext] : undefined
 }
 
-function pad(s: string, width: number): string {
+function pad (s: string, width: number): string {
   if (s.length >= width) return s.slice(0, width)
   return s + ' '.repeat(width - s.length)
 }
 
-function lineNoStr(n: number | null): string {
+function lineNoStr (n: number | null): string {
   return n === null ? '    ' : String(n).padStart(4)
 }
 
-function diffMarker(type: NonNullable<SideBySideRow['left']>['type'] | null): string {
+function diffMarker (type: NonNullable<SideBySideRow['left']>['type'] | null): string {
   if (type === 'added') return chalk.green('+')
   if (type === 'removed') return chalk.red('-')
   return ' '
 }
 
-function syntaxColor(content: string, colWidth: number, lang: string | undefined): string {
+function syntaxColor (content: string, colWidth: number, lang: string | undefined): string {
   const padded = pad(content, colWidth)
   if (!lang) return padded
   try {
@@ -82,11 +102,22 @@ interface Props {
   onBack: () => void
 }
 
-export function DiffView({
-  filePath, rawDiff, refs, draftComments, draftRangeLines, threadComments,
-  onAddComment, onAddInstantComment,
-  onReplyToThread, onDraftReplyToThread, onResolveThread,
-  onOpenInEditor, onPrevFile, onNextFile, onBack,
+export function DiffView ({
+  filePath,
+  rawDiff,
+  refs,
+  draftComments,
+  draftRangeLines,
+  threadComments,
+  onAddComment,
+  onAddInstantComment,
+  onReplyToThread,
+  onDraftReplyToThread,
+  onResolveThread,
+  onOpenInEditor,
+  onPrevFile,
+  onNextFile,
+  onBack,
 }: Props) {
   const rows = parseDiff(rawDiff)
   const lang = detectLang(filePath)
@@ -109,7 +140,9 @@ export function DiffView({
   const currentThreads = cursorLineNo != null ? (threadComments?.get(cursorLineNo) ?? []) : []
   const activeThread = currentThreads[threadPanelCursor] ?? null
 
-  useEffect(() => { setThreadPanelCursor(0) }, [cursorLineNo])
+  useEffect(() => {
+    setThreadPanelCursor(0)
+  }, [cursorLineNo])
 
   const inVisualMode = selectionAnchor !== null
   const selStart = inVisualMode ? Math.min(selectionAnchor, cursor) : cursor
@@ -120,13 +153,22 @@ export function DiffView({
   // Main navigation handler — disabled while typing
   useInput((input, key) => {
     if (input === 'q' || key.escape) {
-      if (inVisualMode) { setSelectionAnchor(null); return }
+      if (inVisualMode) {
+        setSelectionAnchor(null)
+        return
+      }
       onBack()
       return
     }
 
-    if (key.leftArrow && onPrevFile) { onPrevFile(); return }
-    if (key.rightArrow && onNextFile) { onNextFile(); return }
+    if (key.leftArrow && onPrevFile) {
+      onPrevFile()
+      return
+    }
+    if (key.rightArrow && onNextFile) {
+      onNextFile()
+      return
+    }
 
     if (input === 'j' || key.downArrow) {
       setCursor((c) => {
@@ -153,13 +195,20 @@ export function DiffView({
       if (input === ']') setThreadPanelCursor((c) => Math.min(c + 1, currentThreads.length - 1))
     }
     if (activeThread && input === 'r' && onReplyToThread) {
-      setReplyTarget(activeThread); setCommentMode('reply'); setCommentBody(''); return
+      setReplyTarget(activeThread)
+      setCommentMode('reply')
+      setCommentBody('')
+      return
     }
     if (activeThread && input === 'u' && onDraftReplyToThread) {
-      setReplyTarget(activeThread); setCommentMode('draft-reply'); setCommentBody(''); return
+      setReplyTarget(activeThread)
+      setCommentMode('draft-reply')
+      setCommentBody('')
+      return
     }
     if (activeThread && input === 'R' && onResolveThread) {
-      onResolveThread(activeThread.id, activeThread.notes[0].id, !activeThread.resolved); return
+      onResolveThread(activeThread.id, activeThread.notes[0].id, !activeThread.resolved)
+      return
     }
 
     if ((input === 'c' || input === 'C') && !commenting) {
@@ -172,12 +221,14 @@ export function DiffView({
       const displayStart = startLine?.newLineNo ?? startLine?.oldLineNo ?? selStart + 1
       const displayEnd = endLine.newLineNo ?? endLine.oldLineNo ?? selEnd + 1
 
-      const range: LineRange | null = inVisualMode && selStart !== selEnd ? {
-        startOldLine: startLine?.oldLineNo ?? null,
-        startNewLine: startLine?.newLineNo ?? null,
-        endOldLine: endLine.oldLineNo,
-        endNewLine: endLine.newLineNo,
-      } : null
+      const range: LineRange | null = inVisualMode && selStart !== selEnd
+        ? {
+          startOldLine: startLine?.oldLineNo ?? null,
+          startNewLine: startLine?.newLineNo ?? null,
+          endOldLine: endLine.oldLineNo,
+          endNewLine: endLine.newLineNo,
+        }
+        : null
 
       setCommenting({
         position: buildDiffPosition(
@@ -218,10 +269,11 @@ export function DiffView({
     let label: string
     if (isReply) {
       label = commentMode === 'draft-reply'
-        ? `Draft reply — ${replyTarget!.firstNote.slice(0, 50)} (Enter to save, Esc to cancel):`
-        : `Reply — ${replyTarget!.firstNote.slice(0, 60)} (Enter to send, Esc to cancel):`
+        ? `Draft reply — ${replyTarget.firstNote.slice(0, 50)} (Enter to save, Esc to cancel):`
+        : `Reply — ${replyTarget.firstNote.slice(0, 60)} (Enter to send, Esc to cancel):`
     } else if (commenting?.range) {
-      label = `Draft comment on lines ${commenting.displayStart}–${commenting.displayEnd} (Enter to save, Esc to cancel):`
+      label =
+        `Draft comment on lines ${commenting.displayStart}–${commenting.displayEnd} (Enter to save, Esc to cancel):`
     } else {
       label = commentMode === 'instant'
         ? `Post comment at line ${commenting?.displayEnd} (Enter to send, Esc to cancel):`
@@ -238,7 +290,7 @@ export function DiffView({
             const trimmed = body.trim()
             if (trimmed) {
               if (isReply) {
-                const t = replyTarget!
+                const t = replyTarget
                 if (commentMode === 'draft-reply' && onDraftReplyToThread) onDraftReplyToThread(t.id, trimmed)
                 else if (onReplyToThread) onReplyToThread(t.id, trimmed)
               } else if (commenting) {
@@ -276,7 +328,7 @@ export function DiffView({
     <Box flexDirection="column">
       <Box gap={2}>
         <Text bold>{filePath}</Text>
-        {inVisualMode && <Text color="yellow">VISUAL  {selStartLine}–{selEndLine}</Text>}
+        {inVisualMode && <Text color="yellow">VISUAL {selStartLine}–{selEndLine}</Text>}
       </Box>
 
       {visible.map((row, i) => {
@@ -302,13 +354,17 @@ export function DiffView({
           <Box key={absIdx}>
             <Text color="yellow">{hasDraft ? '●' : isDraftRange ? '·' : ' '}</Text>
             <Text color="cyan">{hasThread ? '○' : ' '}</Text>
-            <Text color={gutterColor}>{gutterChar} </Text>
+            <Text color={gutterColor}>{gutterChar}</Text>
             <Text>
-              {lineNoStr(leftLine?.oldLineNo ?? null)}{diffMarker(leftLine?.type ?? null)}{leftContent}
+              {lineNoStr(leftLine?.oldLineNo ?? null)}
+              {diffMarker(leftLine?.type ?? null)}
+              {leftContent}
             </Text>
-            <Text dimColor> │ </Text>
+            <Text dimColor>│</Text>
             <Text>
-              {lineNoStr(rightLine?.newLineNo ?? null)}{diffMarker(rightLine?.type ?? null)}{rightContent}
+              {lineNoStr(rightLine?.newLineNo ?? null)}
+              {diffMarker(rightLine?.type ?? null)}
+              {rightContent}
             </Text>
           </Box>
         )
@@ -321,7 +377,7 @@ export function DiffView({
               <Text bold color={activeThread.resolved ? 'green' : 'yellow'}>
                 {activeThread.resolved ? '✓' : '○'} {activeThread.author.name}
                 {currentThreads.length > 1
-                  ? <Text dimColor>  [{threadPanelCursor + 1}/{currentThreads.length}  [/]: switch]</Text>
+                  ? <Text dimColor>[{threadPanelCursor + 1}/{currentThreads.length} [/]: switch]</Text>
                   : null}
               </Text>
               {activeThread.notes.map((note, ni) => (
@@ -332,9 +388,7 @@ export function DiffView({
               ))}
             </Box>
           )}
-          {currentDrafts.map((c, i) => (
-            <Text key={`d${i}`} color="yellow">● [draft] {c}</Text>
-          ))}
+          {currentDrafts.map((c, i) => <Text key={`d${i}`} color="yellow">● [draft] {c}</Text>)}
         </Box>
       )}
 

@@ -1,20 +1,22 @@
-import React, { useState, useMemo, useCallback } from 'react'
 import { spawn } from 'node:child_process'
 import { join } from 'node:path'
+
+import React, { useCallback, useMemo, useState } from 'react'
 import { Box, Text } from 'ink'
-import { DiffView } from '../diff/DiffView.js'
-import { createDraftNotesAPI, createInstantCommentsAPI, createThreadActionsAPIImpl } from '../review/api.js'
-import { createReviewSession } from '../review/session.js'
-import { createInstantCommentService } from '../review/instant.js'
-import { createThreadActionsService } from '../review/threadActions.js'
+
+import type { Account } from '../../../core/config/types.js'
 import { createGitLabClient } from '../../../core/gitlab/index.js'
 import { useNavigation } from '../../../core/navigation/index.js'
-import { useTheme } from '../../../core/theme/index.js'
-import type { Account } from '../../../core/config/types.js'
 import type { ScreenProps } from '../../../core/navigation/types.js'
-import type { DiffFile, MRDetail, Thread } from '../services/types.js'
+import { useTheme } from '../../../core/theme/index.js'
+import { DiffView } from '../diff/DiffView.js'
 import type { CommentPosition } from '../diff/position.js'
+import { createDraftNotesAPI, createInstantCommentsAPI, createThreadActionsAPIImpl } from '../review/api.js'
+import { createInstantCommentService } from '../review/instant.js'
 import type { DraftComment } from '../review/session.js'
+import { createReviewSession } from '../review/session.js'
+import { createThreadActionsService } from '../review/threadActions.js'
+import type { DiffFile, MRDetail, Thread } from '../services/types.js'
 
 interface DiffScreenProps extends ScreenProps {
   files: DiffFile[]
@@ -30,7 +32,7 @@ interface DiffScreenProps extends ScreenProps {
   initialThreadComments: Map<number, Thread[]>
 }
 
-function buildDraftData(drafts: DraftComment[], file: DiffFile) {
+function buildDraftData (drafts: DraftComment[], file: DiffFile) {
   const map = new Map<number, string[]>()
   const rangeLines = new Set<number>()
   for (const d of drafts) {
@@ -43,14 +45,16 @@ function buildDraftData(drafts: DraftComment[], file: DiffFile) {
       const startLine = d.position.lineRange.startNewLine ?? d.position.lineRange.startOldLine
       if (startLine != null && startLine !== endLine) {
         map.set(startLine, [...(map.get(startLine) ?? []), d.body])
-        for (let l = startLine + 1; l < endLine; l++) rangeLines.add(l)
+        for (let l = startLine + 1; l < endLine; l++) {
+          rangeLines.add(l)
+        }
       }
     }
   }
   return { draftComments: map, draftRangeLines: rangeLines }
 }
 
-function buildThreadMap(threads: Thread[]) {
+function buildThreadMap (threads: Thread[]) {
   const map = new Map<number, Thread[]>()
   for (const t of threads) {
     if (!t.position) continue
@@ -61,20 +65,33 @@ function buildThreadMap(threads: Thread[]) {
   return map
 }
 
-function editorArgs(editor: string, filePath: string, line: number): string[] {
+function editorArgs (editor: string, filePath: string, line: number): string[] {
   switch (editor) {
-    case 'nvim': case 'vim': case 'vi': return [`+${line}`, filePath]
-    case 'idea': return ['--line', String(line), filePath]
-    default: return ['--goto', `${filePath}:${line}`]
+    case 'nvim':
+    case 'vim':
+    case 'vi':
+      return [`+${line}`, filePath]
+    case 'idea':
+      return ['--line', String(line), filePath]
+    default:
+      return ['--goto', `${filePath}:${line}`]
   }
 }
 
-export function DiffScreen({
-  leftWidth, rightWidth,
-  files, initialFileIndex,
-  activeMR, account, projectPath, localPath, editor = 'code',
+export function DiffScreen ({
+  leftWidth,
+  rightWidth,
+  files,
+  initialFileIndex,
+  activeMR,
+  account,
+  projectPath,
+  localPath,
+  editor = 'code',
   allThreads,
-  initialDraftComments, initialDraftRangeLines, initialThreadComments,
+  initialDraftComments,
+  initialDraftRangeLines,
+  initialThreadComments,
 }: DiffScreenProps) {
   const { pop } = useNavigation()
   const theme = useTheme()
@@ -102,9 +119,9 @@ export function DiffScreen({
 
   const openInEditor = localPath
     ? (filePath: string, line: number) => {
-        const absolute = join(localPath, filePath)
-        spawn(editor, editorArgs(editor, absolute, line), { detached: true, stdio: 'ignore' }).unref()
-      }
+      const absolute = join(localPath, filePath)
+      spawn(editor, editorArgs(editor, absolute, line), { detached: true, stdio: 'ignore' }).unref()
+    }
     : undefined
 
   const goToFile = useCallback(async (index: number) => {
@@ -112,7 +129,7 @@ export function DiffScreen({
     if (!file) return
     setCurrentFileIndex(index)
     const fileThreads = allThreads.filter((t) =>
-      t.position && (t.position.filePath === file.newPath || t.position.filePath === file.oldPath),
+      t.position && (t.position.filePath === file.newPath || t.position.filePath === file.oldPath)
     )
     setThreadComments(buildThreadMap(fileThreads))
     try {
@@ -138,49 +155,52 @@ export function DiffScreen({
             : label
           return (
             <Text key={f.newPath} color={isActive ? theme.primary : theme.muted} bold={isActive}>
-              {isActive ? '▶ ' : '  '}{truncated}
+              {isActive ? '▶ ' : '  '}
+              {truncated}
             </Text>
           )
         })}
       </Box>
       <Box width={rightWidth} flexDirection="column">
-        {currentFile && refs ? (
-          <DiffView
-            filePath={currentFile.newPath}
-            rawDiff={currentFile.rawDiff}
-            refs={refs}
-            draftComments={draftComments}
-            draftRangeLines={draftRangeLines}
-            threadComments={threadComments}
-            onAddComment={async (position: CommentPosition, body: string) => {
-              await draftSession.addDraftComment(position, body)
-              const all = await draftSession.getDraftComments()
-              setDraftCount(all.length)
-              if (currentFile) {
-                const { draftComments: dc, draftRangeLines: dr } = buildDraftData(all, currentFile)
-                setDraftComments(dc)
-                setDraftRangeLines(dr)
-              }
-            }}
-            onAddInstantComment={(position: CommentPosition, body: string) => {
-              instantComments.postInlineComment(position, body)
-            }}
-            onReplyToThread={(id, body) => threadActions.replyToThread(id, body)}
-            onDraftReplyToThread={(id, body) =>
-              draftSession.addDraftReply(id, body).then(async () => {
+        {currentFile && refs
+          ? (
+            <DiffView
+              filePath={currentFile.newPath}
+              rawDiff={currentFile.rawDiff}
+              refs={refs}
+              draftComments={draftComments}
+              draftRangeLines={draftRangeLines}
+              threadComments={threadComments}
+              onAddComment={async (position: CommentPosition, body: string) => {
+                await draftSession.addDraftComment(position, body)
                 const all = await draftSession.getDraftComments()
                 setDraftCount(all.length)
-              })
-            }
-            onResolveThread={(id, noteId, resolved) => threadActions.resolveThread(id, noteId, resolved)}
-            onOpenInEditor={openInEditor}
-            onPrevFile={currentFileIndex > 0 ? () => goToFile(currentFileIndex - 1) : undefined}
-            onNextFile={currentFileIndex < files.length - 1 ? () => goToFile(currentFileIndex + 1) : undefined}
-            onBack={pop}
-          />
-        ) : (
-          <Text color={theme.muted}>No diff available</Text>
-        )}
+                if (currentFile) {
+                  const { draftComments: dc, draftRangeLines: dr } = buildDraftData(all, currentFile)
+                  setDraftComments(dc)
+                  setDraftRangeLines(dr)
+                }
+              }}
+              onAddInstantComment={(position: CommentPosition, body: string) => {
+                instantComments.postInlineComment(position, body)
+              }}
+              onReplyToThread={(id, body) => threadActions.replyToThread(id, body)}
+              onDraftReplyToThread={(id, body) => draftSession.addDraftReply(id, body).then(async () => {
+                const all = await draftSession.getDraftComments()
+                setDraftCount(all.length)
+              })}
+              onResolveThread={(id, noteId, resolved) => threadActions.resolveThread(id, noteId, resolved)}
+              onOpenInEditor={openInEditor}
+              onPrevFile={currentFileIndex > 0
+                ? () => goToFile(currentFileIndex - 1)
+                : undefined}
+              onNextFile={currentFileIndex < files.length - 1
+                ? () => goToFile(currentFileIndex + 1)
+                : undefined}
+              onBack={pop}
+            />
+          )
+          : <Text color={theme.muted}>No diff available</Text>}
       </Box>
     </Box>
   )

@@ -1,8 +1,9 @@
-import { describe, it, expect, vi } from 'vitest'
-import { createMRActionsService } from './mrActions.js'
-import type { MRActionsAPI } from './mrActions.js'
+import { describe, expect, it, vi } from 'vitest'
 
-function makeAPI(overrides: Partial<MRActionsAPI> = {}): MRActionsAPI {
+import type { MRActionsAPI } from './mrActions.js'
+import { createMRActionsService } from './mrActions.js'
+
+function makeAPI (overrides: Partial<MRActionsAPI> = {}): MRActionsAPI {
   return {
     approveMR: vi.fn().mockResolvedValue(undefined),
     mergeMR: vi.fn().mockResolvedValue(undefined),

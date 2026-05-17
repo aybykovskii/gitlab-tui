@@ -1,5 +1,6 @@
 import React from 'react'
 import { Box, Text } from 'ink'
+
 import { useTheme } from '../core/theme/index.js'
 
 export interface Hint {
@@ -11,7 +12,7 @@ interface Props {
   hints: Hint[]
 }
 
-export function StatusBar({ hints }: Props) {
+export function StatusBar ({ hints }: Props) {
   const theme = useTheme()
   return (
     <Box borderStyle="single" borderColor={theme.border} paddingX={1} gap={2} flexWrap="wrap">

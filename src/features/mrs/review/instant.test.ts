@@ -1,7 +1,9 @@
-import { describe, it, expect, vi } from 'vitest'
-import { createInstantCommentService } from './instant.js'
-import type { InstantCommentsAPI } from './instant.js'
+import { describe, expect, it, vi } from 'vitest'
+
 import type { CommentPosition } from '../diff/position.js'
+
+import type { InstantCommentsAPI } from './instant.js'
+import { createInstantCommentService } from './instant.js'
 
 const position: CommentPosition = {
   baseSha: 'abc',
@@ -14,7 +16,7 @@ const position: CommentPosition = {
   positionType: 'text',
 }
 
-function makeAPI(overrides: Partial<InstantCommentsAPI> = {}): InstantCommentsAPI {
+function makeAPI (overrides: Partial<InstantCommentsAPI> = {}): InstantCommentsAPI {
   return {
     postInlineComment: vi.fn().mockResolvedValue(undefined),
     postMRComment: vi.fn().mockResolvedValue(undefined),

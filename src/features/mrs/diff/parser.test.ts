@@ -1,4 +1,5 @@
-import { describe, it, expect } from 'vitest'
+import { describe, expect, it } from 'vitest'
+
 import { parseDiff } from './parser.js'
 
 const SIMPLE_DIFF = `@@ -1,4 +1,5 @@

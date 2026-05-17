@@ -1,5 +1,6 @@
-import { describe, it, expect, beforeEach } from 'vitest'
-import { registerFeature, getRegisteredFeatures, clearRegistry } from './registry.js'
+import { beforeEach, describe, expect, it } from 'vitest'
+
+import { clearRegistry, getRegisteredFeatures, registerFeature } from './registry.js'
 import type { Feature } from './types.js'
 
 const makeFeature = (id: string): Feature => ({

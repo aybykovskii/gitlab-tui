@@ -1,7 +1,9 @@
-import { describe, it, expect, beforeEach } from 'vitest'
 import { mkdtempSync, rmSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
+
+import { beforeEach, describe, expect, it } from 'vitest'
+
 import { createConfigManager } from './manager.js'
 import type { Config } from './types.js'
 

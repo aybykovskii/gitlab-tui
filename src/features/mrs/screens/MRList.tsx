@@ -1,10 +1,11 @@
-import React, { useState, useEffect, useCallback } from 'react'
+import React, { useCallback, useEffect, useState } from 'react'
 import { Box, Text, useInput } from 'ink'
 import TextInput from 'ink-text-input'
+
 import { filterMRs } from '../services/filter.js'
 import type { MR, MRState } from '../services/types.js'
 
-const STATE_CYCLE: Array<MRState | 'all'> = ['opened', 'merged', 'closed', 'all']
+const STATE_CYCLE: (MRState | 'all')[] = ['opened', 'merged', 'closed', 'all']
 
 const PIPELINE_ICON: Record<string, string> = {
   success: '✓',
@@ -24,7 +25,9 @@ interface Props {
   focused?: boolean
 }
 
-export function MRList({ projectPath, initialState = 'opened', onSelect, loadMRs, onHighlight, focused = true }: Props) {
+export function MRList ({ projectPath, initialState = 'opened', onSelect, loadMRs, onHighlight, focused = true }:
+  Props)
+{
   const [mrs, setMrs] = useState<MR[]>([])
   const [query, setQuery] = useState('')
   const [state, setState] = useState<MRState | 'all'>(initialState)
@@ -49,7 +52,9 @@ export function MRList({ projectPath, initialState = 'opened', onSelect, loadMRs
     }
   }, [state, loadMRs])
 
-  useEffect(() => { load() }, [load])
+  useEffect(() => {
+    load()
+  }, [load])
 
   const filtered = filterMRs(mrs, query)
 
@@ -72,10 +77,12 @@ export function MRList({ projectPath, initialState = 'opened', onSelect, loadMRs
       if (next < offset) setOffset(next)
     }
     if (input === 'r') load()
-    if (input === 's') setState((prev) => {
-      const idx = STATE_CYCLE.indexOf(prev)
-      return STATE_CYCLE[(idx + 1) % STATE_CYCLE.length]
-    })
+    if (input === 's') {
+      setState((prev) => {
+        const idx = STATE_CYCLE.indexOf(prev)
+        return STATE_CYCLE[(idx + 1) % STATE_CYCLE.length]
+      })
+    }
   }, { isActive: focused })
 
   if (loading) return <Text dimColor>Loading MRs…</Text>
@@ -89,32 +96,27 @@ export function MRList({ projectPath, initialState = 'opened', onSelect, loadMRs
         <Text bold>{projectPath}</Text>
         <Text dimColor>[{state}]</Text>
       </Box>
-      <TextInput
-        placeholder="Search MRs…"
-        value={query}
-        onChange={setQuery}
-        onSubmit={() => {}}
-      />
-      {visible.length > 0 ? (
-        <Box flexDirection="column">
-          {visible.map((mr, i) => {
-            const absIdx = offset + i
-            const isCursor = absIdx === cursor
-            const icon = PIPELINE_ICON[mr.pipeline?.status ?? ''] ?? '–'
-            const iid = `!${mr.iid}`.padEnd(5)
-            return (
-              <Box key={mr.iid} flexDirection="column" marginTop={i > 0 ? 1 : 0}>
-                <Text inverse={isCursor} bold={isCursor}>
-                  {icon} {iid} {mr.title}
-                </Text>
-                <Text dimColor>        {mr.author.name}  {mr.sourceBranch} → {mr.targetBranch}</Text>
-              </Box>
-            )
-          })}
-        </Box>
-      ) : (
-        <Text dimColor>{query ? 'No matches' : 'No MRs'}</Text>
-      )}
+      <TextInput placeholder="Search MRs…" value={query} onChange={setQuery} onSubmit={() => {}} />
+      {visible.length > 0
+        ? (
+          <Box flexDirection="column">
+            {visible.map((mr, i) => {
+              const absIdx = offset + i
+              const isCursor = absIdx === cursor
+              const icon = PIPELINE_ICON[mr.pipeline?.status ?? ''] ?? '–'
+              const iid = `!${mr.iid}`.padEnd(5)
+              return (
+                <Box key={mr.iid} flexDirection="column" marginTop={i > 0 ? 1 : 0}>
+                  <Text inverse={isCursor} bold={isCursor}>
+                    {icon} {iid} {mr.title}
+                  </Text>
+                  <Text dimColor>{mr.author.name} {mr.sourceBranch} → {mr.targetBranch}</Text>
+                </Box>
+              )
+            })}
+          </Box>
+        )
+        : <Text dimColor>{query ? 'No matches' : 'No MRs'}</Text>}
     </Box>
   )
 }

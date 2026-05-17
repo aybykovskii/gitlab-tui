@@ -1,11 +1,13 @@
-import { describe, it, expect, vi } from 'vitest'
-import { render } from 'ink-testing-library'
 import React from 'react'
-import { ThemeProvider } from '../../core/theme/index.js'
-import { Navigator } from '../../core/navigation/index.js'
-import { HomeScreen } from './HomeScreen.js'
+import { render } from 'ink-testing-library'
+import { describe, expect, it, vi } from 'vitest'
+
 import type { Config } from '../../core/config/types.js'
+import { Navigator } from '../../core/navigation/index.js'
 import type { Screen } from '../../core/navigation/types.js'
+import { ThemeProvider } from '../../core/theme/index.js'
+
+import { HomeScreen } from './HomeScreen.js'
 
 const mockConfig: Config = {
   accounts: [],
@@ -22,11 +24,13 @@ const homeScreen: Screen = {
   props: { config: mockConfig, configManager: mockConfigManager },
 }
 
-function renderHome() {
+function renderHome () {
   return render(
-    <ThemeProvider>
-      <Navigator initialScreen={homeScreen} />
-    </ThemeProvider>,
+    (
+      <ThemeProvider>
+        <Navigator initialScreen={homeScreen} />
+      </ThemeProvider>
+    ),
   )
 }
 

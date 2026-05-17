@@ -1,8 +1,10 @@
-import React, { useState, useCallback, useRef } from 'react'
+import React, { useCallback, useRef, useState } from 'react'
 import { Box, useInput, useStdout } from 'ink'
-import { NavigationProvider } from './context.js'
-import { StatusBar, type Hint } from '../../ui/StatusBar.js'
+
+import { type Hint, StatusBar } from '../../ui/StatusBar.js'
 import { useTheme } from '../theme/index.js'
+
+import { NavigationProvider } from './context.js'
 import type { Screen } from './types.js'
 
 const GLOBAL_HINTS: Hint[] = [{ key: 'q', label: 'назад' }]
@@ -14,7 +16,7 @@ interface Props {
   leftColumnWidth?: number
 }
 
-export function Navigator({ initialScreen, initialStack, leftColumnWidth = DEFAULT_LEFT_PERCENT }: Props) {
+export function Navigator ({ initialScreen, initialStack, leftColumnWidth = DEFAULT_LEFT_PERCENT }: Props) {
   const { stdout } = useStdout()
   const totalWidth = stdout?.columns ?? 80
   const leftWidth = Math.floor((totalWidth * leftColumnWidth) / 100)

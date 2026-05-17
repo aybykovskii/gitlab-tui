@@ -1,4 +1,5 @@
-import { describe, it, expect } from 'vitest'
+import { describe, expect, it } from 'vitest'
+
 import { resolveTheme } from './resolver.js'
 import type { Theme } from './types.js'
 

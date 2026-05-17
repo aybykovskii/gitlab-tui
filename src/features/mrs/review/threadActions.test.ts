@@ -1,8 +1,9 @@
-import { describe, it, expect, vi } from 'vitest'
-import { createThreadActionsService } from './threadActions.js'
-import type { ThreadActionsAPI } from './threadActions.js'
+import { describe, expect, it, vi } from 'vitest'
 
-function makeAPI(overrides: Partial<ThreadActionsAPI> = {}): ThreadActionsAPI {
+import type { ThreadActionsAPI } from './threadActions.js'
+import { createThreadActionsService } from './threadActions.js'
+
+function makeAPI (overrides: Partial<ThreadActionsAPI> = {}): ThreadActionsAPI {
   return {
     replyToThread: vi.fn().mockResolvedValue(undefined),
     resolveThread: vi.fn().mockResolvedValue(undefined),

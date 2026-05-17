@@ -1,6 +1,6 @@
 # ADR 0001: Ink как TUI-фреймворк
 
-**Status:** Accepted
+**Status:** Superseded by ADR-0005
 
 ## Context
 

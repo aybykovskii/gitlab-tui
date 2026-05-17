@@ -1,19 +1,20 @@
 import React from 'react'
 import { Box, Text } from 'ink'
 import SelectInput from 'ink-select-input'
+
+import type { Config } from '../../core/config/types.js'
+import type { DetectedProject } from '../../core/git/index.js'
 import { useNavigation } from '../../core/navigation/index.js'
+import type { ScreenProps } from '../../core/navigation/types.js'
 import { useTheme } from '../../core/theme/index.js'
 import { MRListScreen } from '../mrs/screens/MRListScreen.js'
-import type { Config } from '../../core/config/types.js'
-import type { ScreenProps } from '../../core/navigation/types.js'
-import type { DetectedProject } from '../../core/git/index.js'
 
 interface ProjectScreenProps extends ScreenProps {
   project: DetectedProject
   config: Config
 }
 
-function ComingSoonScreen(_: ScreenProps) {
+function ComingSoonScreen (_: ScreenProps) {
   return <Text>Coming soon</Text>
 }
 
@@ -23,11 +24,11 @@ const SECTIONS = [
   { label: 'Pipelines', value: 'pipelines' },
 ]
 
-export function ProjectScreen({ leftWidth, rightWidth, project, config }: ProjectScreenProps) {
+export function ProjectScreen ({ leftWidth, rightWidth, project, config }: ProjectScreenProps) {
   const { push } = useNavigation()
   const theme = useTheme()
 
-  function handleSelect(item: { value: string }) {
+  function handleSelect (item: { value: string }) {
     if (item.value === 'mrs') {
       push({
         id: 'mr-list',
@@ -47,7 +48,8 @@ export function ProjectScreen({ leftWidth, rightWidth, project, config }: Projec
           const isSelected = p.projectPath === project.projectPath
           return (
             <Text key={p.projectPath} color={isSelected ? theme.primary : theme.muted} bold={isSelected}>
-              {isSelected ? '▶ ' : '  '}{p.projectPath}
+              {isSelected ? '▶ ' : '  '}
+              {p.projectPath}
             </Text>
           )
         })}

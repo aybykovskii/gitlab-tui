@@ -1,7 +1,9 @@
-import { describe, it, expect } from 'vitest'
-import { buildInitialStack } from './stackBuilder.js'
+import { describe, expect, it } from 'vitest'
+
 import type { Config } from '../config/types.js'
 import type { DetectedProject } from '../git/index.js'
+
+import { buildInitialStack } from './stackBuilder.js'
 
 const mockAccount = { name: 'work', url: 'https://gitlab.example.com', token: 'tok' }
 
