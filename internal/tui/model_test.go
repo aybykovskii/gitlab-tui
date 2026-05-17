@@ -486,7 +486,86 @@ func TestDiscussionsTabRendersThreadsAfterLoad(t *testing.T) {
 	model = updated.(Model)
 
 	view := model.View()
-	for _, want := range []string{"[open]", "alice", "2 notes", "Please fix the naming"} {
+	for _, want := range []string{"[open]", "alice", "Please fix the naming", "bob", "Done"} {
+		if !strings.Contains(view, want) {
+			t.Fatalf("expected %q in Discussions view, got:\n%s", want, view)
+		}
+	}
+}
+
+func TestFocusedDiscussionThreadIsMarked(t *testing.T) {
+	model := NewModelWithProject(FakeMergeRequests(), discussionOpts())
+	updated, _ := model.Update(tea.KeyMsg{Type: tea.KeyTab})
+	model = updated.(Model)
+	updated, _ = model.Update(discussionsFinishedMsg{
+		iid: 42,
+		discussions: []mr.Discussion{
+			{ID: "d1", Notes: []mr.Note{{Author: "alice", Body: "Thread one"}}},
+			{ID: "d2", Notes: []mr.Note{{Author: "bob", Body: "Thread two"}}},
+		},
+	})
+	model = updated.(Model)
+
+	// cursor starts at 0 → first thread marked, second not
+	view := model.View()
+	if !strings.Contains(view, "> [") {
+		t.Fatalf("expected focused thread marker '> [' in view, got:\n%s", view)
+	}
+
+	// Move cursor to second thread
+	updated, _ = model.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune("j")})
+	model = updated.(Model)
+	view = model.View()
+	if strings.Count(view, "> [") != 1 {
+		t.Fatalf("expected exactly one focused thread marker, got:\n%s", view)
+	}
+	if !strings.Contains(view, "bob") {
+		t.Fatalf("expected second thread visible after j, got:\n%s", view)
+	}
+}
+
+func TestDiscussionThreadsAreSeparatedByDivider(t *testing.T) {
+	model := NewModelWithProject(FakeMergeRequests(), discussionOpts())
+	updated, _ := model.Update(tea.KeyMsg{Type: tea.KeyTab})
+	model = updated.(Model)
+	updated, _ = model.Update(discussionsFinishedMsg{
+		iid: 42,
+		discussions: []mr.Discussion{
+			{ID: "d1", Notes: []mr.Note{{Author: "alice", Body: "Thread one"}}},
+			{ID: "d2", Notes: []mr.Note{{Author: "bob", Body: "Thread two"}}},
+		},
+	})
+	model = updated.(Model)
+
+	view := model.View()
+	// Both threads must be present
+	if !strings.Contains(view, "Thread one") || !strings.Contains(view, "Thread two") {
+		t.Fatalf("expected both threads in view, got:\n%s", view)
+	}
+	// A horizontal rule separates consecutive threads
+	if !strings.Contains(view, "───") {
+		t.Fatalf("expected separator (───) between threads, got:\n%s", view)
+	}
+}
+
+func TestDiscussionThreadShowsAllReplies(t *testing.T) {
+	model := NewModelWithProject(FakeMergeRequests(), discussionOpts())
+	updated, _ := model.Update(tea.KeyMsg{Type: tea.KeyTab})
+	model = updated.(Model)
+	updated, _ = model.Update(discussionsFinishedMsg{
+		iid: 42,
+		discussions: []mr.Discussion{
+			{ID: "d1", Notes: []mr.Note{
+				{Author: "alice", Body: "First comment"},
+				{Author: "bob", Body: "Second reply"},
+				{Author: "carol", Body: "Third reply"},
+			}},
+		},
+	})
+	model = updated.(Model)
+
+	view := model.View()
+	for _, want := range []string{"First comment", "bob", "Second reply", "carol", "Third reply"} {
 		if !strings.Contains(view, want) {
 			t.Fatalf("expected %q in Discussions view, got:\n%s", want, view)
 		}

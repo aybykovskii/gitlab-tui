@@ -1655,21 +1655,32 @@ func (m Model) renderDiscussions(item mr.MergeRequest) string {
 	if len(discussions) == 0 {
 		return "No discussions"
 	}
+	sep := "─────────────────────────────────────────"
 	lines := []string{}
-	for _, d := range discussions {
+	for i, d := range discussions {
+		if i > 0 {
+			lines = append(lines, sep)
+		}
 		status := "open"
 		if d.Resolved {
 			status = "resolved"
 		}
-		noteCount := len(d.Notes)
-		firstAuthor := ""
-		firstBody := ""
-		if noteCount > 0 {
-			firstAuthor = d.Notes[0].Author
-			firstBody = d.Notes[0].Body
+		cursor := "  "
+		if i == m.discussionCursor {
+			cursor = "> "
 		}
-		lines = append(lines, fmt.Sprintf("[%s] %s (%d notes)", status, firstAuthor, noteCount))
-		lines = append(lines, "  "+firstBody)
+		firstAuthor := ""
+		if len(d.Notes) > 0 {
+			firstAuthor = d.Notes[0].Author
+		}
+		lines = append(lines, fmt.Sprintf("%s[%s] %s", cursor, status, firstAuthor))
+		for j, note := range d.Notes {
+			if j == 0 {
+				lines = append(lines, "  "+note.Body)
+			} else {
+				lines = append(lines, "  ↳ "+note.Author+": "+note.Body)
+			}
+		}
 	}
 	return strings.Join(lines, "\n")
 }
