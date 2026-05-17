@@ -49,11 +49,11 @@ func TestRunSectionAliasIsNotUnknownCommand(t *testing.T) {
 
 	code := NewWithEnv("test-version", []string{"GITLAB_TOKEN="}).Run([]string{"mr"}, &stdout, &stderr)
 
-	if code == 2 {
-		t.Fatalf("expected section alias not to be treated as unknown command, stderr %q", stderr.String())
+	if strings.Contains(stderr.String(), "unknown command") {
+		t.Fatalf("section alias 'mr' produced unknown command error: %q", stderr.String())
 	}
-	if strings.Contains(stderr.String(), "unknown command: mr") {
-		t.Fatalf("expected no unknown command error, got %q", stderr.String())
+	if code == 2 {
+		t.Fatalf("section alias 'mr' produced CLI parse error (exit 2), stderr %q", stderr.String())
 	}
 }
 

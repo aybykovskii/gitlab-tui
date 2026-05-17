@@ -22,7 +22,25 @@ const (
 	ModeDiff
 )
 
-const SectionMergeRequests = "mr"
+type Section string
+
+const (
+	SectionMergeRequests Section = "mr"
+	SectionIssues        Section = "issue"
+	SectionPipelines     Section = "pipeline"
+)
+
+type sectionDef struct {
+	label     string
+	id        Section
+	available bool
+}
+
+var tuiSections = []sectionDef{
+	{label: "Merge Requests", id: SectionMergeRequests, available: true},
+	{label: "Issues", id: SectionIssues, available: false},
+	{label: "Pipelines", id: SectionPipelines, available: false},
+}
 
 type Focus int
 
@@ -46,9 +64,8 @@ type ProjectOptions struct {
 	Path        string
 	Recents     []string
 	Projects    []string
-	Section     string
+	Section     Section
 	EntityID    string
-	Items       []mr.MergeRequest
 	Refresh     RefreshFunc
 	LoadDiff    DiffFunc
 	LoadProject ProjectLoadFunc
@@ -93,9 +110,10 @@ type Model struct {
 	recentProjects []string
 	gitlabProjects []string
 	projectList    []string
-	section        string
+	section        Section
 	sectionCursor  int
 	entityID       string
+	projectLoaded  bool
 	projectInput   string
 	refresh        RefreshFunc
 	loadDiff       DiffFunc
@@ -116,9 +134,6 @@ func NewModel(items []mr.MergeRequest) Model {
 }
 
 func NewModelWithProject(items []mr.MergeRequest, options ProjectOptions) Model {
-	if options.Items != nil {
-		items = options.Items
-	}
 	model := Model{
 		items:          items,
 		focus:          FocusList,
@@ -155,12 +170,18 @@ func Run(stdout io.Writer) error {
 }
 
 func RunWithProject(stdout io.Writer, options ProjectOptions) error {
-	program := tea.NewProgram(NewModelWithProject(FakeMergeRequests(), options), tea.WithMouseCellMotion(), tea.WithOutput(stdout))
+	program := tea.NewProgram(NewModelWithProject(nil, options), tea.WithMouseCellMotion(), tea.WithOutput(stdout))
 	_, err := program.Run()
 	return err
 }
 
-func (m Model) Init() tea.Cmd { return nil }
+func (m Model) Init() tea.Cmd {
+	if m.projectPath != "" && m.loadProject != nil && !m.projectLoaded && m.section == SectionMergeRequests {
+		_, cmd := m.openProjectCommand(m.projectPath)
+		return cmd
+	}
+	return nil
+}
 
 func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	switch msg := msg.(type) {
@@ -177,6 +198,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.focus = FocusList
 		m.loading = true
 		m.projectLoading = true
+		m.projectLoaded = false
 		m.projectError = false
 		m.items = nil
 		m.errorMessage = ""
@@ -186,11 +208,13 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.projectLoading = false
 		if msg.err != nil {
 			m.projectError = true
+			m.projectLoaded = false
 			m.items = nil
 			m.errorMessage = msg.err.Error()
 			return m, nil
 		}
 		m.projectError = false
+		m.projectLoaded = true
 		m.projectPath = msg.path
 		m.items = msg.data.Items
 		m.refresh = msg.data.Refresh
@@ -278,18 +302,22 @@ func (m Model) updateKey(msg tea.KeyMsg) (Model, tea.Cmd) {
 	if m.mode == ModeSections {
 		switch msg.String() {
 		case "up", "k":
-			m.sectionCursor = clamp(m.sectionCursor-1, 0, 2)
+			m.sectionCursor = clamp(m.sectionCursor-1, 0, len(tuiSections)-1)
 		case "down", "j":
-			m.sectionCursor = clamp(m.sectionCursor+1, 0, 2)
+			m.sectionCursor = clamp(m.sectionCursor+1, 0, len(tuiSections)-1)
 		case "enter":
-			if m.sectionCursor == 0 {
+			sec := tuiSections[m.sectionCursor]
+			if sec.available && sec.id == SectionMergeRequests {
 				m.section = SectionMergeRequests
-				m.mode = ModeDetail
-				m.focus = FocusList
+				if m.projectLoaded {
+					m.mode = ModeDetail
+					m.focus = FocusList
+					return m, nil
+				}
+				return m.openProjectCommand(m.projectPath)
 			}
 		case "esc", "backspace":
-			m.mode = ModeProjectSelect
-			m.focus = FocusList
+			m.returnToProjectPicker()
 		}
 		return m, nil
 	}
@@ -556,16 +584,23 @@ func (m Model) renderProjectList() string {
 func (m Model) renderSections() string {
 	width := max(20, m.width-m.leftWidth())
 	style := paneStyle(width, max(8, m.height), true)
-	sections := []string{"Merge Requests", "Issues", "Pipelines"}
 	lines := []string{"Sections", ""}
-	for i, section := range sections {
+	for i, sec := range tuiSections {
 		prefix := "  "
 		if i == m.sectionCursor {
 			prefix = "> "
 		}
-		lines = append(lines, prefix+section)
+		label := sec.label
+		if !sec.available {
+			label += " (soon)"
+		}
+		lines = append(lines, prefix+label)
 	}
-	lines = append(lines, "", "Enter: open  Esc: projects")
+	hint := "Enter: open  Esc: projects"
+	if !tuiSections[m.sectionCursor].available {
+		hint = "Not yet implemented  Esc: projects"
+	}
+	lines = append(lines, "", hint)
 	return style.Render(strings.Join(lines, "\n"))
 }
 

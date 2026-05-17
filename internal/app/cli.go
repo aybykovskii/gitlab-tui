@@ -1,25 +1,24 @@
 package app
 
-import "fmt"
+import (
+	"fmt"
 
-type Section string
-
-const (
-	SectionMergeRequests Section = "mr"
-	SectionIssues        Section = "issue"
-	SectionPipelines     Section = "pipeline"
+	"github.com/aybykovskii/gitlab-tui/internal/tui"
 )
 
 type CLIIntent struct {
 	ProjectOverride string
-	Section         Section
+	Section         tui.Section
 	EntityID        string
 }
 
 func ParseCLI(args []string) (CLIIntent, error) {
 	intent := CLIIntent{}
 	remaining := args
-	if len(remaining) >= 2 && remaining[0] == "--project" {
+	if len(remaining) > 0 && remaining[0] == "--project" {
+		if len(remaining) < 2 {
+			return CLIIntent{}, fmt.Errorf("--project requires a value")
+		}
 		intent.ProjectOverride = remaining[1]
 		remaining = remaining[2:]
 	}
@@ -42,14 +41,14 @@ func ParseCLI(args []string) (CLIIntent, error) {
 	return intent, nil
 }
 
-func parseSection(value string) (Section, bool) {
-	switch value {
-	case string(SectionMergeRequests):
-		return SectionMergeRequests, true
-	case string(SectionIssues):
-		return SectionIssues, true
-	case string(SectionPipelines):
-		return SectionPipelines, true
+func parseSection(value string) (tui.Section, bool) {
+	switch tui.Section(value) {
+	case tui.SectionMergeRequests:
+		return tui.SectionMergeRequests, true
+	case tui.SectionIssues:
+		return tui.SectionIssues, true
+	case tui.SectionPipelines:
+		return tui.SectionPipelines, true
 	default:
 		return "", false
 	}

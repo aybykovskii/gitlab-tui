@@ -100,20 +100,9 @@ func (a App) runTUI(stdout io.Writer, stderr io.Writer, intent CLIIntent) int {
 
 		return tui.ProjectData{Items: items, Refresh: loadMRs, LoadDiff: loadDiff}, nil
 	}
-	options := tui.ProjectOptions{Path: resolution.Path, Section: string(intent.Section), EntityID: intent.EntityID, LoadProject: loadProject}
+	options := tui.ProjectOptions{Path: resolution.Path, Section: intent.Section, EntityID: intent.EntityID, LoadProject: loadProject}
 	for _, recent := range resolution.Recents {
 		options.Recents = append(options.Recents, recent.Path)
-	}
-
-	if resolution.Path != "" {
-		data, err := loadProject(resolution.Path)
-		if err != nil {
-			fmt.Fprintln(stderr, err)
-			return 1
-		}
-		options.Items = data.Items
-		options.Refresh = data.Refresh
-		options.LoadDiff = data.LoadDiff
 	}
 
 	if err := tui.RunWithProject(stdout, options); err != nil {

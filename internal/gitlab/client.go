@@ -152,7 +152,7 @@ func MapMergeRequest(item *glab.BasicMergeRequest) mr.MergeRequest {
 }
 
 func formatApprovals(approval *glab.MergeRequestApprovals) string {
-	if approval == nil {
+	if approval == nil || approval.ApprovalsRequired == 0 {
 		return "—"
 	}
 	approved := approval.ApprovalsRequired - approval.ApprovalsLeft
