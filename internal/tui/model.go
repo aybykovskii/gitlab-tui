@@ -65,6 +65,8 @@ type DiffFunc func(iid int) ([]mr.DiffRow, error)
 type ProjectLoadFunc func(path string) (ProjectData, error)
 type LoadDiscussionsFunc func(iid int) ([]mr.Discussion, error)
 type LoadFilesFunc func(iid int) ([]mr.ChangedFile, error)
+type SubmitDraftsFunc func(iid int, drafts []mr.DraftComment) error
+type DiscardDraftsFunc func(iid int) error
 
 type ProjectData struct {
 	Items           []mr.MergeRequest
@@ -85,6 +87,8 @@ type ProjectOptions struct {
 	LoadProject     ProjectLoadFunc
 	LoadDiscussions LoadDiscussionsFunc
 	LoadFiles       LoadFilesFunc
+	SubmitDrafts    SubmitDraftsFunc
+	DiscardDrafts   DiscardDraftsFunc
 }
 
 type projectStartedMsg struct {
@@ -109,6 +113,21 @@ type filesFinishedMsg struct {
 	iid   int
 	files []mr.ChangedFile
 	err   error
+}
+
+type draftAddedMsg struct {
+	iid   int
+	draft mr.DraftComment
+}
+
+type draftsSubmittedMsg struct {
+	iid int
+	err error
+}
+
+type draftsDiscardedMsg struct {
+	iid int
+	err error
 }
 
 type refreshStartedMsg struct{}
@@ -149,6 +168,13 @@ type Model struct {
 	changedFiles        map[int][]mr.ChangedFile
 	selectedFile        int
 	fileDiffTop         int
+	diffCursor          int
+	rangeStart          int
+	commentInput        bool
+	commentBuffer       string
+	drafts              map[int][]mr.DraftComment
+	submitDrafts        SubmitDraftsFunc
+	discardDrafts       DiscardDraftsFunc
 	discussionsLoading  bool
 	filesLoading        bool
 	discussionsError    string
@@ -193,6 +219,10 @@ func NewModelWithProject(items []mr.MergeRequest, options ProjectOptions) Model 
 		loadFiles:       options.LoadFiles,
 		discussions:     map[int][]mr.Discussion{},
 		changedFiles:    map[int][]mr.ChangedFile{},
+		drafts:          map[int][]mr.DraftComment{},
+		rangeStart:      -1,
+		submitDrafts:    options.SubmitDrafts,
+		discardDrafts:   options.DiscardDrafts,
 	}
 	if model.projectPath == "" {
 		if len(model.projectList) > 0 {
@@ -292,6 +322,17 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case filesStartedMsg:
 		m.filesLoading = true
 		m.filesError = ""
+		return m, nil
+	case draftAddedMsg:
+		m.drafts[msg.iid] = append(m.drafts[msg.iid], msg.draft)
+		return m, nil
+	case draftsSubmittedMsg:
+		if msg.err == nil {
+			m.drafts[msg.iid] = nil
+		}
+		return m, nil
+	case draftsDiscardedMsg:
+		m.drafts[msg.iid] = nil
 		return m, nil
 	case filesFinishedMsg:
 		m.filesLoading = false
@@ -410,19 +451,120 @@ func (m Model) updateKey(msg tea.KeyMsg) (Model, tea.Cmd) {
 	}
 
 	if m.mode == ModeFileDiff {
+		if m.commentInput {
+			switch msg.Type {
+			case tea.KeyEsc:
+				m.commentInput = false
+				m.commentBuffer = ""
+			case tea.KeyEnter:
+				m.commentInput = false
+				item, ok := m.selectedItem()
+				if ok {
+					files := m.currentFiles()
+					var filePath string
+					if len(files) > m.selectedFile {
+						filePath = files[m.selectedFile].Path
+					}
+					endLine := 0
+					startLine := m.diffCursor
+					if m.rangeStart >= 0 {
+						startLine = m.rangeStart
+						endLine = m.diffCursor + 1
+					}
+					_ = endLine
+					var newLine int
+					if len(files) > m.selectedFile && startLine < len(files[m.selectedFile].Diff) {
+						newLine = files[m.selectedFile].Diff[startLine].NewLine
+					}
+					var endNewLine int
+					if m.rangeStart >= 0 && len(files) > m.selectedFile && m.diffCursor < len(files[m.selectedFile].Diff) {
+						endNewLine = files[m.selectedFile].Diff[m.diffCursor].NewLine
+					}
+					draft := mr.DraftComment{
+						LocalID:  fmt.Sprintf("local-%d", len(m.drafts[item.IID])+1),
+						Body:     m.commentBuffer,
+						Position: &mr.DiffPosition{NewPath: filePath, NewLine: newLine},
+						EndLine:  endNewLine,
+					}
+					m.drafts[item.IID] = append(m.drafts[item.IID], draft)
+					m.commentBuffer = ""
+					m.rangeStart = -1
+				}
+			case tea.KeyBackspace:
+				if len(m.commentBuffer) > 0 {
+					m.commentBuffer = m.commentBuffer[:len(m.commentBuffer)-1]
+				}
+			case tea.KeyRunes:
+				m.commentBuffer += msg.String()
+			}
+			return m, nil
+		}
+
 		files := m.currentFiles()
 		switch msg.String() {
 		case "right", "l":
-			m.selectedFile = clamp(m.selectedFile+1, 0, len(files)-1)
-			m.fileDiffTop = 0
+			if m.rangeStart < 0 {
+				m.selectedFile = clamp(m.selectedFile+1, 0, len(files)-1)
+				m.fileDiffTop = 0
+				m.diffCursor = 0
+			}
 		case "left", "h":
-			m.selectedFile = clamp(m.selectedFile-1, 0, len(files)-1)
-			m.fileDiffTop = 0
+			if m.rangeStart < 0 {
+				m.selectedFile = clamp(m.selectedFile-1, 0, len(files)-1)
+				m.fileDiffTop = 0
+				m.diffCursor = 0
+			}
 		case "up", "k":
-			m.fileDiffTop = max(0, m.fileDiffTop-1)
+			rowCount := 0
+			if len(files) > m.selectedFile {
+				rowCount = len(files[m.selectedFile].Diff)
+			}
+			m.diffCursor = clamp(m.diffCursor-1, 0, max(0, rowCount-1))
 		case "down", "j":
-			m.fileDiffTop++
+			rowCount := 0
+			if len(files) > m.selectedFile {
+				rowCount = len(files[m.selectedFile].Diff)
+			}
+			m.diffCursor = clamp(m.diffCursor+1, 0, max(0, rowCount-1))
+		case "v":
+			if m.rangeStart >= 0 {
+				m.rangeStart = -1
+			} else {
+				m.rangeStart = m.diffCursor
+			}
+		case "c":
+			m.commentInput = true
+			m.commentBuffer = ""
+		case "p":
+			item, ok := m.selectedItem()
+			if ok && m.submitDrafts != nil {
+				drafts := m.drafts[item.IID]
+				submit := m.submitDrafts
+				iid := item.IID
+				return m, tea.Sequence(
+					func() tea.Msg {
+						err := submit(iid, drafts)
+						return draftsSubmittedMsg{iid: iid, err: err}
+					},
+				)
+			}
+		case "D":
+			item, ok := m.selectedItem()
+			if ok {
+				m.drafts[item.IID] = nil
+				if m.discardDrafts != nil {
+					discard := m.discardDrafts
+					iid := item.IID
+					return m, func() tea.Msg {
+						return draftsDiscardedMsg{iid: iid, err: discard(iid)}
+					}
+				}
+			}
 		case "esc", "backspace":
+			if m.rangeStart >= 0 {
+				m.rangeStart = -1
+				return m, nil
+			}
 			m.mode = ModeDetail
 			m.activeTab = TabFiles
 			m.fileDiffTop = 0
@@ -966,14 +1108,22 @@ func (m Model) renderFileDiffPane() string {
 	lines := []string{fmt.Sprintf("Diff %s", file.Path), ""}
 	item, _ := m.selectedItem()
 	discussions := m.discussions[item.IID]
+	draftsForMR := m.drafts[item.IID]
 	annotated := diff.ProjectDiscussions(file.Diff, discussions, file.Path)
 
 	colWidth := max(10, (max(20, m.width-m.leftWidth())-20)/2)
 	rowFmt := fmt.Sprintf("%%4d │ %%-%ds │ %%4d │ %%s", colWidth)
-	for _, arow := range annotated {
-		line := fmt.Sprintf(rowFmt, arow.OldLine, arow.OldText, arow.NewLine, arow.NewText)
+	for i, arow := range annotated {
+		cursor := "  "
+		if i == m.diffCursor {
+			cursor = "> "
+		}
+		line := cursor + fmt.Sprintf(rowFmt, arow.OldLine, arow.OldText, arow.NewLine, arow.NewText)
 		if len(arow.Discussions) > 0 {
 			line += " 💬"
+		}
+		if m.rangeStart >= 0 && i >= m.rangeStart && i <= m.diffCursor {
+			line += " ▌"
 		}
 		lines = append(lines, line)
 		for _, d := range arow.Discussions {
@@ -985,8 +1135,25 @@ func (m Model) renderFileDiffPane() string {
 			}
 			lines = append(lines, fmt.Sprintf("  ↳ [%s] %s", author, body))
 		}
+		for _, dr := range draftsForMR {
+			if dr.Position == nil || dr.Position.NewPath != file.Path || arow.NewLine == 0 {
+				continue
+			}
+			startLine := dr.Position.NewLine
+			endLine := dr.EndLine
+			if endLine == 0 {
+				endLine = startLine
+			}
+			if arow.NewLine >= startLine && arow.NewLine <= endLine {
+				lines = append(lines, fmt.Sprintf("  [DRAFT] %s", dr.Body))
+			}
+		}
 	}
-	lines = append(lines, "", "Esc/backspace: back to Files")
+	if m.commentInput {
+		lines = append(lines, "", "Comment: "+m.commentBuffer+"█", "Enter: save  Esc: cancel")
+	} else {
+		lines = append(lines, "", "c: comment  v: range  p: publish  D: discard  Esc: back")
+	}
 	if m.fileDiffTop >= len(lines) {
 		m.fileDiffTop = max(0, len(lines)-1)
 	}

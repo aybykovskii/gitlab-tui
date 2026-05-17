@@ -44,6 +44,13 @@ type Discussion struct {
 	Position *DiffPosition
 }
 
+type DraftComment struct {
+	LocalID  string
+	Body     string
+	Position *DiffPosition
+	EndLine  int
+}
+
 type ChangedFile struct {
 	Path         string
 	OldPath      string

@@ -880,6 +880,291 @@ func TestBackspaceInFileDiffReturnsToFilesTab(t *testing.T) {
 	}
 }
 
+// --- #43: Draft comments ---
+
+func draftOpts() ProjectOptions {
+	return ProjectOptions{
+		Path:    "group/project",
+		Section: SectionMergeRequests,
+		LoadFiles: func(iid int) ([]mr.ChangedFile, error) {
+			return []mr.ChangedFile{
+				{Path: "main.go", Diff: []mr.DiffRow{
+					{OldLine: 1, NewLine: 1, OldText: "old", NewText: "old"},
+					{OldLine: 0, NewLine: 2, NewText: "new line"},
+				}},
+			}, nil
+		},
+		LoadDiscussions: func(iid int) ([]mr.Discussion, error) {
+			return []mr.Discussion{}, nil
+		},
+	}
+}
+
+func draftFileDiffModel(t *testing.T) Model {
+	t.Helper()
+	model := NewModelWithProject(FakeMergeRequests(), draftOpts())
+	updated, _ := model.Update(tea.KeyMsg{Type: tea.KeyTab})
+	model = updated.(Model)
+	updated, _ = model.Update(tea.KeyMsg{Type: tea.KeyTab})
+	model = updated.(Model)
+	updated, _ = model.Update(filesFinishedMsg{iid: 42, files: []mr.ChangedFile{
+		{Path: "main.go", Diff: []mr.DiffRow{
+			{OldLine: 1, NewLine: 1, OldText: "old", NewText: "old"},
+			{OldLine: 0, NewLine: 2, NewText: "new line"},
+		}},
+	}})
+	model = updated.(Model)
+	updated, _ = model.Update(tea.KeyMsg{Type: tea.KeyEnter})
+	return updated.(Model)
+}
+
+func TestModelStoresDraftCommentForCurrentMR(t *testing.T) {
+	model := draftFileDiffModel(t)
+
+	draft := mr.DraftComment{
+		LocalID:  "local-1",
+		Body:     "Fix this please",
+		Position: &mr.DiffPosition{NewPath: "main.go", NewLine: 2},
+	}
+	updated, _ := model.Update(draftAddedMsg{iid: 42, draft: draft})
+	model = updated.(Model)
+
+	if len(model.drafts[42]) != 1 {
+		t.Fatalf("expected 1 draft stored, got %d", len(model.drafts[42]))
+	}
+	if model.drafts[42][0].Body != "Fix this please" {
+		t.Fatalf("unexpected draft body: %q", model.drafts[42][0].Body)
+	}
+}
+
+func TestDraftMarkerAppearsOnDiffRow(t *testing.T) {
+	model := draftFileDiffModel(t)
+
+	updated, _ := model.Update(draftAddedMsg{iid: 42, draft: mr.DraftComment{
+		LocalID:  "d1",
+		Body:     "Check this",
+		Position: &mr.DiffPosition{NewPath: "main.go", NewLine: 2},
+	}})
+	model = updated.(Model)
+
+	view := model.View()
+	if !strings.Contains(view, "[DRAFT]") {
+		t.Fatalf("expected [DRAFT] marker in diff view, got:\n%s", view)
+	}
+}
+
+func TestDraftRangeMarkerSpansMultipleRows(t *testing.T) {
+	model := draftFileDiffModel(t)
+
+	// range draft: lines 1–2 (EndLine > 0)
+	updated, _ := model.Update(draftAddedMsg{iid: 42, draft: mr.DraftComment{
+		LocalID:  "r1",
+		Body:     "Range comment",
+		Position: &mr.DiffPosition{NewPath: "main.go", NewLine: 1},
+		EndLine:  2,
+	}})
+	model = updated.(Model)
+
+	view := model.View()
+	count := strings.Count(view, "[DRAFT]")
+	if count < 2 {
+		t.Fatalf("expected [DRAFT] marker on both rows of range (got %d), view:\n%s", count, view)
+	}
+}
+
+func TestVKeyStartsRangeSelection(t *testing.T) {
+	model := draftFileDiffModel(t)
+
+	updated, _ := model.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune("v")})
+	model = updated.(Model)
+
+	if model.rangeStart != model.diffCursor {
+		t.Fatalf("expected rangeStart == diffCursor (%d), got rangeStart=%d", model.diffCursor, model.rangeStart)
+	}
+	view := model.View()
+	if !strings.Contains(view, "▌") {
+		t.Fatalf("expected range selection marker ▌ in view, got:\n%s", view)
+	}
+}
+
+func TestEscCancelsRangeSelection(t *testing.T) {
+	model := draftFileDiffModel(t)
+
+	updated, _ := model.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune("v")})
+	model = updated.(Model)
+	if model.rangeStart < 0 {
+		t.Fatal("expected range selection to be active")
+	}
+
+	updated, _ = model.Update(tea.KeyMsg{Type: tea.KeyEsc})
+	model = updated.(Model)
+
+	if model.rangeStart != -1 {
+		t.Fatalf("expected rangeStart -1 after Esc, got %d", model.rangeStart)
+	}
+	if model.mode != ModeFileDiff {
+		t.Fatalf("expected to remain in ModeFileDiff after cancelling range, got %v", model.mode)
+	}
+}
+
+func TestCKeyEntersCommentInputAndEnterSavesDraft(t *testing.T) {
+	model := draftFileDiffModel(t)
+
+	// Press 'c' to open comment input
+	updated, _ := model.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune("c")})
+	model = updated.(Model)
+
+	if !model.commentInput {
+		t.Fatal("expected commentInput to be true after 'c'")
+	}
+
+	// Type comment text
+	for _, ch := range "My draft comment" {
+		updated, _ = model.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{ch}})
+		model = updated.(Model)
+	}
+	if model.commentBuffer != "My draft comment" {
+		t.Fatalf("expected buffer 'My draft comment', got %q", model.commentBuffer)
+	}
+
+	// Press Enter to save
+	updated, _ = model.Update(tea.KeyMsg{Type: tea.KeyEnter})
+	model = updated.(Model)
+
+	if model.commentInput {
+		t.Fatal("expected commentInput false after Enter")
+	}
+	if len(model.drafts[42]) != 1 {
+		t.Fatalf("expected 1 draft saved, got %d", len(model.drafts[42]))
+	}
+	if model.drafts[42][0].Body != "My draft comment" {
+		t.Fatalf("unexpected draft body: %q", model.drafts[42][0].Body)
+	}
+}
+
+func TestCommentInputBufferAppearsInView(t *testing.T) {
+	model := draftFileDiffModel(t)
+
+	updated, _ := model.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune("c")})
+	model = updated.(Model)
+	updated, _ = model.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune("hello")})
+	model = updated.(Model)
+
+	view := model.View()
+	if !strings.Contains(view, "hello") {
+		t.Fatalf("expected comment buffer in view, got:\n%s", view)
+	}
+}
+
+func TestPKeySubmitsDraftsAndClearsOnSuccess(t *testing.T) {
+	submitted := false
+	model := NewModelWithProject(FakeMergeRequests(), ProjectOptions{
+		Path:    "group/project",
+		Section: SectionMergeRequests,
+		LoadFiles: func(iid int) ([]mr.ChangedFile, error) {
+			return []mr.ChangedFile{
+				{Path: "main.go", Diff: []mr.DiffRow{{OldLine: 1, NewLine: 1, OldText: "a", NewText: "a"}}},
+			}, nil
+		},
+		LoadDiscussions: func(iid int) ([]mr.Discussion, error) { return nil, nil },
+		SubmitDrafts: func(iid int, drafts []mr.DraftComment) error {
+			submitted = true
+			if len(drafts) != 1 {
+				t.Errorf("expected 1 draft, got %d", len(drafts))
+			}
+			return nil
+		},
+	})
+
+	updated, _ := model.Update(tea.KeyMsg{Type: tea.KeyTab})
+	model = updated.(Model)
+	updated, _ = model.Update(tea.KeyMsg{Type: tea.KeyTab})
+	model = updated.(Model)
+	updated, _ = model.Update(filesFinishedMsg{iid: 42, files: []mr.ChangedFile{
+		{Path: "main.go", Diff: []mr.DiffRow{{OldLine: 1, NewLine: 1, OldText: "a", NewText: "a"}}},
+	}})
+	model = updated.(Model)
+	updated, _ = model.Update(tea.KeyMsg{Type: tea.KeyEnter})
+	model = updated.(Model)
+
+	// Pre-load a draft
+	updated, _ = model.Update(draftAddedMsg{iid: 42, draft: mr.DraftComment{LocalID: "d1", Body: "fix"}})
+	model = updated.(Model)
+
+	// Press 'p' to publish
+	updated, cmd := model.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune("p")})
+	model = updated.(Model)
+
+	if cmd == nil {
+		t.Fatal("expected submit command from 'p'")
+	}
+
+	// Execute the command
+	msg := cmd()
+	updated, _ = model.Update(msg)
+	model = updated.(Model)
+
+	if !submitted {
+		t.Fatal("expected submit function to have been called")
+	}
+	if len(model.drafts[42]) != 0 {
+		t.Fatalf("expected drafts cleared after submit, got %d", len(model.drafts[42]))
+	}
+}
+
+func TestDKeyDiscardsAllLocalDrafts(t *testing.T) {
+	discarded := false
+	model := NewModelWithProject(FakeMergeRequests(), ProjectOptions{
+		Path:    "group/project",
+		Section: SectionMergeRequests,
+		LoadFiles: func(iid int) ([]mr.ChangedFile, error) {
+			return []mr.ChangedFile{
+				{Path: "main.go", Diff: []mr.DiffRow{{OldLine: 1, NewLine: 1, OldText: "a", NewText: "a"}}},
+			}, nil
+		},
+		LoadDiscussions: func(iid int) ([]mr.Discussion, error) { return nil, nil },
+		DiscardDrafts: func(iid int) error {
+			discarded = true
+			return nil
+		},
+	})
+
+	updated, _ := model.Update(tea.KeyMsg{Type: tea.KeyTab})
+	model = updated.(Model)
+	updated, _ = model.Update(tea.KeyMsg{Type: tea.KeyTab})
+	model = updated.(Model)
+	updated, _ = model.Update(filesFinishedMsg{iid: 42, files: []mr.ChangedFile{
+		{Path: "main.go", Diff: []mr.DiffRow{{OldLine: 1, NewLine: 1, OldText: "a", NewText: "a"}}},
+	}})
+	model = updated.(Model)
+	updated, _ = model.Update(tea.KeyMsg{Type: tea.KeyEnter})
+	model = updated.(Model)
+
+	updated, _ = model.Update(draftAddedMsg{iid: 42, draft: mr.DraftComment{LocalID: "d1", Body: "fix"}})
+	model = updated.(Model)
+	updated, _ = model.Update(draftAddedMsg{iid: 42, draft: mr.DraftComment{LocalID: "d2", Body: "also fix"}})
+	model = updated.(Model)
+
+	if len(model.drafts[42]) != 2 {
+		t.Fatalf("setup: expected 2 drafts, got %d", len(model.drafts[42]))
+	}
+
+	// Press 'D' to discard
+	updated, cmd := model.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune("D")})
+	model = updated.(Model)
+
+	if len(model.drafts[42]) != 0 {
+		t.Fatalf("expected drafts cleared immediately after D, got %d", len(model.drafts[42]))
+	}
+	if cmd != nil {
+		msg := cmd()
+		model.Update(msg)
+	}
+	if !discarded {
+		t.Fatal("expected discard function to have been called")
+	}
+}
+
 func TestTabKeyCyclesDetailTabs(t *testing.T) {
 	model := NewModelWithProject(FakeMergeRequests(), ProjectOptions{Path: "group/project", Section: SectionMergeRequests})
 
