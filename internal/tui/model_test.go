@@ -41,8 +41,8 @@ func TestEnterOnMergeRequestsSectionOpensMRList(t *testing.T) {
 	updated, _ := model.Update(tea.KeyMsg{Type: tea.KeyEnter})
 	model = updated.(Model)
 
-	if model.mode != ModeDetail {
-		t.Fatalf("expected MR list/detail mode, got %v", model.mode)
+	if model.mode != ModeEntityList {
+		t.Fatalf("expected ModeEntityList after entering MR section, got %v", model.mode)
 	}
 	if model.section != SectionMergeRequests {
 		t.Fatalf("expected MR section, got %q", model.section)
@@ -2251,8 +2251,8 @@ func TestMRSectionLoadingCompletionShowsMRList(t *testing.T) {
 	})
 	model = updated.(Model)
 
-	if model.mode != ModeDetail {
-		t.Fatalf("expected ModeDetail after load, got %v", model.mode)
+	if model.mode != ModeEntityList {
+		t.Fatalf("expected ModeEntityList after load, got %v", model.mode)
 	}
 	if len(model.items) != 2 {
 		t.Fatalf("expected 2 MRs loaded, got %d", len(model.items))
@@ -2260,6 +2260,66 @@ func TestMRSectionLoadingCompletionShowsMRList(t *testing.T) {
 	view := model.View()
 	if !strings.Contains(view, "First MR") {
 		t.Fatalf("expected MR list in view, got:\n%s", view)
+	}
+}
+
+// --- #53: Two-panel layout for entity list ---
+
+func entityListModel(t *testing.T) Model {
+	t.Helper()
+	model := NewModelWithProject(nil, ProjectOptions{
+		Recents:     []string{"group/project"},
+		LoadProject: func(path string) (ProjectData, error) { return ProjectData{}, nil },
+	})
+	updated, _ := model.Update(tea.KeyMsg{Type: tea.KeyEnter}) // select project → ModeSections
+	model = updated.(Model)
+	updated, _ = model.Update(tea.KeyMsg{Type: tea.KeyEnter}) // select MR section → loading
+	model = updated.(Model)
+	updated, _ = model.Update(projectFinishedMsg{
+		path: "group/project",
+		data: ProjectData{Items: []mr.MergeRequest{
+			{IID: 10, Title: "Alpha MR"},
+			{IID: 11, Title: "Beta MR"},
+		}},
+	})
+	model = updated.(Model)
+	if model.mode != ModeEntityList {
+		t.Fatalf("setup: expected ModeEntityList, got %v", model.mode)
+	}
+	return model
+}
+
+func TestEntityListViewShowsSectionsContextOnLeft(t *testing.T) {
+	model := entityListModel(t)
+	view := model.View()
+
+	if !strings.Contains(view, "Merge Requests") {
+		t.Fatalf("expected sections context on left, got:\n%s", view)
+	}
+	if !strings.Contains(view, "Alpha MR") {
+		t.Fatalf("expected entity list on right, got:\n%s", view)
+	}
+}
+
+func TestEntityListEnterGoesToMRDetail(t *testing.T) {
+	model := entityListModel(t)
+
+	updated, _ := model.Update(tea.KeyMsg{Type: tea.KeyEnter})
+	model = updated.(Model)
+
+	if model.mode != ModeDetail {
+		t.Fatalf("expected ModeDetail after Enter in entity list, got %v", model.mode)
+	}
+}
+
+func TestEntityListEscGoesToSections(t *testing.T) {
+	model := entityListModel(t)
+
+	updated, _ := model.Update(tea.KeyMsg{Type: tea.KeyEsc})
+	model = updated.(Model)
+
+	if model.mode != ModeSections {
+		t.Fatalf("expected ModeSections after Esc in entity list, got %v", model.mode)
 	}
 }
 

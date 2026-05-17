@@ -19,6 +19,7 @@ const (
 	ModeProjectSelect Mode = iota
 	ModeProjectInput
 	ModeSections
+	ModeEntityList
 	ModeDetail
 	ModeDiff
 	ModeFileDiff
@@ -412,7 +413,11 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.listTop = 0
 		m.rightTop = 0
 		if m.section == SectionMergeRequests {
-			m.mode = ModeDetail
+			if m.entityID != "" {
+				m.mode = ModeDetail
+			} else {
+				m.mode = ModeEntityList
+			}
 		} else {
 			m.mode = ModeSections
 		}
@@ -609,7 +614,7 @@ func (m Model) updateKey(msg tea.KeyMsg) (Model, tea.Cmd) {
 			if sec.available && sec.id == SectionMergeRequests {
 				m.section = SectionMergeRequests
 				if m.projectLoaded {
-					m.mode = ModeDetail
+					m.mode = ModeEntityList
 					m.focus = FocusDetail
 					return m, nil
 				}
@@ -633,6 +638,28 @@ func (m Model) updateKey(msg tea.KeyMsg) (Model, tea.Cmd) {
 		case tea.KeyRunes:
 			m.query += msg.String()
 			m.selected = clampSelection(m.selected, len(m.filtered()))
+		}
+		return m, nil
+	}
+
+	if m.mode == ModeEntityList {
+		switch msg.String() {
+		case "up", "k":
+			m.moveSelection(-1)
+		case "down", "j":
+			m.moveSelection(1)
+		case "enter":
+			m.mode = ModeDetail
+			m.focus = FocusDetail
+		case "esc", "backspace":
+			if m.projectError || (m.projectPath != "" && len(m.items) == 0) {
+				m.errorMessage = ""
+				m.returnToProjectPicker()
+			} else {
+				m.mode = ModeSections
+			}
+		case "/":
+			m.focus = FocusFilter
 		}
 		return m, nil
 	}
@@ -1252,7 +1279,7 @@ func (m Model) selectProject(path string) (Model, tea.Cmd) {
 
 func (m Model) openProjectCommand(path string) (Model, tea.Cmd) {
 	m.projectPath = path
-	m.mode = ModeDetail
+	m.mode = ModeEntityList
 	m.focus = FocusDetail
 	m.selected = 0
 	m.listTop = 0
@@ -1438,6 +1465,9 @@ func (m Model) View() string {
 	if m.mode == ModeSections {
 		return lipgloss.JoinHorizontal(lipgloss.Top, m.renderProjectList(), m.renderSections())
 	}
+	if m.mode == ModeEntityList {
+		return lipgloss.JoinHorizontal(lipgloss.Top, m.renderSectionsContext(), m.renderEntityListPane())
+	}
 	if m.mode == ModeFileDiff {
 		return lipgloss.JoinHorizontal(lipgloss.Top, m.renderChangedFilesPane(), m.renderFileDiffPane())
 	}
@@ -1503,6 +1533,60 @@ func (m Model) renderSections() string {
 		hint = "Not yet implemented  Esc: projects"
 	}
 	lines = append(lines, "", hint)
+	return style.Render(strings.Join(lines, "\n"))
+}
+
+func (m Model) renderSectionsContext() string {
+	width := m.leftWidth()
+	style := paneStyle(width, max(8, m.height), false)
+	lines := []string{"Sections", ""}
+	for _, sec := range tuiSections {
+		prefix := "  "
+		if sec.id == m.section {
+			prefix = "> "
+		}
+		lines = append(lines, prefix+sec.label)
+	}
+	lines = append(lines, "", "Esc: back")
+	return style.Render(strings.Join(lines, "\n"))
+}
+
+func (m Model) renderEntityListPane() string {
+	width := max(20, m.width-m.leftWidth())
+	height := max(8, m.height)
+	style := paneStyle(width, height, true)
+	lines := []string{"Project: " + m.projectPath, "Merge Requests", "Filter: " + m.query}
+	if m.projectLoading {
+		lines = append(lines, "Loading project…")
+	} else if m.loading {
+		lines = append(lines, "Refreshing…")
+	}
+	if m.errorMessage != "" {
+		lines = append(lines, "Error: "+m.errorMessage)
+		if m.projectError {
+			lines = append(lines, "Esc: choose project")
+		}
+	}
+	items := m.filtered()
+	if len(items) == 0 {
+		lines = append(lines, "No opened MRs")
+		if len(m.items) == 0 && m.projectPath != "" {
+			lines = append(lines, "r refresh  Esc: choose project")
+		}
+	} else {
+		visible := max(1, height-5)
+		end := min(len(items), m.listTop+visible)
+		for i := m.listTop; i < end; i++ {
+			prefix := "  "
+			if i == m.selected {
+				prefix = "> "
+			}
+			item := items[i]
+			lines = append(lines, fmt.Sprintf("%s%s !%d %s", prefix, pipelineIcon(item.Pipeline), item.IID, item.Title))
+			lines = append(lines, fmt.Sprintf("  %s %s → %s", item.Author, item.SourceBranch, item.TargetBranch))
+		}
+	}
+	lines = append(lines, "", "↑/↓ select  / filter  r refresh  Enter open")
 	return style.Render(strings.Join(lines, "\n"))
 }
 
