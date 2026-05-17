@@ -1543,6 +1543,220 @@ func TestXKeyInDiffViewResolvesInlineDiscussion(t *testing.T) {
 	}
 }
 
+// --- #45: Instant comments ---
+
+func instantCommentFileDiffModel(t *testing.T, postFn PostInlineCommentFunc) Model {
+	t.Helper()
+	opts := ProjectOptions{
+		Path:    "group/project",
+		Section: SectionMergeRequests,
+		LoadFiles: func(iid int) ([]mr.ChangedFile, error) {
+			return []mr.ChangedFile{
+				{Path: "main.go", Diff: []mr.DiffRow{
+					{OldLine: 1, NewLine: 1, OldText: "old", NewText: "old"},
+				}},
+			}, nil
+		},
+		LoadDiscussions:   func(iid int) ([]mr.Discussion, error) { return nil, nil },
+		PostInlineComment: postFn,
+	}
+	model := NewModelWithProject(FakeMergeRequests(), opts)
+	updated, _ := model.Update(tea.KeyMsg{Type: tea.KeyTab})
+	model = updated.(Model)
+	updated, _ = model.Update(tea.KeyMsg{Type: tea.KeyTab})
+	model = updated.(Model)
+	updated, _ = model.Update(filesFinishedMsg{iid: 42, files: []mr.ChangedFile{
+		{Path: "main.go", Diff: []mr.DiffRow{{OldLine: 1, NewLine: 1, OldText: "old", NewText: "old"}}},
+	}})
+	model = updated.(Model)
+	updated, _ = model.Update(tea.KeyMsg{Type: tea.KeyEnter})
+	return updated.(Model)
+}
+
+func TestIKeyOpensInstantInlineCommentInput(t *testing.T) {
+	model := instantCommentFileDiffModel(t, nil)
+
+	updated, _ := model.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune("i")})
+	model = updated.(Model)
+
+	if !model.commentInput {
+		t.Fatal("expected commentInput true after i")
+	}
+	if !model.commentInstant {
+		t.Fatal("expected commentInstant true after i")
+	}
+}
+
+func TestEnterInInstantCommentCallsAPIAndDoesNotSaveDraft(t *testing.T) {
+	called := false
+	model := instantCommentFileDiffModel(t, func(iid int, position mr.DiffPosition, body string) error {
+		called = true
+		if body != "Instant review" {
+			t.Errorf("expected 'Instant review', got %q", body)
+		}
+		if position.NewPath != "main.go" {
+			t.Errorf("expected path main.go, got %q", position.NewPath)
+		}
+		return nil
+	})
+
+	updated, _ := model.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune("i")})
+	model = updated.(Model)
+	updated, _ = model.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune("Instant review")})
+	model = updated.(Model)
+
+	updated, cmd := model.Update(tea.KeyMsg{Type: tea.KeyEnter})
+	model = updated.(Model)
+
+	if cmd == nil {
+		t.Fatal("expected API command on Enter for instant comment")
+	}
+	cmd()
+
+	if !called {
+		t.Fatal("expected PostInlineCommentFunc to be called")
+	}
+	if len(model.drafts[42]) != 0 {
+		t.Fatalf("expected no local draft saved, got %d", len(model.drafts[42]))
+	}
+}
+
+func TestInstantCommentAPIErrorShownInView(t *testing.T) {
+	model := instantCommentFileDiffModel(t, func(iid int, position mr.DiffPosition, body string) error {
+		return errors.New("network timeout")
+	})
+
+	updated, _ := model.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune("i")})
+	model = updated.(Model)
+	updated, _ = model.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune("hello")})
+	model = updated.(Model)
+	updated, cmd := model.Update(tea.KeyMsg{Type: tea.KeyEnter})
+	model = updated.(Model)
+
+	if cmd != nil {
+		msg := cmd()
+		updated, _ = model.Update(msg)
+		model = updated.(Model)
+	}
+
+	if model.mode != ModeFileDiff {
+		t.Fatalf("expected to stay in ModeFileDiff after error, got %v", model.mode)
+	}
+	if !strings.Contains(model.View(), "network timeout") {
+		t.Fatalf("expected error in view, got:\n%s", model.View())
+	}
+}
+
+func TestMKeyOpensMRCommentInput(t *testing.T) {
+	model := NewModelWithProject(FakeMergeRequests(), ProjectOptions{
+		Path:          "group/project",
+		Section:       SectionMergeRequests,
+		PostMRComment: func(iid int, body string) error { return nil },
+	})
+
+	updated, _ := model.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune("m")})
+	model = updated.(Model)
+
+	if !model.mrCommentInput {
+		t.Fatal("expected mrCommentInput true after m")
+	}
+}
+
+func TestEnterInMRCommentInputCallsPostMRCommentFunc(t *testing.T) {
+	called := false
+	model := NewModelWithProject(FakeMergeRequests(), ProjectOptions{
+		Path:    "group/project",
+		Section: SectionMergeRequests,
+		PostMRComment: func(iid int, body string) error {
+			called = true
+			if iid != 42 {
+				t.Errorf("expected iid 42, got %d", iid)
+			}
+			if body != "Great work" {
+				t.Errorf("expected 'Great work', got %q", body)
+			}
+			return nil
+		},
+	})
+
+	updated, _ := model.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune("m")})
+	model = updated.(Model)
+	updated, _ = model.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune("Great work")})
+	model = updated.(Model)
+	updated, cmd := model.Update(tea.KeyMsg{Type: tea.KeyEnter})
+	model = updated.(Model)
+
+	if model.mrCommentInput {
+		t.Fatal("expected mrCommentInput closed after Enter")
+	}
+	if cmd == nil {
+		t.Fatal("expected command from Enter in MR comment input")
+	}
+	cmd()
+	if !called {
+		t.Fatal("expected PostMRCommentFunc to be called")
+	}
+}
+
+func TestEscInMRCommentInputCancelsWithoutSending(t *testing.T) {
+	called := false
+	model := NewModelWithProject(FakeMergeRequests(), ProjectOptions{
+		Path:          "group/project",
+		Section:       SectionMergeRequests,
+		PostMRComment: func(iid int, body string) error { called = true; return nil },
+	})
+
+	updated, _ := model.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune("m")})
+	model = updated.(Model)
+	updated, _ = model.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune("some text")})
+	model = updated.(Model)
+	updated, cmd := model.Update(tea.KeyMsg{Type: tea.KeyEsc})
+	model = updated.(Model)
+
+	if model.mrCommentInput {
+		t.Fatal("expected mrCommentInput false after Esc")
+	}
+	if cmd != nil {
+		t.Fatal("expected no command on Esc")
+	}
+	if called {
+		t.Fatal("expected PostMRCommentFunc NOT to be called after Esc")
+	}
+	if model.mrCommentBuffer != "" {
+		t.Fatalf("expected buffer cleared after Esc, got %q", model.mrCommentBuffer)
+	}
+}
+
+func TestMRCommentAPIErrorShownInViewWithoutLosingContext(t *testing.T) {
+	model := NewModelWithProject(FakeMergeRequests(), ProjectOptions{
+		Path:    "group/project",
+		Section: SectionMergeRequests,
+		PostMRComment: func(iid int, body string) error {
+			return errors.New("forbidden")
+		},
+	})
+
+	updated, _ := model.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune("m")})
+	model = updated.(Model)
+	updated, _ = model.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune("hello")})
+	model = updated.(Model)
+	updated, cmd := model.Update(tea.KeyMsg{Type: tea.KeyEnter})
+	model = updated.(Model)
+
+	if cmd != nil {
+		msg := cmd()
+		updated, _ = model.Update(msg)
+		model = updated.(Model)
+	}
+
+	if model.mode != ModeDetail {
+		t.Fatalf("expected to stay in ModeDetail after error, got %v", model.mode)
+	}
+	if !strings.Contains(model.View(), "forbidden") {
+		t.Fatalf("expected error in view, got:\n%s", model.View())
+	}
+}
+
 func TestTabKeyCyclesDetailTabs(t *testing.T) {
 	model := NewModelWithProject(FakeMergeRequests(), ProjectOptions{Path: "group/project", Section: SectionMergeRequests})
 

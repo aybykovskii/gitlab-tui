@@ -67,10 +67,12 @@ type LoadDiscussionsFunc func(iid int) ([]mr.Discussion, error)
 type LoadFilesFunc func(iid int) ([]mr.ChangedFile, error)
 type SubmitDraftsFunc       func(iid int, drafts []mr.DraftComment) error
 type DiscardDraftsFunc      func(iid int) error
-type ReplyToDiscussionFunc  func(iid int, discussionID string, body string) error
-type DraftReplyFunc         func(iid int, discussionID string, body string) error
-type ResolveDiscussionFunc  func(iid int, discussionID string) error
+type ReplyToDiscussionFunc   func(iid int, discussionID string, body string) error
+type DraftReplyFunc          func(iid int, discussionID string, body string) error
+type ResolveDiscussionFunc   func(iid int, discussionID string) error
 type UnresolveDiscussionFunc func(iid int, discussionID string) error
+type PostInlineCommentFunc   func(iid int, position mr.DiffPosition, body string) error
+type PostMRCommentFunc       func(iid int, body string) error
 
 type ProjectData struct {
 	Items           []mr.MergeRequest
@@ -97,6 +99,8 @@ type ProjectOptions struct {
 	DraftReply          DraftReplyFunc
 	ResolveDiscussion   ResolveDiscussionFunc
 	UnresolveDiscussion UnresolveDiscussionFunc
+	PostInlineComment   PostInlineCommentFunc
+	PostMRComment       PostMRCommentFunc
 }
 
 type projectStartedMsg struct {
@@ -153,6 +157,16 @@ type resolveFinishedMsg struct {
 	err          error
 }
 
+type inlineCommentFinishedMsg struct {
+	iid int
+	err error
+}
+
+type mrCommentFinishedMsg struct {
+	iid int
+	err error
+}
+
 type refreshStartedMsg struct{}
 
 type refreshFinishedMsg struct {
@@ -194,7 +208,14 @@ type Model struct {
 	diffCursor          int
 	rangeStart          int
 	commentInput        bool
+	commentInstant      bool
 	commentBuffer       string
+	commentError        string
+	mrCommentInput      bool
+	mrCommentBuffer     string
+	mrCommentError      string
+	postInlineComment   PostInlineCommentFunc
+	postMRComment       PostMRCommentFunc
 	drafts              map[int][]mr.DraftComment
 	submitDrafts        SubmitDraftsFunc
 	discardDrafts       DiscardDraftsFunc
@@ -259,6 +280,8 @@ func NewModelWithProject(items []mr.MergeRequest, options ProjectOptions) Model 
 		draftReply:          options.DraftReply,
 		resolveDiscussion:   options.ResolveDiscussion,
 		unresolveDiscussion: options.UnresolveDiscussion,
+		postInlineComment:   options.PostInlineComment,
+		postMRComment:       options.PostMRComment,
 	}
 	if model.projectPath == "" {
 		if len(model.projectList) > 0 {
@@ -358,6 +381,20 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case filesStartedMsg:
 		m.filesLoading = true
 		m.filesError = ""
+		return m, nil
+	case inlineCommentFinishedMsg:
+		if msg.err != nil {
+			m.commentError = msg.err.Error()
+		} else {
+			m.commentError = ""
+		}
+		return m, nil
+	case mrCommentFinishedMsg:
+		if msg.err != nil {
+			m.mrCommentError = msg.err.Error()
+		} else {
+			m.mrCommentError = ""
+		}
 		return m, nil
 	case replyFinishedMsg:
 		if msg.err == nil && !msg.draft {
@@ -564,7 +601,11 @@ func (m Model) updateKey(msg tea.KeyMsg) (Model, tea.Cmd) {
 				m.commentInput = false
 				m.commentBuffer = ""
 			case tea.KeyEnter:
+				body := m.commentBuffer
+				instant := m.commentInstant
 				m.commentInput = false
+				m.commentInstant = false
+				m.commentBuffer = ""
 				item, ok := m.selectedItem()
 				if ok {
 					files := m.currentFiles()
@@ -572,13 +613,10 @@ func (m Model) updateKey(msg tea.KeyMsg) (Model, tea.Cmd) {
 					if len(files) > m.selectedFile {
 						filePath = files[m.selectedFile].Path
 					}
-					endLine := 0
 					startLine := m.diffCursor
 					if m.rangeStart >= 0 {
 						startLine = m.rangeStart
-						endLine = m.diffCursor + 1
 					}
-					_ = endLine
 					var newLine int
 					if len(files) > m.selectedFile && startLine < len(files[m.selectedFile].Diff) {
 						newLine = files[m.selectedFile].Diff[startLine].NewLine
@@ -587,15 +625,26 @@ func (m Model) updateKey(msg tea.KeyMsg) (Model, tea.Cmd) {
 					if m.rangeStart >= 0 && len(files) > m.selectedFile && m.diffCursor < len(files[m.selectedFile].Diff) {
 						endNewLine = files[m.selectedFile].Diff[m.diffCursor].NewLine
 					}
-					draft := mr.DraftComment{
-						LocalID:  fmt.Sprintf("local-%d", len(m.drafts[item.IID])+1),
-						Body:     m.commentBuffer,
-						Position: &mr.DiffPosition{NewPath: filePath, NewLine: newLine},
-						EndLine:  endNewLine,
-					}
-					m.drafts[item.IID] = append(m.drafts[item.IID], draft)
-					m.commentBuffer = ""
 					m.rangeStart = -1
+					if instant {
+						fn := m.postInlineComment
+						if fn != nil {
+							pos := mr.DiffPosition{NewPath: filePath, NewLine: newLine}
+							iid := item.IID
+							return m, func() tea.Msg {
+								err := fn(iid, pos, body)
+								return inlineCommentFinishedMsg{iid: iid, err: err}
+							}
+						}
+					} else {
+						draft := mr.DraftComment{
+							LocalID:  fmt.Sprintf("local-%d", len(m.drafts[item.IID])+1),
+							Body:     body,
+							Position: &mr.DiffPosition{NewPath: filePath, NewLine: newLine},
+							EndLine:  endNewLine,
+						}
+						m.drafts[item.IID] = append(m.drafts[item.IID], draft)
+					}
 				}
 			case tea.KeyBackspace:
 				if len(m.commentBuffer) > 0 {
@@ -639,9 +688,16 @@ func (m Model) updateKey(msg tea.KeyMsg) (Model, tea.Cmd) {
 			} else {
 				m.rangeStart = m.diffCursor
 			}
+		case "i":
+			m.commentInput = true
+			m.commentInstant = true
+			m.commentBuffer = ""
+			m.commentError = ""
 		case "c":
 			m.commentInput = true
+			m.commentInstant = false
 			m.commentBuffer = ""
+			m.commentError = ""
 		case "r", "d":
 			isDraft := msg.String() == "d"
 			item, ok := m.selectedItem()
@@ -746,6 +802,10 @@ func (m Model) updateKey(msg tea.KeyMsg) (Model, tea.Cmd) {
 		return m, nil
 	}
 
+	if m.mode == ModeDetail && m.mrCommentInput {
+		return m.updateMRCommentInput(msg)
+	}
+
 	if m.mode == ModeDetail && m.activeTab == TabDiscussions {
 		return m.updateDiscussionsTab(msg)
 	}
@@ -770,6 +830,12 @@ func (m Model) updateKey(msg tea.KeyMsg) (Model, tea.Cmd) {
 			return m.openProjectCommand(m.projectPath)
 		}
 		return m, m.refreshCommand()
+	case "m":
+		if m.mode == ModeDetail {
+			m.mrCommentInput = true
+			m.mrCommentBuffer = ""
+			m.mrCommentError = ""
+		}
 	case "tab":
 		if m.mode == ModeDetail {
 			m.activeTab = (m.activeTab + 1) % (TabFiles + 1)
@@ -800,6 +866,35 @@ func (m Model) updateKey(msg tea.KeyMsg) (Model, tea.Cmd) {
 		}
 	}
 
+	return m, nil
+}
+
+func (m Model) updateMRCommentInput(msg tea.KeyMsg) (Model, tea.Cmd) {
+	switch msg.Type {
+	case tea.KeyEsc:
+		m.mrCommentInput = false
+		m.mrCommentBuffer = ""
+	case tea.KeyBackspace:
+		if len(m.mrCommentBuffer) > 0 {
+			m.mrCommentBuffer = m.mrCommentBuffer[:len(m.mrCommentBuffer)-1]
+		}
+	case tea.KeyRunes:
+		m.mrCommentBuffer += msg.String()
+	case tea.KeyEnter:
+		body := m.mrCommentBuffer
+		m.mrCommentInput = false
+		m.mrCommentBuffer = ""
+		item, ok := m.selectedItem()
+		if !ok || m.postMRComment == nil {
+			return m, nil
+		}
+		fn := m.postMRComment
+		iid := item.IID
+		return m, func() tea.Msg {
+			err := fn(iid, body)
+			return mrCommentFinishedMsg{iid: iid, err: err}
+		}
+	}
 	return m, nil
 }
 
@@ -1303,7 +1398,14 @@ func (m Model) renderRight() string {
 		if item.WebURL != "" {
 			lines = append(lines, "URL: "+item.WebURL)
 		}
-		lines = append(lines, "", item.Description, "", "Enter/click right pane: open diff  Tab: next tab")
+		if m.mrCommentError != "" {
+			lines = append(lines, "", "Comment error: "+m.mrCommentError)
+		}
+		if m.mrCommentInput {
+			lines = append(lines, "", "MR comment: "+m.mrCommentBuffer+"█", "Enter: send  Esc: cancel")
+		} else {
+			lines = append(lines, "", item.Description, "", "m: comment  Enter/click right pane: open diff  Tab: next tab")
+		}
 		return style.Render(strings.Join(lines, "\n"))
 	}
 }
@@ -1448,10 +1550,17 @@ func (m Model) renderFileDiffPane() string {
 			}
 		}
 	}
+	if m.commentError != "" {
+		lines = append(lines, "", "Error: "+m.commentError)
+	}
 	if m.commentInput {
-		lines = append(lines, "", "Comment: "+m.commentBuffer+"█", "Enter: save  Esc: cancel")
+		prompt := "Comment"
+		if m.commentInstant {
+			prompt = "Instant comment"
+		}
+		lines = append(lines, "", prompt+": "+m.commentBuffer+"█", "Enter: send  Esc: cancel")
 	} else {
-		lines = append(lines, "", "c: comment  v: range  p: publish  D: discard  Esc: back")
+		lines = append(lines, "", "i: instant  c: draft  v: range  p: publish  D: discard  Esc: back")
 	}
 	if m.fileDiffTop >= len(lines) {
 		m.fileDiffTop = max(0, len(lines)-1)
