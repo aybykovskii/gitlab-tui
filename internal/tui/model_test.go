@@ -1757,6 +1757,266 @@ func TestMRCommentAPIErrorShownInViewWithoutLosingContext(t *testing.T) {
 	}
 }
 
+// --- #46: MR actions + external open ---
+
+func mrActionsModel(t *testing.T, opts ProjectOptions) Model {
+	t.Helper()
+	if opts.Path == "" {
+		opts.Path = "group/project"
+	}
+	if opts.Section == "" {
+		opts.Section = SectionMergeRequests
+	}
+	return NewModelWithProject(FakeMergeRequests(), opts)
+}
+
+func TestAKeyApprovesCurrentMR(t *testing.T) {
+	called := false
+	model := mrActionsModel(t, ProjectOptions{
+		ApproveMR: func(iid int) error {
+			called = true
+			if iid != 42 {
+				t.Errorf("expected iid 42, got %d", iid)
+			}
+			return nil
+		},
+	})
+
+	updated, cmd := model.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune("A")})
+	model = updated.(Model)
+
+	if cmd == nil {
+		t.Fatal("expected approve command")
+	}
+	msg := cmd()
+	updated, _ = model.Update(msg)
+	model = updated.(Model)
+
+	if !called {
+		t.Fatal("expected ApproveMRFunc to be called")
+	}
+	if !strings.Contains(model.View(), "Approved") {
+		t.Fatalf("expected 'Approved' in view, got:\n%s", model.View())
+	}
+}
+
+func TestMKeySetsMergeConfirmPending(t *testing.T) {
+	model := mrActionsModel(t, ProjectOptions{
+		MergeMR: func(iid int) error { return nil },
+	})
+
+	updated, _ := model.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune("M")})
+	model = updated.(Model)
+
+	if !model.mergeConfirmPending {
+		t.Fatal("expected mergeConfirmPending true after first M")
+	}
+	if !strings.Contains(model.View(), "confirm merge") {
+		t.Fatalf("expected confirmation prompt in view, got:\n%s", model.View())
+	}
+}
+
+func TestMKeyAgainConfirmsMerge(t *testing.T) {
+	called := false
+	model := mrActionsModel(t, ProjectOptions{
+		MergeMR: func(iid int) error { called = true; return nil },
+	})
+
+	updated, _ := model.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune("M")})
+	model = updated.(Model)
+	updated, cmd := model.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune("M")})
+	model = updated.(Model)
+
+	if cmd == nil {
+		t.Fatal("expected merge command on second M")
+	}
+	cmd()
+	if !called {
+		t.Fatal("expected MergeMRFunc to be called")
+	}
+}
+
+func TestOtherKeyAfterMCancelsMerge(t *testing.T) {
+	model := mrActionsModel(t, ProjectOptions{
+		MergeMR: func(iid int) error { return nil },
+	})
+
+	updated, _ := model.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune("M")})
+	model = updated.(Model)
+	updated, cmd := model.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune("j")})
+	model = updated.(Model)
+
+	if model.mergeConfirmPending {
+		t.Fatal("expected mergeConfirmPending cleared after non-M key")
+	}
+	if cmd != nil {
+		t.Fatal("expected no merge command")
+	}
+}
+
+func TestOKeyOpensURLInBrowser(t *testing.T) {
+	opened := ""
+	model := NewModelWithProject([]mr.MergeRequest{{
+		IID: 42, Title: "Test", WebURL: "https://gitlab.com/group/project/-/merge_requests/42",
+	}}, ProjectOptions{
+		Path:    "group/project",
+		Section: SectionMergeRequests,
+		OpenURL: func(url string) error { opened = url; return nil },
+	})
+
+	updated, cmd := model.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune("o")})
+	model = updated.(Model)
+
+	if cmd == nil {
+		t.Fatal("expected open URL command")
+	}
+	cmd()
+	if opened != "https://gitlab.com/group/project/-/merge_requests/42" {
+		t.Fatalf("expected MR URL opened, got %q", opened)
+	}
+}
+
+func TestEKeyOpensEditModeOnTitleField(t *testing.T) {
+	model := mrActionsModel(t, ProjectOptions{
+		EditMR: func(iid int, title, description string) error { return nil },
+	})
+
+	updated, _ := model.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune("e")})
+	model = updated.(Model)
+
+	if !model.editInput {
+		t.Fatal("expected editInput true after e")
+	}
+	if model.editField != "title" {
+		t.Fatalf("expected editField 'title', got %q", model.editField)
+	}
+	if model.editBuffer != "Port TUI shell to Bubble Tea" {
+		t.Fatalf("expected buffer pre-filled with current title, got %q", model.editBuffer)
+	}
+}
+
+func TestTabInEditModeMoveToDescriptionField(t *testing.T) {
+	model := mrActionsModel(t, ProjectOptions{
+		EditMR: func(iid int, title, description string) error { return nil },
+	})
+
+	updated, _ := model.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune("e")})
+	model = updated.(Model)
+	// Clear and type new title
+	model.editBuffer = "New title"
+	updated, _ = model.Update(tea.KeyMsg{Type: tea.KeyTab})
+	model = updated.(Model)
+
+	if model.editField != "description" {
+		t.Fatalf("expected editField 'description' after Tab, got %q", model.editField)
+	}
+	if model.editTitle != "New title" {
+		t.Fatalf("expected editTitle saved, got %q", model.editTitle)
+	}
+}
+
+func TestEnterInEditModeSavesAndCallsEditMR(t *testing.T) {
+	called := false
+	model := NewModelWithProject([]mr.MergeRequest{{
+		IID: 42, Title: "Old title", Description: "Old desc",
+	}}, ProjectOptions{
+		Path:    "group/project",
+		Section: SectionMergeRequests,
+		EditMR: func(iid int, title, description string) error {
+			called = true
+			if title != "New title" {
+				t.Errorf("expected 'New title', got %q", title)
+			}
+			if description != "New desc" {
+				t.Errorf("expected 'New desc', got %q", description)
+			}
+			return nil
+		},
+	})
+
+	// Open edit, move to title field
+	updated, _ := model.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune("e")})
+	model = updated.(Model)
+	model.editBuffer = "New title"
+
+	// Tab to description
+	updated, _ = model.Update(tea.KeyMsg{Type: tea.KeyTab})
+	model = updated.(Model)
+	model.editBuffer = "New desc"
+
+	// Enter to save
+	updated, cmd := model.Update(tea.KeyMsg{Type: tea.KeyEnter})
+	model = updated.(Model)
+
+	if model.editInput {
+		t.Fatal("expected editInput closed after Enter")
+	}
+	if cmd == nil {
+		t.Fatal("expected edit command")
+	}
+	msg := cmd()
+	updated, _ = model.Update(msg)
+	model = updated.(Model)
+
+	if !called {
+		t.Fatal("expected EditMRFunc to be called")
+	}
+	if model.items[0].Title != "New title" {
+		t.Fatalf("expected title updated locally, got %q", model.items[0].Title)
+	}
+}
+
+func TestEKeyInDiffViewOpensFileInEditor(t *testing.T) {
+	openedPath := ""
+	openedLine := 0
+	model := NewModelWithProject(FakeMergeRequests(), ProjectOptions{
+		Path:    "group/project",
+		Section: SectionMergeRequests,
+		LoadFiles: func(iid int) ([]mr.ChangedFile, error) { return nil, nil },
+		LoadDiscussions: func(iid int) ([]mr.Discussion, error) { return nil, nil },
+		OpenEditor: func(path string, line int) error {
+			openedPath = path
+			openedLine = line
+			return nil
+		},
+	})
+
+	// Navigate to Files tab and open file
+	updated, _ := model.Update(tea.KeyMsg{Type: tea.KeyTab})
+	model = updated.(Model)
+	updated, _ = model.Update(tea.KeyMsg{Type: tea.KeyTab})
+	model = updated.(Model)
+	updated, _ = model.Update(filesFinishedMsg{iid: 42, files: []mr.ChangedFile{
+		{Path: "internal/tui/model.go", Diff: []mr.DiffRow{
+			{OldLine: 10, NewLine: 10, OldText: "old", NewText: "old"},
+			{OldLine: 0, NewLine: 11, NewText: "new line"},
+		}},
+	}})
+	model = updated.(Model)
+	updated, _ = model.Update(tea.KeyMsg{Type: tea.KeyEnter})
+	model = updated.(Model)
+
+	// Move cursor to second row (NewLine=11)
+	updated, _ = model.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune("j")})
+	model = updated.(Model)
+
+	// Press 'e' to open in editor
+	updated, cmd := model.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune("e")})
+	model = updated.(Model)
+
+	if cmd == nil {
+		t.Fatal("expected open editor command")
+	}
+	cmd()
+
+	if openedPath != "internal/tui/model.go" {
+		t.Fatalf("expected path internal/tui/model.go, got %q", openedPath)
+	}
+	if openedLine != 11 {
+		t.Fatalf("expected line 11, got %d", openedLine)
+	}
+}
+
 func TestTabKeyCyclesDetailTabs(t *testing.T) {
 	model := NewModelWithProject(FakeMergeRequests(), ProjectOptions{Path: "group/project", Section: SectionMergeRequests})
 

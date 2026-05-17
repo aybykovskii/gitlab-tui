@@ -73,6 +73,11 @@ type ResolveDiscussionFunc   func(iid int, discussionID string) error
 type UnresolveDiscussionFunc func(iid int, discussionID string) error
 type PostInlineCommentFunc   func(iid int, position mr.DiffPosition, body string) error
 type PostMRCommentFunc       func(iid int, body string) error
+type ApproveMRFunc           func(iid int) error
+type MergeMRFunc             func(iid int) error
+type EditMRFunc              func(iid int, title, description string) error
+type OpenURLFunc             func(url string) error
+type OpenEditorFunc          func(path string, line int) error
 
 type ProjectData struct {
 	Items           []mr.MergeRequest
@@ -101,6 +106,11 @@ type ProjectOptions struct {
 	UnresolveDiscussion UnresolveDiscussionFunc
 	PostInlineComment   PostInlineCommentFunc
 	PostMRComment       PostMRCommentFunc
+	ApproveMR           ApproveMRFunc
+	MergeMR             MergeMRFunc
+	EditMR              EditMRFunc
+	OpenURL             OpenURLFunc
+	OpenEditor          OpenEditorFunc
 }
 
 type projectStartedMsg struct {
@@ -167,6 +177,32 @@ type mrCommentFinishedMsg struct {
 	err error
 }
 
+type approveMRFinishedMsg struct {
+	iid int
+	err error
+}
+
+type mergeMRFinishedMsg struct {
+	iid int
+	err error
+}
+
+type editMRFinishedMsg struct {
+	iid         int
+	title       string
+	description string
+	err         error
+}
+
+type openURLMsg struct {
+	url string
+	err error
+}
+
+type openEditorMsg struct {
+	err error
+}
+
 type refreshStartedMsg struct{}
 
 type refreshFinishedMsg struct {
@@ -214,8 +250,19 @@ type Model struct {
 	mrCommentInput      bool
 	mrCommentBuffer     string
 	mrCommentError      string
+	mergeConfirmPending bool
+	editInput           bool
+	editField           string
+	editBuffer          string
+	editTitle           string
+	actionError         string
 	postInlineComment   PostInlineCommentFunc
 	postMRComment       PostMRCommentFunc
+	approveMR           ApproveMRFunc
+	mergeMR             MergeMRFunc
+	editMR              EditMRFunc
+	openURL             OpenURLFunc
+	openEditor          OpenEditorFunc
 	drafts              map[int][]mr.DraftComment
 	submitDrafts        SubmitDraftsFunc
 	discardDrafts       DiscardDraftsFunc
@@ -282,6 +329,11 @@ func NewModelWithProject(items []mr.MergeRequest, options ProjectOptions) Model 
 		unresolveDiscussion: options.UnresolveDiscussion,
 		postInlineComment:   options.PostInlineComment,
 		postMRComment:       options.PostMRComment,
+		approveMR:           options.ApproveMR,
+		mergeMR:             options.MergeMR,
+		editMR:              options.EditMR,
+		openURL:             options.OpenURL,
+		openEditor:          options.OpenEditor,
 	}
 	if model.projectPath == "" {
 		if len(model.projectList) > 0 {
@@ -381,6 +433,43 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case filesStartedMsg:
 		m.filesLoading = true
 		m.filesError = ""
+		return m, nil
+	case approveMRFinishedMsg:
+		if msg.err != nil {
+			m.actionError = msg.err.Error()
+		} else {
+			m.actionError = "Approved"
+		}
+		return m, nil
+	case mergeMRFinishedMsg:
+		m.mergeConfirmPending = false
+		if msg.err != nil {
+			m.actionError = msg.err.Error()
+		} else {
+			m.actionError = "Merged"
+		}
+		return m, nil
+	case editMRFinishedMsg:
+		if msg.err != nil {
+			m.actionError = msg.err.Error()
+		} else {
+			for i, item := range m.items {
+				if item.IID == msg.iid {
+					m.items[i].Title = msg.title
+					m.items[i].Description = msg.description
+				}
+			}
+		}
+		return m, nil
+	case openURLMsg:
+		if msg.err != nil {
+			m.actionError = msg.err.Error()
+		}
+		return m, nil
+	case openEditorMsg:
+		if msg.err != nil {
+			m.actionError = msg.err.Error()
+		}
 		return m, nil
 	case inlineCommentFinishedMsg:
 		if msg.err != nil {
@@ -778,6 +867,21 @@ func (m Model) updateKey(msg tea.KeyMsg) (Model, tea.Cmd) {
 					},
 				)
 			}
+		case "e":
+			files := m.currentFiles()
+			if len(files) > m.selectedFile && m.openEditor != nil {
+				file := files[m.selectedFile]
+				line := 0
+				if m.diffCursor < len(file.Diff) {
+					line = file.Diff[m.diffCursor].NewLine
+				}
+				fn := m.openEditor
+				path := file.Path
+				return m, func() tea.Msg {
+					err := fn(path, line)
+					return openEditorMsg{err: err}
+				}
+			}
 		case "D":
 			item, ok := m.selectedItem()
 			if ok {
@@ -802,8 +906,17 @@ func (m Model) updateKey(msg tea.KeyMsg) (Model, tea.Cmd) {
 		return m, nil
 	}
 
+	if m.mode == ModeDetail && m.editInput {
+		return m.updateMREdit(msg)
+	}
+
 	if m.mode == ModeDetail && m.mrCommentInput {
 		return m.updateMRCommentInput(msg)
+	}
+
+	if m.mode == ModeDetail && m.mergeConfirmPending && msg.String() != "M" {
+		m.mergeConfirmPending = false
+		return m, nil
 	}
 
 	if m.mode == ModeDetail && m.activeTab == TabDiscussions {
@@ -836,6 +949,57 @@ func (m Model) updateKey(msg tea.KeyMsg) (Model, tea.Cmd) {
 			m.mrCommentBuffer = ""
 			m.mrCommentError = ""
 		}
+	case "A":
+		if m.mode == ModeDetail {
+			item, ok := m.selectedItem()
+			if ok && m.approveMR != nil {
+				fn := m.approveMR
+				iid := item.IID
+				return m, func() tea.Msg {
+					err := fn(iid)
+					return approveMRFinishedMsg{iid: iid, err: err}
+				}
+			}
+		}
+	case "M":
+		if m.mode == ModeDetail {
+			if m.mergeConfirmPending {
+				item, ok := m.selectedItem()
+				if ok && m.mergeMR != nil {
+					fn := m.mergeMR
+					iid := item.IID
+					return m, func() tea.Msg {
+						err := fn(iid)
+						return mergeMRFinishedMsg{iid: iid, err: err}
+					}
+				}
+				m.mergeConfirmPending = false
+			} else {
+				m.mergeConfirmPending = true
+			}
+		}
+	case "o":
+		if m.mode == ModeDetail {
+			item, ok := m.selectedItem()
+			if ok && item.WebURL != "" && m.openURL != nil {
+				fn := m.openURL
+				url := item.WebURL
+				return m, func() tea.Msg {
+					err := fn(url)
+					return openURLMsg{url: url, err: err}
+				}
+			}
+		}
+	case "e":
+		if m.mode == ModeDetail {
+			item, ok := m.selectedItem()
+			if ok {
+				m.editInput = true
+				m.editField = "title"
+				m.editBuffer = item.Title
+				m.editTitle = ""
+			}
+		}
 	case "tab":
 		if m.mode == ModeDetail {
 			m.activeTab = (m.activeTab + 1) % (TabFiles + 1)
@@ -866,6 +1030,50 @@ func (m Model) updateKey(msg tea.KeyMsg) (Model, tea.Cmd) {
 		}
 	}
 
+	return m, nil
+}
+
+func (m Model) updateMREdit(msg tea.KeyMsg) (Model, tea.Cmd) {
+	switch msg.Type {
+	case tea.KeyEsc:
+		m.editInput = false
+		m.editBuffer = ""
+		m.editTitle = ""
+	case tea.KeyBackspace:
+		if len(m.editBuffer) > 0 {
+			m.editBuffer = m.editBuffer[:len(m.editBuffer)-1]
+		}
+	case tea.KeyRunes:
+		m.editBuffer += msg.String()
+	case tea.KeyTab:
+		if m.editField == "title" {
+			m.editTitle = m.editBuffer
+			item, _ := m.selectedItem()
+			m.editField = "description"
+			m.editBuffer = item.Description
+		}
+	case tea.KeyEnter:
+		title := m.editTitle
+		desc := m.editBuffer
+		if m.editField == "title" {
+			title = m.editBuffer
+			item, _ := m.selectedItem()
+			desc = item.Description
+		}
+		m.editInput = false
+		m.editBuffer = ""
+		m.editTitle = ""
+		item, ok := m.selectedItem()
+		if !ok || m.editMR == nil {
+			return m, nil
+		}
+		fn := m.editMR
+		iid := item.IID
+		return m, func() tea.Msg {
+			err := fn(iid, title, desc)
+			return editMRFinishedMsg{iid: iid, title: title, description: desc, err: err}
+		}
+	}
 	return m, nil
 }
 
@@ -1398,13 +1606,21 @@ func (m Model) renderRight() string {
 		if item.WebURL != "" {
 			lines = append(lines, "URL: "+item.WebURL)
 		}
+		if m.actionError != "" {
+			lines = append(lines, "", "Action: "+m.actionError)
+		}
+		if m.mergeConfirmPending {
+			lines = append(lines, "", "Press M again to confirm merge  (any other key cancels)")
+		}
 		if m.mrCommentError != "" {
 			lines = append(lines, "", "Comment error: "+m.mrCommentError)
 		}
-		if m.mrCommentInput {
+		if m.editInput {
+			lines = append(lines, "", fmt.Sprintf("Edit %s: %s█", m.editField, m.editBuffer), "Tab: next field  Enter: save  Esc: cancel")
+		} else if m.mrCommentInput {
 			lines = append(lines, "", "MR comment: "+m.mrCommentBuffer+"█", "Enter: send  Esc: cancel")
 		} else {
-			lines = append(lines, "", item.Description, "", "m: comment  Enter/click right pane: open diff  Tab: next tab")
+			lines = append(lines, "", item.Description, "", "A: approve  M: merge  e: edit  o: open  m: comment  Tab: next tab")
 		}
 		return style.Render(strings.Join(lines, "\n"))
 	}
