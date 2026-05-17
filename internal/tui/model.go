@@ -30,13 +30,31 @@ const (
 
 type RefreshFunc func() ([]mr.MergeRequest, error)
 type DiffFunc func(iid int) ([]mr.DiffRow, error)
+type ProjectLoadFunc func(path string) (ProjectData, error)
 
-type ProjectOptions struct {
-	Path     string
-	Recents  []string
+type ProjectData struct {
 	Items    []mr.MergeRequest
 	Refresh  RefreshFunc
 	LoadDiff DiffFunc
+}
+
+type ProjectOptions struct {
+	Path        string
+	Recents     []string
+	Items       []mr.MergeRequest
+	Refresh     RefreshFunc
+	LoadDiff    DiffFunc
+	LoadProject ProjectLoadFunc
+}
+
+type projectStartedMsg struct {
+	path string
+}
+
+type projectFinishedMsg struct {
+	path string
+	data ProjectData
+	err  error
 }
 
 type refreshStartedMsg struct{}
@@ -69,7 +87,10 @@ type Model struct {
 	projectInput   string
 	refresh        RefreshFunc
 	loadDiff       DiffFunc
+	loadProject    ProjectLoadFunc
 	loading        bool
+	projectLoading bool
+	projectError   bool
 	diffLoading    bool
 	errorMessage   string
 }
@@ -95,6 +116,7 @@ func NewModelWithProject(items []mr.MergeRequest, options ProjectOptions) Model 
 		recentProjects: options.Recents,
 		refresh:        options.Refresh,
 		loadDiff:       options.LoadDiff,
+		loadProject:    options.LoadProject,
 	}
 	if model.projectPath == "" {
 		if len(model.recentProjects) > 0 {
@@ -130,6 +152,36 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m.updateKey(msg)
 	case tea.MouseMsg:
 		return m.updateMouse(msg)
+	case projectStartedMsg:
+		m.projectPath = msg.path
+		m.mode = ModeDetail
+		m.focus = FocusList
+		m.loading = true
+		m.projectLoading = true
+		m.projectError = false
+		m.items = nil
+		m.errorMessage = ""
+		return m, nil
+	case projectFinishedMsg:
+		m.loading = false
+		m.projectLoading = false
+		if msg.err != nil {
+			m.projectError = true
+			m.items = nil
+			m.errorMessage = msg.err.Error()
+			return m, nil
+		}
+		m.projectError = false
+		m.projectPath = msg.path
+		m.items = msg.data.Items
+		m.refresh = msg.data.Refresh
+		m.loadDiff = msg.data.LoadDiff
+		m.selected = clampSelection(0, len(m.filtered()))
+		m.listTop = 0
+		m.rightTop = 0
+		m.mode = ModeDetail
+		m.focus = FocusList
+		return m, nil
 	case refreshStartedMsg:
 		m.loading = true
 		m.errorMessage = ""
@@ -173,9 +225,7 @@ func (m Model) updateKey(msg tea.KeyMsg) (Model, tea.Cmd) {
 			m.selected = clamp(m.selected+1, 0, len(m.recentProjects)-1)
 		case "enter":
 			if len(m.recentProjects) > 0 {
-				m.projectPath = m.recentProjects[m.selected]
-				m.mode = ModeDetail
-				m.selected = 0
+				return m.openProjectCommand(m.recentProjects[m.selected])
 			}
 		case "i":
 			m.mode = ModeProjectInput
@@ -189,9 +239,7 @@ func (m Model) updateKey(msg tea.KeyMsg) (Model, tea.Cmd) {
 		switch msg.Type {
 		case tea.KeyEnter:
 			if strings.TrimSpace(m.projectInput) != "" {
-				m.projectPath = strings.TrimSpace(m.projectInput)
-				m.mode = ModeDetail
-				m.focus = FocusList
+				return m.openProjectCommand(strings.TrimSpace(m.projectInput))
 			}
 		case tea.KeyBackspace:
 			if len(m.projectInput) > 0 {
@@ -222,9 +270,22 @@ func (m Model) updateKey(msg tea.KeyMsg) (Model, tea.Cmd) {
 	switch msg.String() {
 	case "q", "ctrl+c":
 		return m, tea.Quit
+	case "esc":
+		if m.projectError || (m.projectPath != "" && len(m.items) == 0) {
+			m.errorMessage = ""
+			m.returnToProjectPicker()
+			return m, nil
+		}
+		if m.mode == ModeDiff {
+			m.mode = ModeDetail
+			m.rightTop = 0
+		}
 	case "/":
 		m.focus = FocusFilter
 	case "r":
+		if m.projectError && m.projectPath != "" {
+			return m.openProjectCommand(m.projectPath)
+		}
 		return m, m.refreshCommand()
 	case "tab":
 		if m.focus == FocusList {
@@ -240,7 +301,7 @@ func (m Model) updateKey(msg tea.KeyMsg) (Model, tea.Cmd) {
 		if item, ok := m.selectedItem(); ok {
 			return m.openDiffCommand(item)
 		}
-	case "esc", "backspace":
+	case "backspace":
 		if m.mode == ModeDiff {
 			m.mode = ModeDetail
 			m.rightTop = 0
@@ -248,6 +309,37 @@ func (m Model) updateKey(msg tea.KeyMsg) (Model, tea.Cmd) {
 	}
 
 	return m, nil
+}
+
+func (m *Model) returnToProjectPicker() {
+	m.projectPath = ""
+	if len(m.recentProjects) > 0 {
+		m.mode = ModeProjectSelect
+		m.focus = FocusList
+		return
+	}
+	m.mode = ModeProjectInput
+	m.focus = FocusFilter
+}
+
+func (m Model) openProjectCommand(path string) (Model, tea.Cmd) {
+	m.projectPath = path
+	m.mode = ModeDetail
+	m.focus = FocusList
+	m.selected = 0
+	m.listTop = 0
+	m.rightTop = 0
+	if m.loadProject == nil {
+		return m, nil
+	}
+	loadProject := m.loadProject
+	return m, tea.Sequence(
+		func() tea.Msg { return projectStartedMsg{path: path} },
+		func() tea.Msg {
+			data, err := loadProject(path)
+			return projectFinishedMsg{path: path, data: data, err: err}
+		},
+	)
 }
 
 func (m Model) openDiffCommand(item mr.MergeRequest) (Model, tea.Cmd) {
@@ -287,8 +379,7 @@ func (m Model) updateMouse(msg tea.MouseMsg) (Model, tea.Cmd) {
 			idx := msg.Y - 2
 			if idx >= 0 && idx < len(m.recentProjects) {
 				m.selected = idx
-				m.projectPath = m.recentProjects[idx]
-				m.mode = ModeDetail
+				return m.openProjectCommand(m.recentProjects[idx])
 			}
 		}
 		if msg.Button == tea.MouseButtonWheelUp {
@@ -394,11 +485,16 @@ func (m Model) renderList() string {
 	height := max(8, m.height)
 	style := paneStyle(width, height, m.focus == FocusList || m.focus == FocusFilter)
 	lines := []string{"Project: " + m.projectPath, "Merge Requests", "Filter: " + m.query}
-	if m.loading {
+	if m.projectLoading {
+		lines = append(lines, "Loading project…")
+	} else if m.loading {
 		lines = append(lines, "Refreshing…")
 	}
 	if m.errorMessage != "" {
 		lines = append(lines, "Error: "+m.errorMessage)
+		if m.projectError {
+			lines = append(lines, "Esc: choose project")
+		}
 	}
 	if m.diffLoading {
 		lines = append(lines, "Loading diff…")
@@ -406,6 +502,9 @@ func (m Model) renderList() string {
 	items := m.filtered()
 	if len(items) == 0 {
 		lines = append(lines, "No opened MRs")
+		if len(m.items) == 0 && m.projectPath != "" {
+			lines = append(lines, "r refresh  Esc: choose project")
+		}
 	} else {
 		visible := max(1, height-5)
 		end := min(len(items), m.listTop+visible)
@@ -414,7 +513,9 @@ func (m Model) renderList() string {
 			if i == m.selected {
 				prefix = "> "
 			}
-			lines = append(lines, fmt.Sprintf("%s!%d %s", prefix, items[i].IID, items[i].Title))
+			item := items[i]
+			lines = append(lines, fmt.Sprintf("%s%s !%d %s", prefix, pipelineIcon(item.Pipeline), item.IID, item.Title))
+			lines = append(lines, fmt.Sprintf("  %s %s → %s", item.Author, item.SourceBranch, item.TargetBranch))
 		}
 	}
 	lines = append(lines, "", "↑/↓ select  / filter  r refresh  Enter diff")
@@ -433,19 +534,20 @@ func (m Model) renderRight() string {
 	if m.mode == ModeDiff {
 		return style.Render(m.renderDiff(item))
 	}
-	return style.Render(strings.Join([]string{
+	lines := []string{
 		fmt.Sprintf("!%d %s", item.IID, item.Title),
 		"",
-		"Author: " + item.Author,
+		"Author: " + formatAuthor(item),
 		"Branches: " + item.SourceBranch + " → " + item.TargetBranch,
 		"State: " + item.State,
-		"Pipeline: " + item.Pipeline,
+		"Pipeline: " + pipelineIcon(item.Pipeline) + " " + item.Pipeline,
 		"Approvals: " + item.Approvals,
-		"",
-		item.Description,
-		"",
-		"Enter/click right pane: open fake diff",
-	}, "\n"))
+	}
+	if item.WebURL != "" {
+		lines = append(lines, "URL: "+item.WebURL)
+	}
+	lines = append(lines, "", item.Description, "", "Enter/click right pane: open diff")
+	return style.Render(strings.Join(lines, "\n"))
 }
 
 func (m Model) renderDiff(item mr.MergeRequest) string {
@@ -460,6 +562,28 @@ func (m Model) renderDiff(item mr.MergeRequest) string {
 	visible := max(1, m.height-2)
 	end := min(len(lines), m.rightTop+visible)
 	return strings.Join(lines[m.rightTop:end], "\n")
+}
+
+func formatAuthor(item mr.MergeRequest) string {
+	if item.AuthorUsername == "" || item.AuthorUsername == item.Author {
+		return item.Author
+	}
+	return item.Author + " @" + item.AuthorUsername
+}
+
+func pipelineIcon(status string) string {
+	switch status {
+	case "success":
+		return "✓"
+	case "failed":
+		return "✗"
+	case "running":
+		return "●"
+	case "pending":
+		return "○"
+	default:
+		return "–"
+	}
 }
 
 func (m Model) filtered() []mr.MergeRequest {

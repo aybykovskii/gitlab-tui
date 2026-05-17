@@ -17,8 +17,13 @@ type MergeRequestClient interface {
 	ListMergeRequestDiffs(pid any, mergeRequest int64, opt *glab.ListMergeRequestDiffsOptions, options ...glab.RequestOptionFunc) ([]*glab.MergeRequestDiff, *glab.Response, error)
 }
 
+type MergeRequestApprovalsClient interface {
+	GetConfiguration(pid any, mr int64, options ...glab.RequestOptionFunc) (*glab.MergeRequestApprovals, *glab.Response, error)
+}
+
 type Client struct {
 	mergeRequests MergeRequestClient
+	approvals     MergeRequestApprovalsClient
 }
 
 func NewClient(account config.Account, env []string) (Client, error) {
@@ -32,11 +37,15 @@ func NewClient(account config.Account, env []string) (Client, error) {
 		return Client{}, err
 	}
 
-	return Client{mergeRequests: client.MergeRequests}, nil
+	return Client{mergeRequests: client.MergeRequests, approvals: client.MergeRequestApprovals}, nil
 }
 
 func NewClientWithMergeRequests(mergeRequests MergeRequestClient) Client {
 	return Client{mergeRequests: mergeRequests}
+}
+
+func NewClientWithServices(mergeRequests MergeRequestClient, approvals MergeRequestApprovalsClient) Client {
+	return Client{mergeRequests: mergeRequests, approvals: approvals}
 }
 
 func (c Client) OpenMergeRequests(ctx context.Context, projectPath string) ([]mr.MergeRequest, error) {
@@ -60,7 +69,15 @@ func (c Client) OpenMergeRequests(ctx context.Context, projectPath string) ([]mr
 			return nil, err
 		}
 		for _, item := range items {
-			result = append(result, MapMergeRequest(item))
+			mapped := MapMergeRequest(item)
+			if c.approvals != nil && item != nil {
+				approval, _, approvalErr := c.approvals.GetConfiguration(projectPath, item.IID, glab.WithContext(ctx))
+				if approvalErr != nil {
+					return nil, approvalErr
+				}
+				mapped.Approvals = formatApprovals(approval)
+			}
+			result = append(result, mapped)
 		}
 		if response == nil || response.NextPage == 0 {
 			break
@@ -105,10 +122,12 @@ func MapMergeRequest(item *glab.BasicMergeRequest) mr.MergeRequest {
 	}
 
 	author := ""
+	authorUsername := ""
 	if item.Author != nil {
-		author = item.Author.Username
+		author = item.Author.Name
+		authorUsername = item.Author.Username
 		if author == "" {
-			author = item.Author.Name
+			author = authorUsername
 		}
 	}
 
@@ -118,14 +137,27 @@ func MapMergeRequest(item *glab.BasicMergeRequest) mr.MergeRequest {
 	}
 
 	return mr.MergeRequest{
-		IID:          int(item.IID),
-		Title:        item.Title,
-		Author:       author,
-		SourceBranch: item.SourceBranch,
-		TargetBranch: item.TargetBranch,
-		State:        item.State,
-		Pipeline:     pipeline,
-		Approvals:    "—",
-		Description:  item.Description,
+		IID:            int(item.IID),
+		Title:          item.Title,
+		Author:         author,
+		AuthorUsername: authorUsername,
+		SourceBranch:   item.SourceBranch,
+		TargetBranch:   item.TargetBranch,
+		State:          item.State,
+		Pipeline:       pipeline,
+		Approvals:      "—",
+		Description:    item.Description,
+		WebURL:         item.WebURL,
 	}
+}
+
+func formatApprovals(approval *glab.MergeRequestApprovals) string {
+	if approval == nil {
+		return "—"
+	}
+	approved := approval.ApprovalsRequired - approval.ApprovalsLeft
+	if approved < 0 {
+		approved = 0
+	}
+	return fmt.Sprintf("%d/%d", approved, approval.ApprovalsRequired)
 }

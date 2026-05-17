@@ -70,43 +70,48 @@ func (a App) runTUI(stdout io.Writer, stderr io.Writer) int {
 		return 1
 	}
 	resolution := ProjectResolver{Config: cfg, Remotes: gitremote.CommandRunner{Dir: cwd}}.Resolve()
-	options := tui.ProjectOptions{Path: resolution.Path}
+	loadProject := func(projectPath string) (tui.ProjectData, error) {
+		account, ok := cfg.Account(resolution.Account)
+		if !ok {
+			return tui.ProjectData{}, fmt.Errorf("account %q not found", resolution.Account)
+		}
+		client, err := gitlabclient.NewClient(account, a.env)
+		if err != nil {
+			return tui.ProjectData{}, fmt.Errorf("create GitLab client: %w", err)
+		}
+		loadMRs := func() ([]mr.MergeRequest, error) {
+			return client.OpenMergeRequests(context.Background(), projectPath)
+		}
+		loadDiff := func(iid int) ([]mr.DiffRow, error) {
+			return client.MergeRequestDiff(context.Background(), projectPath, iid)
+		}
+		items, err := loadMRs()
+		if err != nil {
+			return tui.ProjectData{}, fmt.Errorf("load merge requests: %w", err)
+		}
+		RememberResolvedProject(&cfg, resolution.Account, projectPath, time.Now())
+		if configLoaded {
+			if err := config.Save(configPath, cfg); err != nil {
+				return tui.ProjectData{}, fmt.Errorf("save recent project: %w", err)
+			}
+		}
+
+		return tui.ProjectData{Items: items, Refresh: loadMRs, LoadDiff: loadDiff}, nil
+	}
+	options := tui.ProjectOptions{Path: resolution.Path, LoadProject: loadProject}
 	for _, recent := range resolution.Recents {
 		options.Recents = append(options.Recents, recent.Path)
 	}
 
 	if resolution.Path != "" {
-		account, ok := cfg.Account(resolution.Account)
-		if !ok {
-			fmt.Fprintf(stderr, "account %q not found\n", resolution.Account)
-			return 1
-		}
-		client, err := gitlabclient.NewClient(account, a.env)
+		data, err := loadProject(resolution.Path)
 		if err != nil {
-			fmt.Fprintf(stderr, "create GitLab client: %v\n", err)
+			fmt.Fprintln(stderr, err)
 			return 1
 		}
-		loadMRs := func() ([]mr.MergeRequest, error) {
-			return client.OpenMergeRequests(context.Background(), resolution.Path)
-		}
-		loadDiff := func(iid int) ([]mr.DiffRow, error) {
-			return client.MergeRequestDiff(context.Background(), resolution.Path, iid)
-		}
-		items, err := loadMRs()
-		if err != nil {
-			fmt.Fprintf(stderr, "load merge requests: %v\n", err)
-			return 1
-		}
-		options.Items = items
-		options.Refresh = loadMRs
-		options.LoadDiff = loadDiff
-		RememberResolvedProject(&cfg, resolution.Account, resolution.Path, time.Now())
-		if configLoaded {
-			if err := config.Save(configPath, cfg); err != nil {
-				fmt.Fprintf(stderr, "save recent project: %v\n", err)
-				return 1
-			}
-		}
+		options.Items = data.Items
+		options.Refresh = data.Refresh
+		options.LoadDiff = data.LoadDiff
 	}
 
 	if err := tui.RunWithProject(stdout, options); err != nil {

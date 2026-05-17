@@ -3,16 +3,18 @@ package mr
 import "strings"
 
 type MergeRequest struct {
-	IID          int
-	Title        string
-	Author       string
-	SourceBranch string
-	TargetBranch string
-	State        string
-	Pipeline     string
-	Approvals    string
-	Description  string
-	Diff         []DiffRow
+	IID            int
+	Title          string
+	Author         string
+	AuthorUsername string
+	SourceBranch   string
+	TargetBranch   string
+	State          string
+	Pipeline       string
+	Approvals      string
+	Description    string
+	WebURL         string
+	Diff           []DiffRow
 }
 
 type DiffRow struct {

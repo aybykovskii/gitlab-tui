@@ -12,6 +12,10 @@ type fakeMergeRequests struct {
 	pages [][]*glab.BasicMergeRequest
 }
 
+type fakeApprovals struct {
+	configs map[int64]*glab.MergeRequestApprovals
+}
+
 func (f *fakeMergeRequests) ListProjectMergeRequests(pid any, opt *glab.ListProjectMergeRequestsOptions, options ...glab.RequestOptionFunc) ([]*glab.BasicMergeRequest, *glab.Response, error) {
 	f.calls++
 	page := int(opt.Page)
@@ -27,6 +31,13 @@ func (f *fakeMergeRequests) ListProjectMergeRequests(pid any, opt *glab.ListProj
 
 func (f *fakeMergeRequests) ListMergeRequestDiffs(pid any, mergeRequest int64, opt *glab.ListMergeRequestDiffsOptions, options ...glab.RequestOptionFunc) ([]*glab.MergeRequestDiff, *glab.Response, error) {
 	return []*glab.MergeRequestDiff{{Diff: "@@ -1 +1 @@\n-old\n+new"}}, &glab.Response{}, nil
+}
+
+func (f fakeApprovals) GetConfiguration(pid any, mergeRequest int64, options ...glab.RequestOptionFunc) (*glab.MergeRequestApprovals, *glab.Response, error) {
+	if f.configs == nil {
+		return nil, &glab.Response{}, nil
+	}
+	return f.configs[mergeRequest], &glab.Response{}, nil
 }
 
 func TestOpenMergeRequestsMapsAllPages(t *testing.T) {
@@ -73,9 +84,35 @@ func TestMergeRequestDiffParsesRows(t *testing.T) {
 	}
 }
 
-func TestMapMergeRequestUsesDetailedMergeStatusAsPipeline(t *testing.T) {
-	item := MapMergeRequest(&glab.BasicMergeRequest{IID: 3, Title: "MR", DetailedMergeStatus: "mergeable"})
-	if item.Pipeline != "mergeable" {
-		t.Fatalf("expected mergeable pipeline, got %q", item.Pipeline)
+func TestOpenMergeRequestsAddsApprovalCounts(t *testing.T) {
+	client := NewClientWithServices(&fakeMergeRequests{pages: [][]*glab.BasicMergeRequest{{{IID: 3, Title: "MR"}}}}, fakeApprovals{
+		configs: map[int64]*glab.MergeRequestApprovals{3: {ApprovalsRequired: 2, ApprovalsLeft: 1}},
+	})
+
+	items, err := client.OpenMergeRequests(context.Background(), "group/project")
+	if err != nil {
+		t.Fatalf("expected no error, got %v", err)
+	}
+	if items[0].Approvals != "1/2" {
+		t.Fatalf("expected approval counts, got %q", items[0].Approvals)
+	}
+}
+
+func TestMapMergeRequestKeepsPreviousMRInfo(t *testing.T) {
+	item := MapMergeRequest(&glab.BasicMergeRequest{
+		IID:                 3,
+		Title:               "MR",
+		DetailedMergeStatus: "success",
+		WebURL:              "https://gitlab.com/group/project/-/merge_requests/3",
+		Author:              &glab.BasicUser{Name: "Alice Doe", Username: "alice"},
+	})
+	if item.Pipeline != "success" {
+		t.Fatalf("expected success pipeline, got %q", item.Pipeline)
+	}
+	if item.Author != "Alice Doe" || item.AuthorUsername != "alice" {
+		t.Fatalf("unexpected author: %+v", item)
+	}
+	if item.WebURL != "https://gitlab.com/group/project/-/merge_requests/3" {
+		t.Fatalf("unexpected web URL: %q", item.WebURL)
 	}
 }
