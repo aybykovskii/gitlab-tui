@@ -5,6 +5,7 @@ import (
 	"io"
 
 	"github.com/aybykovskii/gitlab-tui/internal/config"
+	"github.com/aybykovskii/gitlab-tui/internal/tui"
 )
 
 type App struct {
@@ -22,7 +23,10 @@ func NewWithEnv(version string, env []string) App {
 
 func (a App) Run(args []string, stdout io.Writer, stderr io.Writer) int {
 	if len(args) == 0 {
-		fmt.Fprintln(stdout, "gitlab-tui-go TUI is not implemented yet")
+		if err := tui.Run(stdout); err != nil {
+			fmt.Fprintf(stderr, "run TUI: %v\n", err)
+			return 1
+		}
 		return 0
 	}
 
