@@ -330,7 +330,6 @@ func TestAddIssueCommentCreatesIssueDiscussion(t *testing.T) {
 	}
 }
 
-
 func TestOpenMergeRequestsAddsApprovalCounts(t *testing.T) {
 	client := NewClientWithServices(&fakeMergeRequests{pages: [][]*glab.BasicMergeRequest{{{IID: 3, Title: "MR"}}}}, fakeApprovals{
 		configs: map[int64]*glab.MergeRequestApprovals{3: {ApprovalsRequired: 2, ApprovalsLeft: 1}},
@@ -451,9 +450,9 @@ func (f *fakeMergeRequestEdit) UpdateMergeRequest(pid any, mergeRequest int64, o
 
 func TestMapMergeRequestFillsLabelsAndDraft(t *testing.T) {
 	item := MapMergeRequest(&glab.BasicMergeRequest{
-		IID:   10,
-		Title: "Draft: My MR",
-		Draft: true,
+		IID:    10,
+		Title:  "Draft: My MR",
+		Draft:  true,
 		Labels: glab.Labels{"backend", "performance"},
 		Assignees: []*glab.BasicUser{
 			{Name: "Alice", Username: "alice"},

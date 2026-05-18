@@ -306,7 +306,6 @@ func TestMRListAndDetailRenderPreviousMRInfo(t *testing.T) {
 	}
 }
 
-
 func TestProjectSelectionShowsRecentsAndGitLabProjects(t *testing.T) {
 	model := NewModelWithProject(FakeMergeRequests(), ProjectOptions{
 		Recents:  []string{"recent/project"},
@@ -527,7 +526,6 @@ func TestRefreshFinishedStoresError(t *testing.T) {
 		t.Fatalf("expected refresh error, got %q", model.errorMessage)
 	}
 }
-
 
 // --- #41: MR detail tabs ---
 
@@ -1766,8 +1764,10 @@ func diffViewWithInlineDiscussion(t *testing.T, replyFn ReplyToDiscussionFunc) M
 	model = updated.(Model)
 	// Load discussions with inline position on new line 1
 	updated, _ = model.Update(discussionsFinishedMsg{iid: 42, discussions: []mr.Discussion{
-		{ID: "inline-d1", Resolved: false, Notes: []mr.Note{{Author: "alice", Body: "inline comment"}},
-			Position: &mr.DiffPosition{NewPath: "main.go", NewLine: 1}},
+		{
+			ID: "inline-d1", Resolved: false, Notes: []mr.Note{{Author: "alice", Body: "inline comment"}},
+			Position: &mr.DiffPosition{NewPath: "main.go", NewLine: 1},
+		},
 	}})
 	model = updated.(Model)
 	updated, _ = model.Update(tea.KeyMsg{Type: tea.KeyTab})
@@ -1838,8 +1838,10 @@ func TestXKeyInDiffViewResolvesInlineDiscussion(t *testing.T) {
 	updated, _ := model.Update(tea.KeyMsg{Type: tea.KeyTab})
 	model = updated.(Model)
 	updated, _ = model.Update(discussionsFinishedMsg{iid: 42, discussions: []mr.Discussion{
-		{ID: "inline-d1", Resolved: false, Notes: []mr.Note{{Author: "alice", Body: "fix"}},
-			Position: &mr.DiffPosition{NewPath: "main.go", NewLine: 1}},
+		{
+			ID: "inline-d1", Resolved: false, Notes: []mr.Note{{Author: "alice", Body: "fix"}},
+			Position: &mr.DiffPosition{NewPath: "main.go", NewLine: 1},
+		},
 	}})
 	model = updated.(Model)
 	updated, _ = model.Update(tea.KeyMsg{Type: tea.KeyTab})
@@ -2418,7 +2420,6 @@ func TestDiffAdditionRowIsMarkedWithPlus(t *testing.T) {
 }
 
 // --- #50: Left panel always read-only, no focus ---
-
 
 func TestLeftPanelHasNoActiveBorderInDetailMode(t *testing.T) {
 	model := NewFakeModel()

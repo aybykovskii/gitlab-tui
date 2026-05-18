@@ -318,4 +318,3 @@ func renderDiscussionBlock(discussion mr.Discussion, header string, cursor strin
 	}
 	return lines
 }
-

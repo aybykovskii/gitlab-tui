@@ -248,7 +248,6 @@ func (c Client) ListProjectIssues(ctx context.Context, projectPath string, state
 	return result, nil
 }
 
-
 func MapMergeRequest(item *glab.BasicMergeRequest) mr.MergeRequest {
 	if item == nil {
 		return mr.MergeRequest{}

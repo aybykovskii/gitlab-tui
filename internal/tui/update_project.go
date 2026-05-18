@@ -123,7 +123,6 @@ func (m Model) ensureDiscussionsLoaded(iid int) tea.Cmd {
 	)
 }
 
-
 func (m Model) refreshCommand() tea.Cmd {
 	if m.section == SectionIssues {
 		return m.loadIssuesCommand()

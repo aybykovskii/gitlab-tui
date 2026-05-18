@@ -66,7 +66,6 @@ func (f *fakeGitLabClient) UnassignSelfIssue(ctx context.Context, projectPath st
 	return nil
 }
 
-
 func (f *fakeGitLabClient) MergeRequestDiscussions(ctx context.Context, projectPath string, iid int) ([]mr.Discussion, error) {
 	return nil, nil
 }

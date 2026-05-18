@@ -15,12 +15,14 @@ type projectFinishedMsg struct {
 	err  error
 }
 
-type accountProjectsStartedMsg struct{ accountID string }
-type accountProjectsFinishedMsg struct {
-	accountID string
-	projects  []string
-	err       error
-}
+type (
+	accountProjectsStartedMsg  struct{ accountID string }
+	accountProjectsFinishedMsg struct {
+		accountID string
+		projects  []string
+		err       error
+	}
+)
 
 type accountProjectState struct {
 	host     string
@@ -35,19 +37,23 @@ type projectListRow struct {
 	selectable bool
 }
 
-type discussionsStartedMsg struct{ iid int }
-type discussionsFinishedMsg struct {
-	iid         int
-	discussions []mr.Discussion
-	err         error
-}
+type (
+	discussionsStartedMsg  struct{ iid int }
+	discussionsFinishedMsg struct {
+		iid         int
+		discussions []mr.Discussion
+		err         error
+	}
+)
 
-type filesStartedMsg struct{ iid int }
-type filesFinishedMsg struct {
-	iid   int
-	files []mr.ChangedFile
-	err   error
-}
+type (
+	filesStartedMsg  struct{ iid int }
+	filesFinishedMsg struct {
+		iid   int
+		files []mr.ChangedFile
+		err   error
+	}
+)
 
 type draftAddedMsg struct {
 	iid   int
@@ -164,4 +170,3 @@ type issueDiscussionsFinishedMsg struct {
 	discussions []issue.Discussion
 	err         error
 }
-

@@ -1,9 +1,7 @@
 package tui
 
 import (
-	"fmt"
 	"strconv"
-	"strings"
 
 	"github.com/charmbracelet/bubbles/key"
 	tea "github.com/charmbracelet/bubbletea"
@@ -309,646 +307,58 @@ func (m Model) updateKey(msg tea.KeyMsg) (Model, tea.Cmd) {
 		m.keyBarExpanded = !m.keyBarExpanded
 		return m, nil
 	}
-	if m.mode == ModeLabelSelect {
+
+	switch m.mode {
+	case ModeLabelSelect:
 		return m.updateLabelSelect(msg)
-	}
-	if m.mode == ModeProjectSelect {
-		if m.projectFilterActive {
-			switch msg.Type {
-			case tea.KeyEsc:
-				m.query = ""
-				m.projectFilterActive = false
-				m.rebuildProjectRows()
-				m.selected = m.nearestSelectable(0)
-				return m, nil
-			case tea.KeyBackspace:
-				if len(m.query) > 0 {
-					m.query = m.query[:len(m.query)-1]
-					m.rebuildProjectRows()
-					m.selected = m.nearestSelectable(0)
-				}
-				return m, nil
-			case tea.KeyRunes:
-				m.query += msg.String()
-				m.rebuildProjectRows()
-				m.selected = m.nearestSelectable(0)
-				return m, nil
-			}
-		}
-		switch {
-		case key.Matches(msg, m.projectListKeys.Filter):
-			m.projectFilterActive = true
-			m.query = ""
-			m.rebuildProjectRows()
-			m.selected = m.nearestSelectable(0)
-		case key.Matches(msg, m.globals.Back):
-			m.query = ""
-			m.projectFilterActive = false
-			m.rebuildProjectRows()
-			m.selected = m.nearestSelectable(0)
-		case key.Matches(msg, m.projectListKeys.Up):
-			m.selected = m.nextSelectable(m.selected, -1)
-		case key.Matches(msg, m.projectListKeys.Down):
-			m.selected = m.nextSelectable(m.selected, 1)
-		case key.Matches(msg, m.projectListKeys.Open):
-			if project, ok := m.selectedProject(); ok {
-				return m.selectProject(project)
-			}
-		case key.Matches(msg, m.projectListKeys.Retry):
-			return m, m.retryFailedProjectLoads()
-		case key.Matches(msg, m.projectListKeys.Input):
-			m.mode = ModeProjectInput
-			m.focus = FocusFilter
-			m.projectInput = ""
-		}
-		return m, nil
-	}
-
-	if m.mode == ModeProjectInput {
-		switch msg.Type {
-		case tea.KeyEnter:
-			if strings.TrimSpace(m.projectInput) != "" {
-				return m.selectProject(strings.TrimSpace(m.projectInput))
-			}
-		case tea.KeyBackspace:
-			if len(m.projectInput) > 0 {
-				m.projectInput = m.projectInput[:len(m.projectInput)-1]
-			}
-		case tea.KeyRunes:
-			m.projectInput += msg.String()
-		}
-		return m, nil
-	}
-
-	if m.mode == ModeSections {
-		switch msg.String() {
-		case "up", "k":
-			m.sectionCursor = clamp(m.sectionCursor-1, 0, len(tuiSections)-1)
-		case "down", "j":
-			m.sectionCursor = clamp(m.sectionCursor+1, 0, len(tuiSections)-1)
-		case "enter":
-			sec := tuiSections[m.sectionCursor]
-			if sec.available && sec.id == SectionMergeRequests {
-				m.section = SectionMergeRequests
-				if m.projectLoaded {
-					m.mode = ModeEntityList
-					m.focus = FocusDetail
-					return m, nil
-				}
-				return m.openProjectCommand(m.projectPath)
-			}
-			if sec.available && sec.id == SectionIssues {
-				m.section = SectionIssues
-				m.mode = ModeEntityList
-				m.focus = FocusDetail
-				return m, m.loadIssuesCommand()
-			}
-		case "esc", "backspace":
-			m.returnToProjectPicker()
-		}
-		return m, nil
+	case ModeProjectSelect:
+		return m.updateProjectSelect(msg)
+	case ModeProjectInput:
+		return m.updateProjectInput(msg)
+	case ModeSections:
+		return m.updateSections(msg)
+	case ModeFileDiff:
+		return m.updateFileDiff(msg)
 	}
 
 	if m.focus == FocusFilter {
-		switch msg.Type {
-		case tea.KeyEsc, tea.KeyEnter:
-			m.focus = FocusDetail
-		case tea.KeyBackspace:
-			if len(m.query) > 0 {
-				m.query = m.query[:len(m.query)-1]
-				m.selected = m.clampEntitySelection(m.selected)
-			}
-		case tea.KeyRunes:
-			m.query += msg.String()
-			m.selected = m.clampEntitySelection(m.selected)
-		}
-		return m, nil
+		return m.updateFilter(msg)
 	}
 
 	if m.mode == ModeEntityList {
-		switch msg.String() {
-		case "up", "k":
-			m.moveSelection(-1)
-		case "down", "j":
-			m.moveSelection(1)
-		case "enter":
-			m.mode = ModeDetail
-			m.focus = FocusDetail
-			m.activeTab = TabSummary
-		case "esc", "backspace":
-			if m.projectError || (m.projectPath != "" && len(m.items) == 0) {
-				m.errorMessage = ""
-				m.returnToProjectPicker()
-			} else {
-				m.mode = ModeSections
-			}
-		case "/":
-			m.focus = FocusFilter
-		case "r":
-			if m.projectError && m.projectPath != "" {
-				return m.openProjectCommand(m.projectPath)
-			}
-			return m, m.refreshCommand()
-		case "s":
-			if m.section == SectionIssues {
-				m.cycleIssueState()
-				return m, m.loadIssuesCommand()
-			}
-		}
-		return m, nil
+		return m.updateEntityList(msg)
 	}
 
-	if m.mode == ModeFileDiff {
-		if m.replyInput {
-			switch msg.Type {
-			case tea.KeyEsc:
-				m.replyInput = false
-				m.replyBuffer = ""
-				m.replyDiscussionID = ""
-			case tea.KeyBackspace:
-				if len(m.replyBuffer) > 0 {
-					m.replyBuffer = m.replyBuffer[:len(m.replyBuffer)-1]
-				}
-			case tea.KeyRunes, tea.KeySpace:
-				m.replyBuffer += msg.String()
-			case tea.KeyEnter:
-				body := m.replyBuffer
-				discussionID := m.replyDiscussionID
-				isDraft := m.replyDraft
-				m.replyInput = false
-				m.replyBuffer = ""
-				m.replyDiscussionID = ""
-				m.replyDraft = false
-				item, ok := m.selectedItem()
-				if !ok {
-					return m, nil
-				}
-				iid := item.IID
-				if isDraft {
-					callback := m.draftReply
-					if callback == nil {
-						return m, nil
-					}
-					return m, func() tea.Msg {
-						err := callback(iid, discussionID, body)
-						return replyFinishedMsg{iid: iid, discussionID: discussionID, body: body, draft: true, err: err}
-					}
-				}
-				callback := m.replyToDiscussion
-				if callback == nil {
-					return m, nil
-				}
-				return m, func() tea.Msg {
-					err := callback(iid, discussionID, body)
-					return replyFinishedMsg{iid: iid, discussionID: discussionID, body: body, draft: false, err: err}
-				}
+	if m.mode == ModeDetail {
+		if m.editInput {
+			if m.section == SectionIssues {
+				return m.updateIssueEdit(msg)
 			}
+			return m.updateMREdit(msg)
+		}
+		if m.issueCommentInput {
+			return m.updateIssueCommentInput(msg)
+		}
+		if m.mrCommentInput {
+			return m.updateMRCommentInput(msg)
+		}
+		if m.activeTab == TabReview && msg.String() != "tab" {
+			return m.updateReviewTab(msg)
+		}
+		if m.mergeConfirmPending && msg.String() != "M" {
+			m.mergeConfirmPending = false
 			return m, nil
 		}
-		if m.commentInput {
-			switch msg.Type {
-			case tea.KeyEsc:
-				m.commentInput = false
-				m.commentBuffer = ""
-			case tea.KeyEnter:
-				body := m.commentBuffer
-				instant := m.commentInstant
-				m.commentInput = false
-				m.commentInstant = false
-				m.commentBuffer = ""
-				item, ok := m.selectedItem()
-				if ok {
-					files := m.currentFiles()
-					var filePath string
-					if len(files) > m.selectedFile {
-						filePath = files[m.selectedFile].Path
-					}
-					startLine := m.diffCursor
-					if m.rangeStart >= 0 {
-						startLine = m.rangeStart
-					}
-					var newLine int
-					if len(files) > m.selectedFile && startLine < len(files[m.selectedFile].Diff) {
-						newLine = files[m.selectedFile].Diff[startLine].NewLine
-					}
-					var endNewLine int
-					if m.rangeStart >= 0 && len(files) > m.selectedFile && m.diffCursor < len(files[m.selectedFile].Diff) {
-						endNewLine = files[m.selectedFile].Diff[m.diffCursor].NewLine
-					}
-					m.rangeStart = -1
-					if instant {
-						callback := m.postInlineComment
-						if callback != nil {
-							pos := mr.DiffPosition{NewPath: filePath, NewLine: newLine}
-							iid := item.IID
-							return m, func() tea.Msg {
-								err := callback(iid, pos, body)
-								return inlineCommentFinishedMsg{iid: iid, err: err}
-							}
-						}
-					} else {
-						draft := mr.DraftComment{
-							LocalID:  fmt.Sprintf("local-%d", len(m.drafts[item.IID])+1),
-							Body:     body,
-							Position: &mr.DiffPosition{NewPath: filePath, NewLine: newLine},
-							EndLine:  endNewLine,
-						}
-						m.drafts[item.IID] = append(m.drafts[item.IID], draft)
-					}
-				}
-			case tea.KeyBackspace:
-				if len(m.commentBuffer) > 0 {
-					m.commentBuffer = m.commentBuffer[:len(m.commentBuffer)-1]
-				}
-			case tea.KeyRunes, tea.KeySpace:
-				m.commentBuffer += msg.String()
-			}
-			return m, nil
-		}
-
-		files := m.currentFiles()
-		switch msg.String() {
-		case "right", "l":
-			if m.rangeStart < 0 {
-				m.selectedFile = clamp(m.selectedFile+1, 0, len(files)-1)
-				m.fileDiffTop = 0
-				m.diffCursor = 0
-			}
-		case "left", "h":
-			if m.rangeStart < 0 {
-				m.selectedFile = clamp(m.selectedFile-1, 0, len(files)-1)
-				m.fileDiffTop = 0
-				m.diffCursor = 0
-			}
-		case "up", "k":
-			rowCount := 0
-			if len(files) > m.selectedFile {
-				rowCount = len(files[m.selectedFile].Diff)
-			}
-			m.diffCursor = clamp(m.diffCursor-1, 0, max(0, rowCount-1))
-			m.threadPanelCursor = 0
-		case "down", "j":
-			rowCount := 0
-			if len(files) > m.selectedFile {
-				rowCount = len(files[m.selectedFile].Diff)
-			}
-			m.diffCursor = clamp(m.diffCursor+1, 0, max(0, rowCount-1))
-			m.threadPanelCursor = 0
-		case "v":
-			if m.rangeStart >= 0 {
-				m.rangeStart = -1
-			} else {
-				m.rangeStart = m.diffCursor
-			}
-		case "i":
-			m.commentInput = true
-			m.commentInstant = true
-			m.commentBuffer = ""
-			m.commentError = ""
-		case "c":
-			m.commentInput = true
-			m.commentInstant = false
-			m.commentBuffer = ""
-			m.commentError = ""
-		case "r", "d":
-			isDraft := msg.String() == "d"
-			discussions := m.discussionsAtCursor()
-			if len(discussions) > 0 {
-				idx := clamp(m.threadPanelCursor, 0, len(discussions)-1)
-				m.replyInput = true
-				m.replyDraft = isDraft
-				m.replyDiscussionID = discussions[idx].ID
-				m.replyBuffer = ""
-			}
-		case "x":
-			item, ok := m.selectedItem()
-			if !ok {
-				break
-			}
-			discussions := m.discussionsAtCursor()
-			if len(discussions) == 0 {
-				break
-			}
-			idx := clamp(m.threadPanelCursor, 0, len(discussions)-1)
-			activeID := discussions[idx].ID
-			iid := item.IID
-			for i, discussion := range m.discussions[iid] {
-				if discussion.ID != activeID {
-					continue
-				}
-				resolved := !discussion.Resolved
-				if resolved {
-					callback := m.resolveDiscussion
-					if callback == nil {
-						m.discussions[iid][i].Resolved = true
-						return m, nil
-					}
-					return m, func() tea.Msg {
-						err := callback(iid, activeID)
-						return resolveFinishedMsg{iid: iid, discussionID: activeID, resolved: true, err: err}
-					}
-				}
-				callback := m.unresolveDiscussion
-				if callback == nil {
-					m.discussions[iid][i].Resolved = false
-					return m, nil
-				}
-				return m, func() tea.Msg {
-					err := callback(iid, activeID)
-					return resolveFinishedMsg{iid: iid, discussionID: activeID, resolved: false, err: err}
-				}
-			}
-		case "p":
-			item, ok := m.selectedItem()
-			if ok && m.submitDrafts != nil {
-				drafts := m.drafts[item.IID]
-				submit := m.submitDrafts
-				post := m.postMRComment
-				summary := strings.TrimSpace(m.reviewSummary)
-				iid := item.IID
-				return m, func() tea.Msg {
-					err := submit(iid, drafts)
-					if err == nil && summary != "" && post != nil {
-						err = post(iid, summary)
-					}
-					return draftsSubmittedMsg{iid: iid, err: err}
-				}
-			}
-		case "e":
-			files := m.currentFiles()
-			if len(files) > m.selectedFile && m.openEditor != nil {
-				file := files[m.selectedFile]
-				line := 0
-				if m.diffCursor < len(file.Diff) {
-					line = file.Diff[m.diffCursor].NewLine
-				}
-				callback := m.openEditor
-				path := file.Path
-				return m, func() tea.Msg {
-					err := callback(path, line)
-					return openEditorMsg{err: err}
-				}
-			}
-		case "D":
-			item, ok := m.selectedItem()
-			if ok {
-				m.drafts[item.IID] = nil
-				if m.discardDrafts != nil {
-					discard := m.discardDrafts
-					iid := item.IID
-					return m, func() tea.Msg {
-						return draftsDiscardedMsg{iid: iid, err: discard(iid)}
-					}
-				}
-			}
-		case "t":
-			m.threadPanelVisible = !m.threadPanelVisible
-		case "[":
-			if m.threadPanelCursor > 0 {
-				m.threadPanelCursor--
-			}
-		case "]":
-			discussions := m.discussionsAtCursor()
-			if m.threadPanelCursor < len(discussions)-1 {
-				m.threadPanelCursor++
-			}
-		case "esc", "backspace":
-			if m.rangeStart >= 0 {
-				m.rangeStart = -1
-				return m, nil
-			}
-			m.mode = ModeDetail
-			m.activeTab = m.fileDiffReturnTab
-			m.fileDiffTop = 0
-		}
-		return m, nil
-	}
-
-	if m.mode == ModeDetail && m.editInput {
-		if m.section == SectionIssues {
-			return m.updateIssueEdit(msg)
-		}
-		return m.updateMREdit(msg)
-	}
-
-	if m.mode == ModeDetail && m.issueCommentInput {
-		return m.updateIssueCommentInput(msg)
-	}
-	if m.mode == ModeDetail && m.mrCommentInput {
-		return m.updateMRCommentInput(msg)
-	}
-	if m.mode == ModeDetail && m.activeTab == TabReview && msg.String() != "tab" {
-		return m.updateReviewTab(msg)
-	}
-
-	if m.mode == ModeDetail && m.mergeConfirmPending && msg.String() != "M" {
-		m.mergeConfirmPending = false
-		return m, nil
-	}
-
-	if m.mode == ModeDetail && m.activeTab == TabDiscussions && msg.String() != "tab" {
-		if m.section == SectionIssues {
-			return m.updateIssueDiscussionsTab(msg)
-		}
-		return m.updateDiscussionsTab(msg)
-	}
-
-	switch {
-	case key.Matches(msg, m.globals.Quit):
-		return m, tea.Quit
-	case key.Matches(msg, m.globals.Back):
-		if m.projectError || (m.projectPath != "" && len(m.items) == 0) {
-			m.errorMessage = ""
-			m.returnToProjectPicker()
-			return m, nil
-		}
-		if m.mode == ModeDetail {
-			m.mode = ModeEntityList
-			m.focus = FocusDetail
-			m.rightTop = 0
-		}
-	case msg.String() == "/":
-		m.focus = FocusFilter
-	case msg.String() == "r":
-		if m.projectError && m.projectPath != "" {
-			return m.openProjectCommand(m.projectPath)
-		}
-		return m, m.refreshCommand()
-	case msg.String() == "m":
-		if m.mode == ModeDetail {
+		if m.activeTab == TabDiscussions && msg.String() != "tab" {
 			if m.section == SectionIssues {
-				m.issueCommentInput = true
-				m.issueCommentBuffer = ""
-				m.issueCommentError = ""
-			} else {
-				m.mrCommentInput = true
-				m.mrCommentBuffer = ""
-				m.mrCommentError = ""
+				return m.updateIssueDiscussionsTab(msg)
 			}
-		}
-	case msg.String() == "c":
-		if m.mode == ModeDetail && m.section == SectionIssues {
-			return m.closeOrReopenIssueCommand()
-		}
-	case msg.String() == "a":
-		if m.mode == ModeDetail && m.section == SectionIssues {
-			return m.assignOrUnassignIssueCommand()
-		}
-	case msg.String() == "A":
-		if m.mode == ModeDetail {
-			item, ok := m.selectedItem()
-			if ok && m.approveMR != nil {
-				callback := m.approveMR
-				iid := item.IID
-				return m, func() tea.Msg {
-					err := callback(iid)
-					return approveMRFinishedMsg{iid: iid, err: err}
-				}
-			}
-		}
-	case msg.String() == "M":
-		if m.mode == ModeDetail {
-			if m.mergeConfirmPending {
-				item, ok := m.selectedItem()
-				if ok && m.mergeMR != nil {
-					callback := m.mergeMR
-					iid := item.IID
-					return m, func() tea.Msg {
-						err := callback(iid)
-						return mergeMRFinishedMsg{iid: iid, err: err}
-					}
-				}
-				m.mergeConfirmPending = false
-			} else {
-				m.mergeConfirmPending = true
-			}
-		}
-	case msg.String() == "o":
-		if m.mode == ModeDetail {
-			if m.section == SectionIssues {
-				item, ok := m.selectedIssue()
-				if ok && item.WebURL != "" && m.openURL != nil {
-					callback := m.openURL
-					url := item.WebURL
-					return m, func() tea.Msg { return openURLMsg{url: url, err: callback(url)} }
-				}
-			} else {
-				item, ok := m.selectedItem()
-				if ok && item.WebURL != "" && m.openURL != nil {
-					callback := m.openURL
-					url := item.WebURL
-					return m, func() tea.Msg {
-						err := callback(url)
-						return openURLMsg{url: url, err: err}
-					}
-				}
-			}
-		}
-	case msg.String() == "e":
-		if m.mode == ModeDetail {
-			if m.section == SectionIssues {
-				item, ok := m.selectedIssue()
-				if ok {
-					m.editInput = true
-					m.editField = "title"
-					m.editBuffer = item.Title
-					m.editTitle = ""
-				}
-			} else {
-				item, ok := m.selectedItem()
-				if ok {
-					m.editInput = true
-					m.editField = "title"
-					m.editBuffer = item.Title
-					m.editTitle = ""
-				}
-			}
-		}
-	case msg.String() == "l":
-		if m.mode == ModeDetail {
-			if m.section == SectionIssues {
-				issueItem, ok := m.selectedIssue()
-				if ok {
-					m.mode = ModeLabelSelect
-					m.labelCursor = 0
-					pending := make([]string, len(issueItem.Labels))
-					copy(pending, issueItem.Labels)
-					m.labelPending = pending
-				}
-			} else if m.activeTab == TabSummary {
-				item, ok := m.selectedItem()
-				if ok {
-					m.mode = ModeLabelSelect
-					m.labelCursor = 0
-					pending := make([]string, len(item.Labels))
-					copy(pending, item.Labels)
-					m.labelPending = pending
-				}
-			}
-		}
-	case msg.String() == "d":
-		if m.mode == ModeDetail && m.activeTab != TabDiscussions {
-			item, ok := m.selectedItem()
-			if !ok {
-				return m, nil
-			}
-			prev := item.Draft
-			for i := range m.items {
-				if m.items[i].IID == item.IID {
-					m.items[i].Draft = !prev
-					break
-				}
-			}
-			if m.toggleDraftMR == nil {
-				return m, nil
-			}
-			callback := m.toggleDraftMR
-			iid := item.IID
-			return m, func() tea.Msg {
-				err := callback(iid)
-				return toggleDraftFinishedMsg{iid: iid, prev: prev, err: err}
-			}
-		}
-	case msg.String() == "tab":
-		if m.mode == ModeDetail {
-			if m.section == SectionIssues {
-				m.activeTab = (m.activeTab + 1) % (TabDiscussions + 1)
-				return m, m.loadIssueDiscussionsCommand()
-			}
-			m.activeTab = (m.activeTab + 1) % (TabReview + 1)
-			return m.onTabEntered()
-		}
-	case msg.String() == "up" || msg.String() == "k":
-		if m.mode == ModeDetail {
-			m.rightTop = max(0, m.rightTop-1)
-		} else {
-			m.moveSelection(-1)
-		}
-	case msg.String() == "down" || msg.String() == "j":
-		if m.mode == ModeDetail {
-			m.rightTop = max(0, m.rightTop+1)
-		} else {
-			m.moveSelection(1)
-		}
-	case msg.String() == "enter":
-		if m.mode == ModeDetail && m.activeTab == TabFiles {
-			if item, ok := m.selectedItem(); ok {
-				if files, loaded := m.changedFiles[item.IID]; loaded && len(files) > 0 {
-					m.mode = ModeFileDiff
-					m.fileDiffReturnTab = TabFiles
-					m.selectedFile = 0
-					m.fileDiffTop = 0
-					m.diffCursor = 0
-					m.threadPanelCursor = 0
-					return m, m.ensureDiscussionsLoaded(item.IID)
-				}
-			}
+			return m.updateDiscussionsTab(msg)
 		}
 	}
 
-	return m, nil
+	return m.updateDetailKeys(msg)
 }
-
 
 func (m *Model) selectEntity() {
 	if m.entityID == "" {
@@ -985,7 +395,6 @@ func (m *Model) moveSelection(delta int) {
 		m.listTop = m.selected - visible + 1
 	}
 }
-
 
 func (m Model) inputActive() bool {
 	return m.projectFilterActive || m.mode == ModeProjectInput || m.commentInput || m.mrCommentInput || m.issueCommentInput || m.editInput || m.replyInput || m.focus == FocusFilter
@@ -1046,7 +455,6 @@ func (m Model) selectedItem() (mr.MergeRequest, bool) {
 	}
 	return items[clampSelection(m.selected, len(items))], true
 }
-
 
 func (m Model) leftWidth() int {
 	if m.width <= 0 {
