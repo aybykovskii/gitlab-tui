@@ -234,6 +234,7 @@ func (k FileDiffKeys) LocalKeys() []key.Binding {
 
 type ProjectData struct {
 	Items           []mr.MergeRequest
+	Labels          []mr.Label
 	Refresh         RefreshFunc
 	LoadDiff        DiffFunc
 	LoadDiscussions LoadDiscussionsFunc
@@ -463,6 +464,7 @@ type Model struct {
 	openEditor           OpenEditorFunc
 	toggleDraftMR        ToggleDraftMRFunc
 	emoji                config.EmojiConfig
+	projectLabels        []mr.Label
 	drafts               map[int][]mr.DraftComment
 	submitDrafts         SubmitDraftsFunc
 	discardDrafts        DiscardDraftsFunc
@@ -649,6 +651,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.projectLoaded = true
 		m.projectPath = msg.path
 		m.items = msg.data.Items
+		m.projectLabels = msg.data.Labels
 		m.refresh = msg.data.Refresh
 		m.loadDiff = msg.data.LoadDiff
 		m.loadDiscussions = msg.data.LoadDiscussions
@@ -2288,7 +2291,12 @@ func (m Model) renderRight() string {
 			strings.Join([]string{statePart, pipelinePart, approvalsPart}, "  ·  "),
 		}
 		if len(item.Labels) > 0 {
-			lines = append(lines, iconPrefix(icons.Labels)+strings.Join(item.Labels, " "))
+			pills := make([]string, 0, len(item.Labels))
+			for _, name := range item.Labels {
+				color := m.labelColor(name)
+				pills = append(pills, renderLabelPill(name, color))
+			}
+			lines = append(lines, iconPrefix(icons.Labels)+strings.Join(pills, " "))
 		}
 		if item.WebURL != "" {
 			lines = append(lines, "URL: "+item.WebURL)
@@ -2519,6 +2527,15 @@ func (m Model) renderDiff(item mr.MergeRequest) string {
 	visible := max(1, m.height-2)
 	end := min(len(lines), m.rightTop+visible)
 	return strings.Join(lines[m.rightTop:end], "\n")
+}
+
+func (m Model) labelColor(name string) string {
+	for _, l := range m.projectLabels {
+		if l.Name == name {
+			return l.Color
+		}
+	}
+	return ""
 }
 
 func mrTitleLine(item mr.MergeRequest, icons config.EmojiMap) string {

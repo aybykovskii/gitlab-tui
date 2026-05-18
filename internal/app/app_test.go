@@ -41,6 +41,10 @@ func (f *fakeGitLabClient) MergeRequestChangedFiles(ctx context.Context, project
 	return nil, nil
 }
 
+func (f *fakeGitLabClient) ListProjectLabels(ctx context.Context, projectPath string) ([]mr.Label, error) {
+	return nil, nil
+}
+
 func TestBuildProjectOptionsUsesAccountsAndLimitedRecentProjects(t *testing.T) {
 	cfg := config.Default()
 	cfg.Accounts = append(cfg.Accounts, config.Account{ID: "work", Host: "https://gitlab.example.com", TokenEnv: "WORK_TOKEN"})
@@ -146,5 +150,41 @@ func TestRunUnknownCommand(t *testing.T) {
 	}
 	if !strings.Contains(stderr.String(), "unknown command: wat") {
 		t.Fatalf("expected unknown command error, got %q", stderr.String())
+	}
+}
+
+type fakeGitLabClientWithLabels struct {
+	fakeGitLabClient
+	labels []mr.Label
+}
+
+func (f *fakeGitLabClientWithLabels) ListProjectLabels(_ context.Context, _ string) ([]mr.Label, error) {
+	return f.labels, nil
+}
+
+func TestLoadProjectIncludesLabelsInProjectData(t *testing.T) {
+	expectedLabels := []mr.Label{
+		{Name: "bug", Color: "#EE0701"},
+		{Name: "feature", Color: "#0075CA"},
+	}
+	cfg := config.Default()
+	resolution := ProjectResolution{Account: "default", Path: "group/project", Source: ProjectSourceGitRemote}
+
+	options := buildProjectOptions(&cfg, "", false, resolution, CLIIntent{}, func(account config.Account) (gitLabClient, error) {
+		return &fakeGitLabClientWithLabels{
+			fakeGitLabClient: fakeGitLabClient{account: account.ID},
+			labels:           expectedLabels,
+		}, nil
+	})
+
+	data, err := options.LoadProject("group/project")
+	if err != nil {
+		t.Fatalf("loadProject: %v", err)
+	}
+	if len(data.Labels) != 2 {
+		t.Fatalf("expected 2 labels, got %d", len(data.Labels))
+	}
+	if data.Labels[0].Name != "bug" {
+		t.Fatalf("expected first label 'bug', got %q", data.Labels[0].Name)
 	}
 }

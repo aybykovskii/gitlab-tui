@@ -21,6 +21,7 @@ type gitLabClient interface {
 	MergeRequestDiff(ctx context.Context, projectPath string, iid int) ([]mr.DiffRow, error)
 	MergeRequestDiscussions(ctx context.Context, projectPath string, iid int) ([]mr.Discussion, error)
 	MergeRequestChangedFiles(ctx context.Context, projectPath string, iid int) ([]mr.ChangedFile, error)
+	ListProjectLabels(ctx context.Context, projectPath string) ([]mr.Label, error)
 }
 
 type gitLabClientFactory func(config.Account) (gitLabClient, error)
@@ -119,10 +120,32 @@ func buildProjectOptions(cfg *config.Config, configPath string, configLoaded boo
 		loadFiles := func(iid int) ([]mr.ChangedFile, error) {
 			return client.MergeRequestChangedFiles(context.Background(), projectPath, iid)
 		}
-		items, err := loadMRs()
-		if err != nil {
-			return tui.ProjectData{}, fmt.Errorf("load merge requests: %w", err)
+		type mrResult struct {
+			items []mr.MergeRequest
+			err   error
 		}
+		type labelsResult struct {
+			labels []mr.Label
+			err    error
+		}
+		mrCh := make(chan mrResult, 1)
+		labelsCh := make(chan labelsResult, 1)
+		go func() {
+			items, err := loadMRs()
+			mrCh <- mrResult{items, err}
+		}()
+		go func() {
+			labels, err := client.ListProjectLabels(context.Background(), projectPath)
+			labelsCh <- labelsResult{labels, err}
+		}()
+
+		mrRes := <-mrCh
+		if mrRes.err != nil {
+			return tui.ProjectData{}, fmt.Errorf("load merge requests: %w", mrRes.err)
+		}
+		labelsRes := <-labelsCh
+		labels := labelsRes.labels
+
 		RememberResolvedProject(cfg, resolution.Account, projectPath, time.Now())
 		if configLoaded {
 			if err := config.Save(configPath, *cfg); err != nil {
@@ -130,7 +153,7 @@ func buildProjectOptions(cfg *config.Config, configPath string, configLoaded boo
 			}
 		}
 
-		return tui.ProjectData{Items: items, Refresh: loadMRs, LoadDiff: loadDiff, LoadDiscussions: loadDiscussions, LoadFiles: loadFiles}, nil
+		return tui.ProjectData{Items: mrRes.items, Labels: labels, Refresh: loadMRs, LoadDiff: loadDiff, LoadDiscussions: loadDiscussions, LoadFiles: loadFiles}, nil
 	}
 
 	options := tui.ProjectOptions{Path: resolution.Path, Section: intent.Section, EntityID: intent.EntityID, LoadProject: loadProject}
