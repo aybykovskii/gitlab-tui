@@ -583,7 +583,9 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.width = msg.Width
 		m.height = msg.Height
 	case tea.KeyMsg:
-		return m.updateKey(msg)
+		next, cmd := m.updateKey(msg)
+		next.syncGlobalKeys()
+		return next, cmd
 	case tea.MouseMsg:
 		return m.updateMouse(msg)
 	case projectStartedMsg:
@@ -1869,7 +1871,13 @@ func (m Model) renderEntityListPane() string {
 }
 
 func (m Model) inputActive() bool {
-	return m.projectFilterActive || m.mode == ModeProjectInput || m.commentInput || m.mrCommentInput || m.editInput || m.replyInput
+	return m.projectFilterActive || m.mode == ModeProjectInput || m.commentInput || m.mrCommentInput || m.editInput || m.replyInput || m.focus == FocusFilter
+}
+
+func (m *Model) syncGlobalKeys() {
+	active := m.inputActive()
+	m.globals.Quit.SetEnabled(!active)
+	m.globals.Back.SetEnabled(!active)
 }
 
 func bindingHelp(binding key.Binding) string {

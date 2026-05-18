@@ -2697,6 +2697,226 @@ func TestProjectSelectShowsErrorAndRetriesOnlyFailedAccounts(t *testing.T) {
 	}
 }
 
+// --- #64: Global key suppression in input modes ---
+
+func TestEnteringMRCommentInputDisablesGlobalKeys(t *testing.T) {
+	model := NewModelWithProject(FakeMergeRequests(), ProjectOptions{Path: "group/project", Section: SectionMergeRequests})
+
+	updated, _ := model.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'m'}})
+	model = updated.(Model)
+
+	if model.globals.Quit.Enabled() {
+		t.Fatal("expected Quit to be disabled when entering MR comment input")
+	}
+	if model.globals.Back.Enabled() {
+		t.Fatal("expected Back to be disabled when entering MR comment input")
+	}
+}
+
+func TestExitingMRCommentInputRestoresGlobalKeys(t *testing.T) {
+	model := NewModelWithProject(FakeMergeRequests(), ProjectOptions{Path: "group/project", Section: SectionMergeRequests})
+	updated, _ := model.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'m'}})
+	model = updated.(Model)
+
+	updated, _ = model.Update(tea.KeyMsg{Type: tea.KeyEsc})
+	model = updated.(Model)
+
+	if !model.globals.Quit.Enabled() {
+		t.Fatal("expected Quit to be restored after exiting MR comment input")
+	}
+	if !model.globals.Back.Enabled() {
+		t.Fatal("expected Back to be restored after exiting MR comment input")
+	}
+}
+
+func TestEnteringEditInputDisablesGlobalKeys(t *testing.T) {
+	model := NewModelWithProject(FakeMergeRequests(), ProjectOptions{Path: "group/project", Section: SectionMergeRequests})
+
+	updated, _ := model.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'e'}})
+	model = updated.(Model)
+
+	if model.globals.Quit.Enabled() {
+		t.Fatal("expected Quit to be disabled when entering edit input")
+	}
+	if model.globals.Back.Enabled() {
+		t.Fatal("expected Back to be disabled when entering edit input")
+	}
+}
+
+func TestExitingEditInputRestoresGlobalKeys(t *testing.T) {
+	model := NewModelWithProject(FakeMergeRequests(), ProjectOptions{Path: "group/project", Section: SectionMergeRequests})
+	updated, _ := model.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'e'}})
+	model = updated.(Model)
+
+	updated, _ = model.Update(tea.KeyMsg{Type: tea.KeyEsc})
+	model = updated.(Model)
+
+	if !model.globals.Quit.Enabled() {
+		t.Fatal("expected Quit to be restored after exiting edit input")
+	}
+	if !model.globals.Back.Enabled() {
+		t.Fatal("expected Back to be restored after exiting edit input")
+	}
+}
+
+func TestEnteringReplyInputInDiscussionsDisablesGlobalKeys(t *testing.T) {
+	model := NewModelWithProject(FakeMergeRequests(), ProjectOptions{Path: "group/project", Section: SectionMergeRequests})
+	model.activeTab = TabDiscussions
+	model.discussions[42] = []mr.Discussion{{ID: "d1", Notes: []mr.Note{{Author: "alice", Body: "test"}}}}
+
+	updated, _ := model.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'r'}})
+	model = updated.(Model)
+
+	if model.globals.Quit.Enabled() {
+		t.Fatal("expected Quit to be disabled when entering reply input")
+	}
+	if model.globals.Back.Enabled() {
+		t.Fatal("expected Back to be disabled when entering reply input")
+	}
+}
+
+func TestExitingReplyInputInDiscussionsRestoresGlobalKeys(t *testing.T) {
+	model := NewModelWithProject(FakeMergeRequests(), ProjectOptions{Path: "group/project", Section: SectionMergeRequests})
+	model.activeTab = TabDiscussions
+	model.discussions[42] = []mr.Discussion{{ID: "d1", Notes: []mr.Note{{Author: "alice", Body: "test"}}}}
+	updated, _ := model.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'r'}})
+	model = updated.(Model)
+
+	updated, _ = model.Update(tea.KeyMsg{Type: tea.KeyEsc})
+	model = updated.(Model)
+
+	if !model.globals.Quit.Enabled() {
+		t.Fatal("expected Quit to be restored after exiting reply input")
+	}
+	if !model.globals.Back.Enabled() {
+		t.Fatal("expected Back to be restored after exiting reply input")
+	}
+}
+
+func TestEnteringCommentInputInFileDiffDisablesGlobalKeys(t *testing.T) {
+	model := NewModelWithProject(FakeMergeRequests(), ProjectOptions{Path: "group/project", Section: SectionMergeRequests})
+	model.activeTab = TabFiles
+	model.changedFiles[42] = []mr.ChangedFile{{Path: "main.go", Diff: []mr.DiffRow{{OldLine: 1, NewLine: 1}}}}
+	updated, _ := model.Update(tea.KeyMsg{Type: tea.KeyEnter})
+	model = updated.(Model)
+
+	updated, _ = model.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'c'}})
+	model = updated.(Model)
+
+	if model.globals.Quit.Enabled() {
+		t.Fatal("expected Quit to be disabled when entering comment input in FileDiff")
+	}
+	if model.globals.Back.Enabled() {
+		t.Fatal("expected Back to be disabled when entering comment input in FileDiff")
+	}
+}
+
+func TestExitingCommentInputInFileDiffRestoresGlobalKeys(t *testing.T) {
+	model := NewModelWithProject(FakeMergeRequests(), ProjectOptions{Path: "group/project", Section: SectionMergeRequests})
+	model.activeTab = TabFiles
+	model.changedFiles[42] = []mr.ChangedFile{{Path: "main.go", Diff: []mr.DiffRow{{OldLine: 1, NewLine: 1}}}}
+	updated, _ := model.Update(tea.KeyMsg{Type: tea.KeyEnter})
+	model = updated.(Model)
+	updated, _ = model.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'c'}})
+	model = updated.(Model)
+
+	updated, _ = model.Update(tea.KeyMsg{Type: tea.KeyEsc})
+	model = updated.(Model)
+
+	if !model.globals.Quit.Enabled() {
+		t.Fatal("expected Quit to be restored after exiting comment input")
+	}
+	if !model.globals.Back.Enabled() {
+		t.Fatal("expected Back to be restored after exiting comment input")
+	}
+}
+
+func TestEnteringFocusFilterDisablesGlobalKeys(t *testing.T) {
+	model := NewModelWithProject(FakeMergeRequests(), ProjectOptions{Path: "group/project", Section: SectionMergeRequests})
+
+	updated, _ := model.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'/'}})
+	model = updated.(Model)
+
+	if model.globals.Quit.Enabled() {
+		t.Fatal("expected Quit to be disabled when entering filter")
+	}
+	if model.globals.Back.Enabled() {
+		t.Fatal("expected Back to be disabled when entering filter")
+	}
+}
+
+func TestExitingFocusFilterRestoresGlobalKeys(t *testing.T) {
+	model := NewModelWithProject(FakeMergeRequests(), ProjectOptions{Path: "group/project", Section: SectionMergeRequests})
+	updated, _ := model.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'/'}})
+	model = updated.(Model)
+
+	updated, _ = model.Update(tea.KeyMsg{Type: tea.KeyEsc})
+	model = updated.(Model)
+
+	if !model.globals.Quit.Enabled() {
+		t.Fatal("expected Quit to be restored after exiting filter")
+	}
+	if !model.globals.Back.Enabled() {
+		t.Fatal("expected Back to be restored after exiting filter")
+	}
+}
+
+func TestEnteringProjectInputModeDisablesGlobalKeys(t *testing.T) {
+	model := NewModelWithProject(nil, ProjectOptions{Recents: []string{"group/project"}})
+
+	updated, _ := model.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'i'}})
+	model = updated.(Model)
+
+	if model.globals.Quit.Enabled() {
+		t.Fatal("expected Quit to be disabled when entering project input mode")
+	}
+	if model.globals.Back.Enabled() {
+		t.Fatal("expected Back to be disabled when entering project input mode")
+	}
+}
+
+func TestQInEditInputDoesNotQuit(t *testing.T) {
+	model := NewModelWithProject(FakeMergeRequests(), ProjectOptions{Path: "group/project", Section: SectionMergeRequests})
+	updated, _ := model.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'e'}})
+	model = updated.(Model)
+
+	updated, cmd := model.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'q'}})
+	model = updated.(Model)
+
+	if cmd != nil {
+		t.Fatal("expected q in edit mode to be treated as input, not global quit")
+	}
+	if !strings.HasSuffix(model.editBuffer, "q") {
+		t.Fatalf("expected edit buffer to end with q, got %q", model.editBuffer)
+	}
+}
+
+func TestQInFocusFilterDoesNotQuit(t *testing.T) {
+	model := NewModelWithProject(FakeMergeRequests(), ProjectOptions{Path: "group/project", Section: SectionMergeRequests})
+	updated, _ := model.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'/'}})
+	model = updated.(Model)
+
+	_, cmd := model.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'q'}})
+
+	if cmd != nil {
+		t.Fatal("expected q in filter mode to be treated as input, not global quit")
+	}
+}
+
+func TestKeyBarShowsInputHintsInFilterMode(t *testing.T) {
+	model := NewModelWithProject(FakeMergeRequests(), ProjectOptions{Path: "group/project", Section: SectionMergeRequests})
+	updated, _ := model.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'/'}})
+	model = updated.(Model)
+
+	view := model.renderKeyBar()
+	if !strings.Contains(view, "Enter") || !strings.Contains(view, "send") {
+		t.Fatalf("expected input hints in key bar during filter, got %q", view)
+	}
+	if !strings.Contains(view, "Esc") || !strings.Contains(view, "cancel") {
+		t.Fatalf("expected Esc cancel hint in key bar during filter, got %q", view)
+	}
+}
+
 func TestProjectSelectEnterOpensSelectedLoadedProjectSections(t *testing.T) {
 	model := NewModelWithProject(nil, ProjectOptions{
 		LoadProjects: []AccountProjectLoader{{ID: "default", Host: "https://gitlab.com", Load: func() ([]string, error) { return nil, nil }}},
