@@ -11,6 +11,7 @@ import (
 	"github.com/aybykovskii/gitlab-tui/internal/config"
 	gitremote "github.com/aybykovskii/gitlab-tui/internal/git"
 	gitlabclient "github.com/aybykovskii/gitlab-tui/internal/gitlab"
+	"github.com/aybykovskii/gitlab-tui/internal/issue"
 	"github.com/aybykovskii/gitlab-tui/internal/mr"
 	"github.com/aybykovskii/gitlab-tui/internal/tui"
 )
@@ -18,6 +19,8 @@ import (
 type gitLabClient interface {
 	ListProjects(ctx context.Context, limit int) ([]string, error)
 	OpenMergeRequests(ctx context.Context, projectPath string) ([]mr.MergeRequest, error)
+	ListProjectIssues(ctx context.Context, projectPath string, state string, search string) ([]issue.Issue, error)
+	ListIssueDiscussions(ctx context.Context, projectPath string, iid int) ([]issue.Discussion, error)
 	MergeRequestDiff(ctx context.Context, projectPath string, iid int) ([]mr.DiffRow, error)
 	MergeRequestDiscussions(ctx context.Context, projectPath string, iid int) ([]mr.Discussion, error)
 	MergeRequestChangedFiles(ctx context.Context, projectPath string, iid int) ([]mr.ChangedFile, error)
@@ -110,6 +113,9 @@ func buildProjectOptions(cfg *config.Config, configPath string, configLoaded boo
 		loadMRs := func() ([]mr.MergeRequest, error) {
 			return client.OpenMergeRequests(context.Background(), projectPath)
 		}
+		loadIssues := func(state string, search string) ([]issue.Issue, error) {
+			return client.ListProjectIssues(context.Background(), projectPath, state, search)
+		}
 		loadDiff := func(iid int) ([]mr.DiffRow, error) {
 			return client.MergeRequestDiff(context.Background(), projectPath, iid)
 		}
@@ -119,9 +125,18 @@ func buildProjectOptions(cfg *config.Config, configPath string, configLoaded boo
 		loadFiles := func(iid int) ([]mr.ChangedFile, error) {
 			return client.MergeRequestChangedFiles(context.Background(), projectPath, iid)
 		}
-		items, err := loadMRs()
-		if err != nil {
-			return tui.ProjectData{}, fmt.Errorf("load merge requests: %w", err)
+		var items []mr.MergeRequest
+		var issues []issue.Issue
+		if intent.Section == tui.SectionIssues {
+			issues, err = loadIssues("opened", "")
+			if err != nil {
+				return tui.ProjectData{}, fmt.Errorf("load issues: %w", err)
+			}
+		} else {
+			items, err = loadMRs()
+			if err != nil {
+				return tui.ProjectData{}, fmt.Errorf("load merge requests: %w", err)
+			}
 		}
 		RememberResolvedProject(cfg, resolution.Account, projectPath, time.Now())
 		if configLoaded {
@@ -130,7 +145,7 @@ func buildProjectOptions(cfg *config.Config, configPath string, configLoaded boo
 			}
 		}
 
-		return tui.ProjectData{Items: items, Refresh: loadMRs, LoadDiff: loadDiff, LoadDiscussions: loadDiscussions, LoadFiles: loadFiles}, nil
+		return tui.ProjectData{Items: items, Issues: issues, Refresh: loadMRs, LoadIssues: loadIssues, LoadDiff: loadDiff, LoadDiscussions: loadDiscussions, LoadFiles: loadFiles}, nil
 	}
 
 	options := tui.ProjectOptions{Path: resolution.Path, Section: intent.Section, EntityID: intent.EntityID, LoadProject: loadProject}

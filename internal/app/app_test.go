@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/aybykovskii/gitlab-tui/internal/config"
+	"github.com/aybykovskii/gitlab-tui/internal/issue"
 	"github.com/aybykovskii/gitlab-tui/internal/mr"
 )
 
@@ -26,6 +27,14 @@ func (f *fakeGitLabClient) ListProjects(ctx context.Context, limit int) ([]strin
 }
 
 func (f *fakeGitLabClient) OpenMergeRequests(ctx context.Context, projectPath string) ([]mr.MergeRequest, error) {
+	return nil, nil
+}
+
+func (f *fakeGitLabClient) ListProjectIssues(ctx context.Context, projectPath string, state string, search string) ([]issue.Issue, error) {
+	return nil, nil
+}
+
+func (f *fakeGitLabClient) ListIssueDiscussions(ctx context.Context, projectPath string, iid int) ([]issue.Discussion, error) {
 	return nil, nil
 }
 

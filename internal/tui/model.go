@@ -11,6 +11,7 @@ import (
 	"github.com/charmbracelet/lipgloss"
 
 	"github.com/aybykovskii/gitlab-tui/internal/diff"
+	"github.com/aybykovskii/gitlab-tui/internal/issue"
 	"github.com/aybykovskii/gitlab-tui/internal/mr"
 )
 
@@ -50,7 +51,7 @@ type sectionDef struct {
 
 var tuiSections = []sectionDef{
 	{label: "Merge Requests", id: SectionMergeRequests, available: true},
-	{label: "Issues", id: SectionIssues, available: false},
+	{label: "Issues", id: SectionIssues, available: true},
 	{label: "Pipelines", id: SectionPipelines, available: false},
 }
 
@@ -63,6 +64,7 @@ const (
 )
 
 type RefreshFunc func() ([]mr.MergeRequest, error)
+type LoadIssuesFunc func(state string, search string) ([]issue.Issue, error)
 type DiffFunc func(iid int) ([]mr.DiffRow, error)
 type ProjectLoadFunc func(path string) (ProjectData, error)
 type AccountProjectsLoadFunc func() ([]string, error)
@@ -230,7 +232,9 @@ func (k FileDiffKeys) LocalKeys() []key.Binding {
 
 type ProjectData struct {
 	Items           []mr.MergeRequest
+	Issues          []issue.Issue
 	Refresh         RefreshFunc
+	LoadIssues      LoadIssuesFunc
 	LoadDiff        DiffFunc
 	LoadDiscussions LoadDiscussionsFunc
 	LoadFiles       LoadFilesFunc
@@ -255,7 +259,9 @@ type ProjectOptions struct {
 	LoadProjects        []AccountProjectLoader
 	Section             Section
 	EntityID            string
+	Issues              []issue.Issue
 	Refresh             RefreshFunc
+	LoadIssues          LoadIssuesFunc
 	LoadDiff            DiffFunc
 	LoadProject         ProjectLoadFunc
 	LoadDiscussions     LoadDiscussionsFunc
@@ -392,6 +398,11 @@ type refreshFinishedMsg struct {
 	err   error
 }
 
+type issuesFinishedMsg struct {
+	items []issue.Issue
+	err   error
+}
+
 type diffStartedMsg struct{}
 
 type diffFinishedMsg struct {
@@ -470,6 +481,9 @@ type Model struct {
 	projectInput         string
 	projectFilterActive  bool
 	refresh              RefreshFunc
+	issueItems           []issue.Issue
+	issueState           string
+	loadIssues           LoadIssuesFunc
 	loadDiff             DiffFunc
 	loadProject          ProjectLoadFunc
 	loading              bool
@@ -510,6 +524,9 @@ func NewModelWithProject(items []mr.MergeRequest, options ProjectOptions) Model 
 		section:              options.Section,
 		entityID:             options.EntityID,
 		refresh:              options.Refresh,
+		issueItems:           options.Issues,
+		issueState:           "opened",
+		loadIssues:           options.LoadIssues,
 		loadDiff:             options.LoadDiff,
 		loadProject:          options.LoadProject,
 		loadDiscussions:      options.LoadDiscussions,
@@ -563,7 +580,7 @@ func RunWithProject(stdout io.Writer, options ProjectOptions) error {
 }
 
 func (m Model) Init() tea.Cmd {
-	if m.projectPath != "" && m.loadProject != nil && !m.projectLoaded && m.section == SectionMergeRequests {
+	if m.projectPath != "" && m.loadProject != nil && !m.projectLoaded && (m.section == SectionMergeRequests || m.section == SectionIssues) {
 		_, cmd := m.openProjectCommand(m.projectPath)
 		return cmd
 	}
@@ -633,7 +650,9 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.projectLoaded = true
 		m.projectPath = msg.path
 		m.items = msg.data.Items
+		m.issueItems = msg.data.Issues
 		m.refresh = msg.data.Refresh
+		m.loadIssues = msg.data.LoadIssues
 		m.loadDiff = msg.data.LoadDiff
 		m.loadDiscussions = msg.data.LoadDiscussions
 		m.loadFiles = msg.data.LoadFiles
@@ -647,6 +666,8 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			} else {
 				m.mode = ModeEntityList
 			}
+		} else if m.section == SectionIssues {
+			m.mode = ModeEntityList
 		} else {
 			m.mode = ModeSections
 		}
@@ -777,6 +798,16 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.selected = clampSelection(m.selected, len(m.filtered()))
 		m.listTop = 0
 		return m, nil
+	case issuesFinishedMsg:
+		m.loading = false
+		if msg.err != nil {
+			m.errorMessage = msg.err.Error()
+			return m, nil
+		}
+		m.issueItems = msg.items
+		m.selected = clampSelection(m.selected, len(m.filteredIssues()))
+		m.listTop = 0
+		return m, nil
 	case diffStartedMsg:
 		m.diffLoading = true
 		m.errorMessage = ""
@@ -887,6 +918,12 @@ func (m Model) updateKey(msg tea.KeyMsg) (Model, tea.Cmd) {
 				}
 				return m.openProjectCommand(m.projectPath)
 			}
+			if sec.available && sec.id == SectionIssues {
+				m.section = SectionIssues
+				m.mode = ModeEntityList
+				m.focus = FocusDetail
+				return m, m.loadIssuesCommand()
+			}
 		case "esc", "backspace":
 			m.returnToProjectPicker()
 		}
@@ -900,11 +937,11 @@ func (m Model) updateKey(msg tea.KeyMsg) (Model, tea.Cmd) {
 		case tea.KeyBackspace:
 			if len(m.query) > 0 {
 				m.query = m.query[:len(m.query)-1]
-				m.selected = clampSelection(m.selected, len(m.filtered()))
+				m.selected = m.clampEntitySelection(m.selected)
 			}
 		case tea.KeyRunes:
 			m.query += msg.String()
-			m.selected = clampSelection(m.selected, len(m.filtered()))
+			m.selected = m.clampEntitySelection(m.selected)
 		}
 		return m, nil
 	}
@@ -927,6 +964,11 @@ func (m Model) updateKey(msg tea.KeyMsg) (Model, tea.Cmd) {
 			}
 		case "/":
 			m.focus = FocusFilter
+		case "s":
+			if m.section == SectionIssues {
+				m.cycleIssueState()
+				return m, m.loadIssuesCommand()
+			}
 		}
 		return m, nil
 	}
@@ -1628,6 +1670,9 @@ func (m Model) openDiffCommand(item mr.MergeRequest) (Model, tea.Cmd) {
 }
 
 func (m Model) refreshCommand() tea.Cmd {
+	if m.section == SectionIssues {
+		return m.loadIssuesCommand()
+	}
 	if m.refresh == nil || m.loading {
 		return nil
 	}
@@ -1637,6 +1682,21 @@ func (m Model) refreshCommand() tea.Cmd {
 		func() tea.Msg {
 			items, err := refresh()
 			return refreshFinishedMsg{items: items, err: err}
+		},
+	)
+}
+
+func (m Model) loadIssuesCommand() tea.Cmd {
+	if m.loadIssues == nil || m.loading {
+		return nil
+	}
+	loadIssues := m.loadIssues
+	state := m.issueState
+	return tea.Sequence(
+		func() tea.Msg { return refreshStartedMsg{} },
+		func() tea.Msg {
+			items, err := loadIssues(state, "")
+			return issuesFinishedMsg{items: items, err: err}
 		},
 	)
 }
@@ -1702,6 +1762,9 @@ func (m *Model) selectEntity() {
 
 func (m *Model) moveSelection(delta int) {
 	count := len(m.filtered())
+	if m.section == SectionIssues {
+		count = len(m.filteredIssues())
+	}
 	if count == 0 {
 		m.selected = 0
 		return
@@ -1842,6 +1905,9 @@ func (m Model) renderEntityListPane() string {
 	width := max(20, m.width-m.leftWidth())
 	height := m.paneHeight()
 	style := paneStyle(width, height, true)
+	if m.section == SectionIssues {
+		return style.Render(strings.Join(m.issueListLines(height), "\n"))
+	}
 	lines := []string{"Project: " + m.projectPath, "Merge Requests", "Filter: " + m.query}
 	if m.projectLoading {
 		lines = append(lines, "Loading project…")
@@ -1868,6 +1934,33 @@ func (m Model) renderEntityListPane() string {
 		}
 	}
 	return style.Render(strings.Join(lines, "\n"))
+}
+
+func (m Model) issueListLines(height int) []string {
+	lines := []string{"Project: " + m.projectPath, "Issues [" + m.issueStateLabel() + "]", "Filter: " + m.query}
+	if m.loading {
+		lines = append(lines, "Refreshing…")
+	}
+	if m.errorMessage != "" {
+		lines = append(lines, "Error: "+m.errorMessage)
+	}
+	items := m.filteredIssues()
+	if len(items) == 0 {
+		lines = append(lines, "No issues")
+		return lines
+	}
+	visible := max(1, (height-5)/2)
+	end := min(len(items), m.listTop+visible)
+	for i := m.listTop; i < end; i++ {
+		prefix := "  "
+		if i == m.selected {
+			prefix = "> "
+		}
+		item := items[i]
+		lines = append(lines, fmt.Sprintf("%s#%d %s", prefix, item.IID, item.Title))
+		lines = append(lines, "  "+formatIssueMeta(item))
+	}
+	return lines
 }
 
 func (m Model) inputActive() bool {
@@ -2461,6 +2554,66 @@ func pipelineIcon(status string) string {
 
 func (m Model) filtered() []mr.MergeRequest {
 	return mr.Filter(m.items, m.query)
+}
+
+func (m Model) filteredIssues() []issue.Issue {
+	query := strings.ToLower(strings.TrimSpace(m.query))
+	if query == "" {
+		return m.issueItems
+	}
+	filtered := make([]issue.Issue, 0, len(m.issueItems))
+	for _, item := range m.issueItems {
+		text := strings.ToLower(item.Title + " " + item.Author)
+		if strings.Contains(text, query) {
+			filtered = append(filtered, item)
+		}
+	}
+	return filtered
+}
+
+func (m Model) issueStateLabel() string {
+	if m.issueState == "" {
+		return "all"
+	}
+	return m.issueState
+}
+
+func (m *Model) cycleIssueState() {
+	switch m.issueState {
+	case "opened":
+		m.issueState = "closed"
+	case "closed":
+		m.issueState = ""
+	default:
+		m.issueState = "opened"
+	}
+	m.query = ""
+}
+
+func formatIssueMeta(item issue.Issue) string {
+	parts := []string{item.Author}
+	labels := item.Labels
+	if len(labels) > 2 {
+		labels = labels[:2]
+	}
+	labelParts := make([]string, 0, len(labels))
+	for _, label := range labels {
+		labelParts = append(labelParts, "["+label+"]")
+	}
+	if len(labelParts) > 0 {
+		parts = append(parts, strings.Join(labelParts, " "))
+	}
+	if item.CommentCount > 0 {
+		parts = append(parts, fmt.Sprintf("💬 %d", item.CommentCount))
+	}
+	return strings.Join(parts, " · ")
+}
+
+func (m Model) clampEntitySelection(selected int) int {
+	if m.section == SectionIssues {
+		return clampSelection(selected, len(m.filteredIssues()))
+	}
+	return clampSelection(selected, len(m.filtered()))
 }
 
 func (m Model) selectedItem() (mr.MergeRequest, bool) {
