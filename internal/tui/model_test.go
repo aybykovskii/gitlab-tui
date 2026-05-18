@@ -3182,3 +3182,249 @@ func TestSummaryRendersReviewersAndAssignees(t *testing.T) {
 		t.Fatalf("expected assignee 'dave' in summary, got:\n%s", view)
 	}
 }
+
+// --- issue #70: Label Selector ---
+
+func labelSelectorModel() Model {
+	return NewModelWithProject(
+		[]mr.MergeRequest{{IID: 42, Title: "Fix login", State: "opened", Labels: []string{"bug"}}},
+		ProjectOptions{
+			Path:    "group/project",
+			Section: SectionMergeRequests,
+		},
+	)
+}
+
+func TestLKeyInModeDetailSummaryOpensLabelSelector(t *testing.T) {
+	model := labelSelectorModel()
+
+	updated, _ := model.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune("l")})
+	model = updated.(Model)
+
+	if model.mode != ModeLabelSelect {
+		t.Fatalf("expected ModeLabelSelect after 'l', got mode=%v", model.mode)
+	}
+}
+
+func TestLabelSelectorRendersMarkers(t *testing.T) {
+	model := labelSelectorModel()
+	model.projectLabels = []mr.Label{
+		{Name: "bug", Color: "#EE0701"},
+		{Name: "feature", Color: "#0075CA"},
+	}
+	updated, _ := model.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune("l")})
+	model = updated.(Model)
+
+	view := model.View()
+
+	if !strings.Contains(view, "●") {
+		t.Fatalf("expected ● marker for selected label 'bug', got:\n%s", view)
+	}
+	if !strings.Contains(view, "○") {
+		t.Fatalf("expected ○ marker for unselected label 'feature', got:\n%s", view)
+	}
+}
+
+func TestLabelSelectorUpDownMoveCursor(t *testing.T) {
+	model := labelSelectorModel()
+	model.projectLabels = []mr.Label{
+		{Name: "bug", Color: "#EE0701"},
+		{Name: "feature", Color: "#0075CA"},
+	}
+	updated, _ := model.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune("l")})
+	model = updated.(Model)
+
+	if model.labelCursor != 0 {
+		t.Fatalf("expected cursor at 0, got %d", model.labelCursor)
+	}
+
+	updated, _ = model.Update(tea.KeyMsg{Type: tea.KeyDown})
+	model = updated.(Model)
+
+	if model.labelCursor != 1 {
+		t.Fatalf("expected cursor at 1 after down, got %d", model.labelCursor)
+	}
+
+	updated, _ = model.Update(tea.KeyMsg{Type: tea.KeyUp})
+	model = updated.(Model)
+
+	if model.labelCursor != 0 {
+		t.Fatalf("expected cursor at 0 after up, got %d", model.labelCursor)
+	}
+}
+
+func TestLabelSelectorSpaceTogglesSelection(t *testing.T) {
+	model := labelSelectorModel()
+	model.projectLabels = []mr.Label{
+		{Name: "bug", Color: "#EE0701"},
+		{Name: "feature", Color: "#0075CA"},
+	}
+	updated, _ := model.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune("l")})
+	model = updated.(Model)
+
+	// bug is already selected (in MR.Labels), Space should deselect
+	updated, _ = model.Update(tea.KeyMsg{Type: tea.KeySpace})
+	model = updated.(Model)
+
+	for _, s := range model.labelPending {
+		if s == "bug" {
+			t.Fatal("expected 'bug' to be deselected after Space")
+		}
+	}
+
+	// Move to 'feature' and select it
+	updated, _ = model.Update(tea.KeyMsg{Type: tea.KeyDown})
+	model = updated.(Model)
+	updated, _ = model.Update(tea.KeyMsg{Type: tea.KeySpace})
+	model = updated.(Model)
+
+	found := false
+	for _, s := range model.labelPending {
+		if s == "feature" {
+			found = true
+		}
+	}
+	if !found {
+		t.Fatal("expected 'feature' to be selected after Space on it")
+	}
+}
+
+func TestLabelSelectorEscReturnsToDetailWithoutAPICall(t *testing.T) {
+	called := false
+	model := NewModelWithProject(
+		[]mr.MergeRequest{{IID: 42, Title: "Fix", State: "opened", Labels: []string{"bug"}}},
+		ProjectOptions{
+			Path:    "group/project",
+			Section: SectionMergeRequests,
+			UpdateMRLabels: func(iid int, labels []string) error {
+				called = true
+				return nil
+			},
+		},
+	)
+	model.projectLabels = []mr.Label{{Name: "bug", Color: "#EE0701"}}
+
+	updated, _ := model.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune("l")})
+	model = updated.(Model)
+	updated, _ = model.Update(tea.KeyMsg{Type: tea.KeyEsc})
+	model = updated.(Model)
+
+	if model.mode != ModeDetail {
+		t.Fatalf("expected ModeDetail after Esc, got %v", model.mode)
+	}
+	if called {
+		t.Fatal("expected UpdateMRLabels NOT to be called on Esc")
+	}
+	if len(model.items[0].Labels) != 1 || model.items[0].Labels[0] != "bug" {
+		t.Fatalf("expected MR labels unchanged after Esc, got %v", model.items[0].Labels)
+	}
+}
+
+func TestLabelSelectorEnterCallsUpdateMRLabels(t *testing.T) {
+	var calledWith []string
+	model := NewModelWithProject(
+		[]mr.MergeRequest{{IID: 42, Title: "Fix", State: "opened", Labels: []string{"bug"}}},
+		ProjectOptions{
+			Path:    "group/project",
+			Section: SectionMergeRequests,
+			UpdateMRLabels: func(iid int, labels []string) error {
+				calledWith = labels
+				return nil
+			},
+		},
+	)
+	model.projectLabels = []mr.Label{
+		{Name: "bug", Color: "#EE0701"},
+		{Name: "feature", Color: "#0075CA"},
+	}
+
+	updated, _ := model.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune("l")})
+	model = updated.(Model)
+	// Move to feature and toggle on
+	updated, _ = model.Update(tea.KeyMsg{Type: tea.KeyDown})
+	model = updated.(Model)
+	updated, _ = model.Update(tea.KeyMsg{Type: tea.KeySpace})
+	model = updated.(Model)
+	// Enter saves
+	updated, cmd := model.Update(tea.KeyMsg{Type: tea.KeyEnter})
+	model = updated.(Model)
+
+	if model.mode != ModeDetail {
+		t.Fatalf("expected ModeDetail after Enter, got %v", model.mode)
+	}
+	if cmd == nil {
+		t.Fatal("expected command for UpdateMRLabels")
+	}
+	msg := cmd()
+	model.Update(msg)
+
+	if len(calledWith) != 2 {
+		t.Fatalf("expected UpdateMRLabels called with 2 labels, got %v", calledWith)
+	}
+}
+
+func TestLabelSelectorEnterUpdatesLabelsOptimistically(t *testing.T) {
+	model := NewModelWithProject(
+		[]mr.MergeRequest{{IID: 42, Title: "Fix", State: "opened", Labels: []string{"bug"}}},
+		ProjectOptions{
+			Path:    "group/project",
+			Section: SectionMergeRequests,
+		},
+	)
+	model.projectLabels = []mr.Label{
+		{Name: "bug", Color: "#EE0701"},
+		{Name: "feature", Color: "#0075CA"},
+	}
+
+	updated, _ := model.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune("l")})
+	model = updated.(Model)
+	updated, _ = model.Update(tea.KeyMsg{Type: tea.KeyDown})
+	model = updated.(Model)
+	updated, _ = model.Update(tea.KeyMsg{Type: tea.KeySpace})
+	model = updated.(Model)
+	updated, _ = model.Update(tea.KeyMsg{Type: tea.KeyEnter})
+	model = updated.(Model)
+
+	// Before cmd runs, labels already updated optimistically
+	if len(model.items[0].Labels) != 2 {
+		t.Fatalf("expected 2 labels optimistically, got %v", model.items[0].Labels)
+	}
+}
+
+func TestLabelSelectorReopensWithSavedSelection(t *testing.T) {
+	model := NewModelWithProject(
+		[]mr.MergeRequest{{IID: 42, Title: "Fix", State: "opened", Labels: []string{"bug"}}},
+		ProjectOptions{
+			Path:    "group/project",
+			Section: SectionMergeRequests,
+		},
+	)
+	model.projectLabels = []mr.Label{
+		{Name: "bug", Color: "#EE0701"},
+		{Name: "feature", Color: "#0075CA"},
+	}
+
+	// Open, add feature, save
+	updated, _ := model.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune("l")})
+	model = updated.(Model)
+	updated, _ = model.Update(tea.KeyMsg{Type: tea.KeyDown})
+	model = updated.(Model)
+	updated, _ = model.Update(tea.KeyMsg{Type: tea.KeySpace})
+	model = updated.(Model)
+	updated, _ = model.Update(tea.KeyMsg{Type: tea.KeyEnter})
+	model = updated.(Model)
+
+	// Reopen
+	updated, _ = model.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune("l")})
+	model = updated.(Model)
+
+	featureSelected := false
+	for _, s := range model.labelPending {
+		if s == "feature" {
+			featureSelected = true
+		}
+	}
+	if !featureSelected {
+		t.Fatalf("expected 'feature' in pending after reopen, got %v", model.labelPending)
+	}
+}

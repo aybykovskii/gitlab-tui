@@ -22,6 +22,7 @@ type gitLabClient interface {
 	MergeRequestDiscussions(ctx context.Context, projectPath string, iid int) ([]mr.Discussion, error)
 	MergeRequestChangedFiles(ctx context.Context, projectPath string, iid int) ([]mr.ChangedFile, error)
 	ListProjectLabels(ctx context.Context, projectPath string) ([]mr.Label, error)
+	UpdateMRLabels(ctx context.Context, projectPath string, iid int, labels []string) error
 }
 
 type gitLabClientFactory func(config.Account) (gitLabClient, error)
@@ -153,7 +154,11 @@ func buildProjectOptions(cfg *config.Config, configPath string, configLoaded boo
 			}
 		}
 
-		return tui.ProjectData{Items: mrRes.items, Labels: labels, Refresh: loadMRs, LoadDiff: loadDiff, LoadDiscussions: loadDiscussions, LoadFiles: loadFiles}, nil
+		updateLabels := func(iid int, lbls []string) error {
+			return client.UpdateMRLabels(context.Background(), projectPath, iid, lbls)
+		}
+
+		return tui.ProjectData{Items: mrRes.items, Labels: labels, Refresh: loadMRs, LoadDiff: loadDiff, LoadDiscussions: loadDiscussions, LoadFiles: loadFiles, UpdateMRLabels: updateLabels}, nil
 	}
 
 	options := tui.ProjectOptions{Path: resolution.Path, Section: intent.Section, EntityID: intent.EntityID, LoadProject: loadProject}

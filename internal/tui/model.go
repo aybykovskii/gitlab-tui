@@ -25,6 +25,7 @@ const (
 	ModeDetail
 	ModeDiff
 	ModeFileDiff
+	ModeLabelSelect
 )
 
 type DetailTab int
@@ -83,6 +84,7 @@ type EditMRFunc func(iid int, title, description string) error
 type OpenURLFunc func(url string) error
 type OpenEditorFunc func(path string, line int) error
 type ToggleDraftMRFunc func(iid int) error
+type UpdateMRLabelsFunc func(iid int, labels []string) error
 
 type GlobalKeys struct {
 	Quit         key.Binding
@@ -121,6 +123,7 @@ type MRDetailKeys struct {
 	Comment     key.Binding
 	NextTab     key.Binding
 	ToggleDraft key.Binding
+	LabelSelect key.Binding
 }
 
 type DiffViewKeys struct {
@@ -196,11 +199,12 @@ func newMRDetailKeys() MRDetailKeys {
 		Comment:     key.NewBinding(key.WithKeys("m"), key.WithHelp("m", "comment")),
 		NextTab:     key.NewBinding(key.WithKeys("tab"), key.WithHelp("Tab", "next tab")),
 		ToggleDraft: key.NewBinding(key.WithKeys("d"), key.WithHelp("d", "toggle draft")),
+		LabelSelect: key.NewBinding(key.WithKeys("l"), key.WithHelp("l", "labels")),
 	}
 }
 
 func (k MRDetailKeys) LocalKeys() []key.Binding {
-	return []key.Binding{k.Approve, k.Merge, k.Edit, k.OpenURL, k.Comment, k.NextTab, k.ToggleDraft}
+	return []key.Binding{k.Approve, k.Merge, k.Edit, k.OpenURL, k.Comment, k.NextTab, k.ToggleDraft, k.LabelSelect}
 }
 
 func newDiffViewKeys() DiffViewKeys {
@@ -233,12 +237,13 @@ func (k FileDiffKeys) LocalKeys() []key.Binding {
 }
 
 type ProjectData struct {
-	Items           []mr.MergeRequest
-	Labels          []mr.Label
-	Refresh         RefreshFunc
-	LoadDiff        DiffFunc
+	Items          []mr.MergeRequest
+	Labels         []mr.Label
+	Refresh        RefreshFunc
+	LoadDiff       DiffFunc
 	LoadDiscussions LoadDiscussionsFunc
-	LoadFiles       LoadFilesFunc
+	LoadFiles      LoadFilesFunc
+	UpdateMRLabels UpdateMRLabelsFunc
 }
 
 type AccountProjectLoader struct {
@@ -279,6 +284,7 @@ type ProjectOptions struct {
 	OpenURL             OpenURLFunc
 	OpenEditor          OpenEditorFunc
 	ToggleDraftMR       ToggleDraftMRFunc
+	UpdateMRLabels      UpdateMRLabelsFunc
 	Emoji               config.EmojiConfig
 }
 
@@ -398,6 +404,13 @@ type toggleDraftFinishedMsg struct {
 	err  error
 }
 
+type updateMRLabelsFinishedMsg struct {
+	iid    int
+	labels []string
+	prev   []string
+	err    error
+}
+
 type refreshStartedMsg struct{}
 
 type refreshFinishedMsg struct {
@@ -463,8 +476,11 @@ type Model struct {
 	openURL              OpenURLFunc
 	openEditor           OpenEditorFunc
 	toggleDraftMR        ToggleDraftMRFunc
+	updateMRLabels       UpdateMRLabelsFunc
 	emoji                config.EmojiConfig
 	projectLabels        []mr.Label
+	labelCursor          int
+	labelPending         []string
 	drafts               map[int][]mr.DraftComment
 	submitDrafts         SubmitDraftsFunc
 	discardDrafts        DiscardDraftsFunc
@@ -548,6 +564,7 @@ func NewModelWithProject(items []mr.MergeRequest, options ProjectOptions) Model 
 		openURL:              options.OpenURL,
 		openEditor:           options.OpenEditor,
 		toggleDraftMR:        options.ToggleDraftMR,
+		updateMRLabels:       options.UpdateMRLabels,
 		emoji:                options.Emoji,
 		globals:              newGlobalKeys(),
 		projectListKeys:      newProjectListKeys(),
@@ -652,6 +669,9 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.projectPath = msg.path
 		m.items = msg.data.Items
 		m.projectLabels = msg.data.Labels
+		if msg.data.UpdateMRLabels != nil {
+			m.updateMRLabels = msg.data.UpdateMRLabels
+		}
 		m.refresh = msg.data.Refresh
 		m.loadDiff = msg.data.LoadDiff
 		m.loadDiscussions = msg.data.LoadDiscussions
@@ -721,6 +741,17 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m, nil
 	case openEditorMsg:
 		if msg.err != nil {
+			m.actionError = msg.err.Error()
+		}
+		return m, nil
+	case updateMRLabelsFinishedMsg:
+		if msg.err != nil {
+			for i := range m.items {
+				if m.items[i].IID == msg.iid {
+					m.items[i].Labels = msg.prev
+					break
+				}
+			}
 			m.actionError = msg.err.Error()
 		}
 		return m, nil
@@ -831,6 +862,9 @@ func (m Model) updateKey(msg tea.KeyMsg) (Model, tea.Cmd) {
 	if key.Matches(msg, m.globals.ToggleKeyBar) && !m.inputActive() {
 		m.keyBarExpanded = !m.keyBarExpanded
 		return m, nil
+	}
+	if m.mode == ModeLabelSelect {
+		return m.updateLabelSelect(msg)
 	}
 	if m.mode == ModeProjectSelect {
 		if m.projectFilterActive {
@@ -1324,6 +1358,17 @@ func (m Model) updateKey(msg tea.KeyMsg) (Model, tea.Cmd) {
 				m.editTitle = ""
 			}
 		}
+	case msg.String() == "l":
+		if m.mode == ModeDetail && m.activeTab == TabSummary {
+			item, ok := m.selectedItem()
+			if ok {
+				m.mode = ModeLabelSelect
+				m.labelCursor = 0
+				pending := make([]string, len(item.Labels))
+				copy(pending, item.Labels)
+				m.labelPending = pending
+			}
+		}
 	case msg.String() == "d":
 		if m.mode == ModeDetail && m.activeTab != TabDiscussions {
 			item, ok := m.selectedItem()
@@ -1386,6 +1431,75 @@ func (m Model) updateKey(msg tea.KeyMsg) (Model, tea.Cmd) {
 	}
 
 	return m, nil
+}
+
+func (m Model) updateLabelSelect(msg tea.KeyMsg) (Model, tea.Cmd) {
+	count := len(m.projectLabels)
+	switch msg.Type {
+	case tea.KeyEsc:
+		m.mode = ModeDetail
+		m.labelPending = nil
+		return m, nil
+	case tea.KeyEnter:
+		item, ok := m.selectedItem()
+		if !ok {
+			m.mode = ModeDetail
+			return m, nil
+		}
+		selected := append([]string(nil), m.labelPending...)
+		prev := append([]string(nil), item.Labels...)
+		for i := range m.items {
+			if m.items[i].IID == item.IID {
+				m.items[i].Labels = selected
+				break
+			}
+		}
+		m.mode = ModeDetail
+		m.labelPending = nil
+		if m.updateMRLabels == nil {
+			return m, nil
+		}
+		fn := m.updateMRLabels
+		iid := item.IID
+		return m, func() tea.Msg {
+			err := fn(iid, selected)
+			return updateMRLabelsFinishedMsg{iid: iid, labels: selected, prev: prev, err: err}
+		}
+	case tea.KeyRunes:
+		switch msg.String() {
+		case "k", "up":
+			m.labelCursor = clamp(m.labelCursor-1, 0, max(0, count-1))
+		case "j", "down":
+			m.labelCursor = clamp(m.labelCursor+1, 0, max(0, count-1))
+		case " ":
+			if count > 0 {
+				name := m.projectLabels[m.labelCursor].Name
+				m.labelPending = toggleStringSlice(m.labelPending, name)
+			}
+		}
+	case tea.KeyUp:
+		m.labelCursor = clamp(m.labelCursor-1, 0, max(0, count-1))
+	case tea.KeyDown:
+		m.labelCursor = clamp(m.labelCursor+1, 0, max(0, count-1))
+	case tea.KeySpace:
+		if count > 0 {
+			name := m.projectLabels[m.labelCursor].Name
+			m.labelPending = toggleStringSlice(m.labelPending, name)
+		}
+	}
+	return m, nil
+}
+
+func toggleStringSlice(slice []string, val string) []string {
+	for i, s := range slice {
+		if s == val {
+			result := make([]string, 0, len(slice)-1)
+			result = append(result, slice[:i]...)
+			result = append(result, slice[i+1:]...)
+			return result
+		}
+	}
+	return append(slice, val)
 }
 
 func (m Model) updateMREdit(msg tea.KeyMsg) (Model, tea.Cmd) {
@@ -1796,6 +1910,8 @@ func (m Model) View() string {
 		body = lipgloss.JoinHorizontal(lipgloss.Top, m.renderSectionsContext(), m.renderEntityListPane())
 	} else if m.mode == ModeFileDiff {
 		body = lipgloss.JoinHorizontal(lipgloss.Top, m.renderChangedFilesPane(), m.renderFileDiffPane())
+	} else if m.mode == ModeLabelSelect {
+		body = lipgloss.JoinHorizontal(lipgloss.Top, m.renderList(), m.renderLabelSelector())
 	} else {
 		body = lipgloss.JoinHorizontal(lipgloss.Top, m.renderList(), m.renderRight())
 	}
@@ -1981,7 +2097,7 @@ func (m Model) localKeys() []key.Binding {
 		return newSectionsKeys().LocalKeys()
 	case ModeEntityList:
 		return newEntityListKeys().LocalKeys()
-	case ModeDetail:
+	case ModeDetail, ModeLabelSelect:
 		return newMRDetailKeys().LocalKeys()
 	case ModeDiff:
 		return newDiffViewKeys().LocalKeys()
@@ -2527,6 +2643,31 @@ func (m Model) renderDiff(item mr.MergeRequest) string {
 	visible := max(1, m.height-2)
 	end := min(len(lines), m.rightTop+visible)
 	return strings.Join(lines[m.rightTop:end], "\n")
+}
+
+func (m Model) renderLabelSelector() string {
+	width := max(20, m.width-m.leftWidth())
+	height := m.paneHeight()
+	style := paneStyle(width, height, true)
+	lines := []string{"Labels  Space toggle  Enter save  Esc cancel", ""}
+	for i, l := range m.projectLabels {
+		marker := "○"
+		for _, sel := range m.labelPending {
+			if sel == l.Name {
+				marker = "●"
+				break
+			}
+		}
+		cursor := "  "
+		if i == m.labelCursor {
+			cursor = "> "
+		}
+		lines = append(lines, fmt.Sprintf("%s%s %s", cursor, marker, renderLabelPill(l.Name, l.Color)))
+	}
+	if len(m.projectLabels) == 0 {
+		lines = append(lines, "No project labels")
+	}
+	return style.Render(strings.Join(lines, "\n"))
 }
 
 func (m Model) labelColor(name string) string {

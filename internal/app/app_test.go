@@ -45,6 +45,10 @@ func (f *fakeGitLabClient) ListProjectLabels(ctx context.Context, projectPath st
 	return nil, nil
 }
 
+func (f *fakeGitLabClient) UpdateMRLabels(ctx context.Context, projectPath string, iid int, labels []string) error {
+	return nil
+}
+
 func TestBuildProjectOptionsUsesAccountsAndLimitedRecentProjects(t *testing.T) {
 	cfg := config.Default()
 	cfg.Accounts = append(cfg.Accounts, config.Account{ID: "work", Host: "https://gitlab.example.com", TokenEnv: "WORK_TOKEN"})
@@ -160,6 +164,10 @@ type fakeGitLabClientWithLabels struct {
 
 func (f *fakeGitLabClientWithLabels) ListProjectLabels(_ context.Context, _ string) ([]mr.Label, error) {
 	return f.labels, nil
+}
+
+func (f *fakeGitLabClientWithLabels) UpdateMRLabels(_ context.Context, _ string, _ int, _ []string) error {
+	return nil
 }
 
 func TestLoadProjectIncludesLabelsInProjectData(t *testing.T) {
