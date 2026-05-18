@@ -1107,10 +1107,10 @@ func (m Model) updateKey(msg tea.KeyMsg) (Model, tea.Cmd) {
 		return m.updateDiscussionsTab(msg)
 	}
 
-	switch msg.String() {
-	case "q", "ctrl+c":
+	switch {
+	case key.Matches(msg, m.globals.Quit):
 		return m, tea.Quit
-	case "esc":
+	case key.Matches(msg, m.globals.Back):
 		if m.projectError || (m.projectPath != "" && len(m.items) == 0) {
 			m.errorMessage = ""
 			m.returnToProjectPicker()
@@ -1120,20 +1120,20 @@ func (m Model) updateKey(msg tea.KeyMsg) (Model, tea.Cmd) {
 			m.mode = ModeDetail
 			m.rightTop = 0
 		}
-	case "/":
+	case msg.String() == "/":
 		m.focus = FocusFilter
-	case "r":
+	case msg.String() == "r":
 		if m.projectError && m.projectPath != "" {
 			return m.openProjectCommand(m.projectPath)
 		}
 		return m, m.refreshCommand()
-	case "m":
+	case msg.String() == "m":
 		if m.mode == ModeDetail {
 			m.mrCommentInput = true
 			m.mrCommentBuffer = ""
 			m.mrCommentError = ""
 		}
-	case "A":
+	case msg.String() == "A":
 		if m.mode == ModeDetail {
 			item, ok := m.selectedItem()
 			if ok && m.approveMR != nil {
@@ -1145,7 +1145,7 @@ func (m Model) updateKey(msg tea.KeyMsg) (Model, tea.Cmd) {
 				}
 			}
 		}
-	case "M":
+	case msg.String() == "M":
 		if m.mode == ModeDetail {
 			if m.mergeConfirmPending {
 				item, ok := m.selectedItem()
@@ -1162,7 +1162,7 @@ func (m Model) updateKey(msg tea.KeyMsg) (Model, tea.Cmd) {
 				m.mergeConfirmPending = true
 			}
 		}
-	case "o":
+	case msg.String() == "o":
 		if m.mode == ModeDetail {
 			item, ok := m.selectedItem()
 			if ok && item.WebURL != "" && m.openURL != nil {
@@ -1174,7 +1174,7 @@ func (m Model) updateKey(msg tea.KeyMsg) (Model, tea.Cmd) {
 				}
 			}
 		}
-	case "e":
+	case msg.String() == "e":
 		if m.mode == ModeDetail {
 			item, ok := m.selectedItem()
 			if ok {
@@ -1184,16 +1184,16 @@ func (m Model) updateKey(msg tea.KeyMsg) (Model, tea.Cmd) {
 				m.editTitle = ""
 			}
 		}
-	case "tab":
+	case msg.String() == "tab":
 		if m.mode == ModeDetail {
 			m.activeTab = (m.activeTab + 1) % (TabFiles + 1)
 			return m.onTabEntered()
 		}
-	case "up", "k":
+	case msg.String() == "up" || msg.String() == "k":
 		m.moveSelection(-1)
-	case "down", "j":
+	case msg.String() == "down" || msg.String() == "j":
 		m.moveSelection(1)
-	case "enter":
+	case msg.String() == "enter":
 		if m.mode == ModeDetail && m.activeTab == TabFiles {
 			if item, ok := m.selectedItem(); ok {
 				if files, loaded := m.changedFiles[item.IID]; loaded && len(files) > 0 {
@@ -1207,7 +1207,7 @@ func (m Model) updateKey(msg tea.KeyMsg) (Model, tea.Cmd) {
 		if item, ok := m.selectedItem(); ok {
 			return m.openDiffCommand(item)
 		}
-	case "backspace":
+	case msg.String() == "backspace":
 		if m.mode == ModeDiff {
 			m.mode = ModeDetail
 			m.rightTop = 0
@@ -1357,26 +1357,26 @@ func (m Model) updateDiscussionsTab(msg tea.KeyMsg) (Model, tea.Cmd) {
 	ds := m.discussions[item.IID]
 	count := len(ds)
 
-	switch msg.String() {
-	case "j", "down":
+	switch {
+	case msg.String() == "j" || msg.String() == "down":
 		m.discussionCursor = clamp(m.discussionCursor+1, 0, max(0, count-1))
-	case "k", "up":
+	case msg.String() == "k" || msg.String() == "up":
 		m.discussionCursor = clamp(m.discussionCursor-1, 0, max(0, count-1))
-	case "r":
+	case msg.String() == "r":
 		if d, ok := m.focusedDiscussion(); ok {
 			m.replyInput = true
 			m.replyDraft = false
 			m.replyDiscussionID = d.ID
 			m.replyBuffer = ""
 		}
-	case "d":
+	case msg.String() == "d":
 		if d, ok := m.focusedDiscussion(); ok {
 			m.replyInput = true
 			m.replyDraft = true
 			m.replyDiscussionID = d.ID
 			m.replyBuffer = ""
 		}
-	case "x":
+	case msg.String() == "x":
 		if d, ok := m.focusedDiscussion(); ok {
 			iid := item.IID
 			dID := d.ID
@@ -1402,10 +1402,10 @@ func (m Model) updateDiscussionsTab(msg tea.KeyMsg) (Model, tea.Cmd) {
 				return resolveFinishedMsg{iid: iid, discussionID: dID, resolved: false, err: err}
 			}
 		}
-	case "tab":
+	case msg.String() == "tab":
 		m.activeTab = (m.activeTab + 1) % (TabFiles + 1)
 		return m.onTabEntered()
-	case "q", "ctrl+c":
+	case key.Matches(msg, m.globals.Quit):
 		return m, tea.Quit
 	}
 	return m, nil

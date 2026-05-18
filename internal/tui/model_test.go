@@ -48,6 +48,16 @@ func TestHKeyTogglesExpandedKeyBarAndPaneHeight(t *testing.T) {
 	}
 }
 
+func TestGlobalKeysUseDeclaredBindings(t *testing.T) {
+	model := NewModelWithProject(FakeMergeRequests(), ProjectOptions{Path: "group/project", Section: SectionMergeRequests})
+
+	_, cmd := model.Update(tea.KeyMsg{Type: tea.KeyCtrlC})
+
+	if cmd == nil {
+		t.Fatal("expected ctrl+c declared global quit binding to return quit command")
+	}
+}
+
 func TestInputModeQDoesNotQuit(t *testing.T) {
 	model := NewModelWithProject(FakeMergeRequests(), ProjectOptions{Path: "group/project", Section: SectionMergeRequests})
 	model.mrCommentInput = true
