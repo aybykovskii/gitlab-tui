@@ -341,6 +341,10 @@ func NewModel(items []mr.MergeRequest) Model {
 }
 
 func NewModelWithProject(items []mr.MergeRequest, options ProjectOptions) Model {
+	projectListRecents := options.Recents
+	if len(options.RecentProjects) > 0 {
+		projectListRecents = nil
+	}
 	model := Model{
 		items:                items,
 		focus:                FocusDetail,
@@ -350,7 +354,7 @@ func NewModelWithProject(items []mr.MergeRequest, options ProjectOptions) Model 
 		recentProjects:       options.Recents,
 		recentProjectOptions: buildRecentProjectOptions(options.Recents, options.RecentProjects),
 		gitlabProjects:       options.Projects,
-		projectList:          buildProjectList(options.Path, options.Recents, options.Projects),
+		projectList:          buildProjectList(options.Path, projectListRecents, options.Projects),
 		loadProjects:         options.LoadProjects,
 		accountProjectStates: initialAccountProjectStates(options.LoadProjects),
 		section:              options.Section,
@@ -1730,7 +1734,7 @@ func (m Model) renderAppContextPane() string {
 func (m *Model) rebuildProjectRows() {
 	m.projectRows = nil
 	if len(m.filteredRecentProjects()) > 0 {
-		m.projectRows = append(m.projectRows, projectListRow{label: "Recent"})
+		m.projectRows = append(m.projectRows, projectListRow{label: "Recent"}, projectListRow{})
 		for _, recent := range m.filteredRecentProjects() {
 			label := recent.Path
 			if recent.Account != "" {
@@ -1743,6 +1747,9 @@ func (m *Model) rebuildProjectRows() {
 		if m.matchesProjectFilter(project) {
 			m.projectRows = append(m.projectRows, projectListRow{project: project, label: project, selectable: true})
 		}
+	}
+	if len(m.projectRows) > 0 && len(m.loadProjects) > 0 {
+		m.projectRows = append(m.projectRows, projectListRow{})
 	}
 	for _, loader := range m.loadProjects {
 		state := m.accountProjectStates[loader.ID]

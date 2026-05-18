@@ -74,6 +74,7 @@ func (c Client) ListProjects(ctx context.Context, limit int) ([]string, error) {
 		OrderBy:    &orderBy,
 		ListOptions: glab.ListOptions{
 			PerPage: int64(limit),
+			Page:    1,
 		},
 	}, glab.WithContext(ctx))
 	if err != nil {

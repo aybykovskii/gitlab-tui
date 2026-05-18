@@ -2385,6 +2385,18 @@ func TestTabKeyCyclesDetailTabs(t *testing.T) {
 	}
 }
 
+func TestProjectSelectStructuredRecentsDoNotRenderLegacyDuplicate(t *testing.T) {
+	model := NewModelWithProject(nil, ProjectOptions{
+		Recents:        []string{"group/project"},
+		RecentProjects: []RecentProjectOption{{Path: "group/project", Account: "default"}},
+	})
+
+	view := model.View()
+	if strings.Count(view, "group/project") != 1 {
+		t.Fatalf("expected project once in Recent, got %q", view)
+	}
+}
+
 func TestProjectSelectShowsRecentSectionBeforeAccounts(t *testing.T) {
 	model := NewModelWithProject(nil, ProjectOptions{
 		RecentProjects: []RecentProjectOption{
@@ -2408,8 +2420,8 @@ func TestProjectSelectShowsRecentSectionBeforeAccounts(t *testing.T) {
 	if model.projectRows[0].selectable {
 		t.Fatalf("expected Recent header to be non-selectable: %+v", model.projectRows[0])
 	}
-	if model.selected != 1 {
-		t.Fatalf("expected cursor to skip Recent header, selected=%d rows=%+v", model.selected, model.projectRows)
+	if model.selected != 2 {
+		t.Fatalf("expected cursor to skip Recent header and spacer, selected=%d rows=%+v", model.selected, model.projectRows)
 	}
 }
 
@@ -2462,7 +2474,7 @@ func TestProjectSelectFilterMatchesRecentAndAccountProjects(t *testing.T) {
 			t.Fatalf("expected filtered view to hide %q, got %q", unwanted, view)
 		}
 	}
-	if model.selected != 1 {
+	if model.selected != 2 {
 		t.Fatalf("expected cursor on first filtered result, got %d rows %+v", model.selected, model.projectRows)
 	}
 }

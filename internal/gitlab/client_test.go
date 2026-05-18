@@ -19,6 +19,7 @@ type fakeApprovals struct {
 
 type fakeProjects struct {
 	limit      int64
+	page       int64
 	membership bool
 	orderBy    string
 	projects   []*glab.Project
@@ -52,6 +53,7 @@ func (f fakeApprovals) GetConfiguration(pid any, mergeRequest int64, options ...
 func (f *fakeProjects) ListProjects(opt *glab.ListProjectsOptions, options ...glab.RequestOptionFunc) ([]*glab.Project, *glab.Response, error) {
 	if opt != nil {
 		f.limit = opt.PerPage
+		f.page = opt.Page
 		if opt.Membership != nil {
 			f.membership = *opt.Membership
 		}
@@ -77,8 +79,8 @@ func TestListProjectsReturnsProjectPaths(t *testing.T) {
 	if len(paths) != 2 || paths[0] != "group/new" || paths[1] != "team/old" {
 		t.Fatalf("unexpected project paths: %+v", paths)
 	}
-	if projects.limit != 5 || !projects.membership || projects.orderBy != "last_activity_at" {
-		t.Fatalf("unexpected list options: limit=%d membership=%t orderBy=%q", projects.limit, projects.membership, projects.orderBy)
+	if projects.limit != 5 || projects.page != 1 || !projects.membership || projects.orderBy != "last_activity_at" {
+		t.Fatalf("unexpected list options: limit=%d page=%d membership=%t orderBy=%q", projects.limit, projects.page, projects.membership, projects.orderBy)
 	}
 }
 
