@@ -146,12 +146,13 @@ type DiffViewKeys struct {
 }
 
 type FileDiffKeys struct {
-	PrevFile key.Binding
-	NextFile key.Binding
-	Up       key.Binding
-	Down     key.Binding
-	Comment  key.Binding
-	Reply    key.Binding
+	PrevFile            key.Binding
+	NextFile            key.Binding
+	Up                  key.Binding
+	Down                key.Binding
+	Comment             key.Binding
+	Reply               key.Binding
+	ToggleThreadPanel   key.Binding
 }
 
 func newGlobalKeys() GlobalKeys {
@@ -240,17 +241,18 @@ func (k DiffViewKeys) LocalKeys() []key.Binding {
 
 func newFileDiffKeys() FileDiffKeys {
 	return FileDiffKeys{
-		PrevFile: key.NewBinding(key.WithKeys("left", "h"), key.WithHelp("←/h", "prev file")),
-		NextFile: key.NewBinding(key.WithKeys("right", "l"), key.WithHelp("→/l", "next file")),
-		Up:       key.NewBinding(key.WithKeys("up", "k"), key.WithHelp("↑/k", "up")),
-		Down:     key.NewBinding(key.WithKeys("down", "j"), key.WithHelp("↓/j", "down")),
-		Comment:  key.NewBinding(key.WithKeys("i", "c"), key.WithHelp("i/c", "comment")),
-		Reply:    key.NewBinding(key.WithKeys("r"), key.WithHelp("r", "reply")),
+		PrevFile:          key.NewBinding(key.WithKeys("left", "h"), key.WithHelp("←/h", "prev file")),
+		NextFile:          key.NewBinding(key.WithKeys("right", "l"), key.WithHelp("→/l", "next file")),
+		Up:                key.NewBinding(key.WithKeys("up", "k"), key.WithHelp("↑/k", "up")),
+		Down:              key.NewBinding(key.WithKeys("down", "j"), key.WithHelp("↓/j", "down")),
+		Comment:           key.NewBinding(key.WithKeys("i", "c"), key.WithHelp("i/c", "comment")),
+		Reply:             key.NewBinding(key.WithKeys("r"), key.WithHelp("r", "reply")),
+		ToggleThreadPanel: key.NewBinding(key.WithKeys("t"), key.WithHelp("t", "thread")),
 	}
 }
 
 func (k FileDiffKeys) LocalKeys() []key.Binding {
-	return []key.Binding{k.PrevFile, k.NextFile, k.Up, k.Down, k.Comment, k.Reply}
+	return []key.Binding{k.PrevFile, k.NextFile, k.Up, k.Down, k.Comment, k.Reply, k.ToggleThreadPanel}
 }
 
 type ProjectData struct {
@@ -593,6 +595,7 @@ type Model struct {
 	diffLoading          bool
 	errorMessage         string
 	keyBarExpanded       bool
+	threadPanelVisible   bool
 	globals              GlobalKeys
 	projectListKeys      ProjectListKeys
 }
@@ -660,6 +663,7 @@ func NewModelWithProject(items []mr.MergeRequest, options ProjectOptions) Model 
 		toggleDraftMR:        options.ToggleDraftMR,
 		updateMRLabels:       options.UpdateMRLabels,
 		emoji:                options.Emoji,
+		threadPanelVisible:   true,
 		globals:              newGlobalKeys(),
 		projectListKeys:      newProjectListKeys(),
 	}
@@ -1434,6 +1438,8 @@ func (m Model) updateKey(msg tea.KeyMsg) (Model, tea.Cmd) {
 					}
 				}
 			}
+		case "t":
+			m.threadPanelVisible = !m.threadPanelVisible
 		case "esc", "backspace":
 			if m.rangeStart >= 0 {
 				m.rangeStart = -1
@@ -3323,22 +3329,34 @@ func (m Model) renderFileDiffPane() string {
 		line := cursor + draftMarker + discussionMarker + " " + rowStyle.Render(lineContent)
 		lines = append(lines, line)
 	}
+	var inputLines []string
 	if m.commentError != "" {
-		lines = append(lines, "", "Error: "+m.commentError)
+		inputLines = append(inputLines, "", "Error: "+m.commentError)
 	}
 	if m.commentInput {
 		prompt := "Comment"
 		if m.commentInstant {
 			prompt = "Instant comment"
 		}
-		lines = append(lines, "", prompt+": "+m.commentBuffer+"█")
+		inputLines = append(inputLines, "", prompt+": "+m.commentBuffer+"█")
 	}
+
+	discussion, draft := m.threadAtCursor()
+	var panelLines []string
+	if (discussion != nil || draft != nil) && m.threadPanelVisible {
+		panelLines = m.renderThreadPanelLines(discussion, draft, width-4)
+	}
+
+	diffHeight := max(1, height-2-len(inputLines)-len(panelLines))
 	if m.fileDiffTop >= len(lines) {
 		m.fileDiffTop = max(0, len(lines)-1)
 	}
-	visible := max(1, height-2)
-	end := min(len(lines), m.fileDiffTop+visible)
-	return style.Render(strings.Join(lines[m.fileDiffTop:end], "\n"))
+	end := min(len(lines), m.fileDiffTop+diffHeight)
+	visible := lines[m.fileDiffTop:end]
+
+	all := append(visible, inputLines...)
+	all = append(all, panelLines...)
+	return style.Render(strings.Join(all, "\n"))
 }
 
 func (m Model) draftGutterMarker(path string, newLine int, drafts []mr.DraftComment) string {
@@ -3386,6 +3404,62 @@ func (m Model) isActiveDraftRangeRow(index int) bool {
 		start, end = end, start
 	}
 	return index >= start && index <= end
+}
+
+func (m Model) threadAtCursor() (*mr.Discussion, *mr.DraftComment) {
+	files := m.currentFiles()
+	if len(files) <= m.selectedFile {
+		return nil, nil
+	}
+	file := files[m.selectedFile]
+	if m.diffCursor >= len(file.Diff) {
+		return nil, nil
+	}
+	row := file.Diff[m.diffCursor]
+	if row.NewLine == 0 {
+		return nil, nil
+	}
+	item, ok := m.selectedItem()
+	if !ok {
+		return nil, nil
+	}
+	for i := range m.discussions[item.IID] {
+		d := &m.discussions[item.IID][i]
+		if d.Position != nil && d.Position.NewPath == file.Path && d.Position.NewLine == row.NewLine {
+			return d, nil
+		}
+	}
+	for i := range m.drafts[item.IID] {
+		dr := &m.drafts[item.IID][i]
+		if dr.Position != nil && dr.Position.NewPath == file.Path && dr.Position.NewLine == row.NewLine {
+			return nil, dr
+		}
+	}
+	return nil, nil
+}
+
+func (m Model) renderThreadPanelLines(discussion *mr.Discussion, draft *mr.DraftComment, width int) []string {
+	sep := strings.Repeat("─", max(4, width))
+	dimStyle := lipgloss.NewStyle().Foreground(lipgloss.Color("240"))
+	var lines []string
+	lines = append(lines, sep)
+	if discussion != nil {
+		if discussion.Resolved {
+			lines = append(lines, dimStyle.Render("✅ Discussion (resolved)"))
+			for _, n := range discussion.Notes {
+				lines = append(lines, dimStyle.Render(fmt.Sprintf("  %s: %s", n.Author, n.Body)))
+			}
+		} else {
+			lines = append(lines, "Discussion")
+			for _, n := range discussion.Notes {
+				lines = append(lines, fmt.Sprintf("  %s: %s", n.Author, n.Body))
+			}
+		}
+	} else if draft != nil {
+		lines = append(lines, dimStyle.Render("📝 Draft"))
+		lines = append(lines, dimStyle.Render("  "+draft.Body))
+	}
+	return lines
 }
 
 func (m Model) renderDiff(item mr.MergeRequest) string {
