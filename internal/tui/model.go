@@ -1300,9 +1300,17 @@ func (m Model) updateKey(msg tea.KeyMsg) (Model, tea.Cmd) {
 			return m.onTabEntered()
 		}
 	case msg.String() == "up" || msg.String() == "k":
-		m.moveSelection(-1)
+		if m.mode == ModeDetail {
+			m.rightTop = max(0, m.rightTop-1)
+		} else {
+			m.moveSelection(-1)
+		}
 	case msg.String() == "down" || msg.String() == "j":
-		m.moveSelection(1)
+		if m.mode == ModeDetail {
+			m.rightTop = max(0, m.rightTop+1)
+		} else {
+			m.moveSelection(1)
+		}
 	case msg.String() == "enter":
 		if m.mode == ModeDetail && m.activeTab == TabFiles {
 			if item, ok := m.selectedItem(); ok {

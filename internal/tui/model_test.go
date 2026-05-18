@@ -175,10 +175,16 @@ func TestOpenedProjectMovesToTopOfProjectList(t *testing.T) {
 
 func TestKeyboardSelectionAndDiffNavigation(t *testing.T) {
 	model := NewFakeModel()
+	model.rightTop = 2
+
+	// In ModeDetail, Down scrolls the right panel rather than moving selection
 	updated, _ := model.Update(tea.KeyMsg{Type: tea.KeyDown})
 	model = updated.(Model)
-	if model.selected != 1 {
-		t.Fatalf("expected selected index 1, got %d", model.selected)
+	if model.rightTop != 3 {
+		t.Fatalf("expected rightTop=3 after Down in ModeDetail, got %d", model.rightTop)
+	}
+	if model.selected != 0 {
+		t.Fatalf("expected selected unchanged in ModeDetail, got %d", model.selected)
 	}
 
 	updated, _ = model.Update(tea.KeyMsg{Type: tea.KeyEnter})
@@ -2694,6 +2700,86 @@ func TestProjectSelectShowsErrorAndRetriesOnlyFailedAccounts(t *testing.T) {
 	_ = cmd()
 	if failedCalls != 1 || successCalls != 0 {
 		t.Fatalf("expected only failed loader to run, failed=%d success=%d", failedCalls, successCalls)
+	}
+}
+
+// --- #66: Up/down scrolls right panel in ModeDetail ---
+
+func TestDownScrollsRightPanelInModeDetail(t *testing.T) {
+	model := NewModelWithProject(FakeMergeRequests(), ProjectOptions{Path: "group/project", Section: SectionMergeRequests})
+	initialSelected := model.selected
+	model.rightTop = 5
+
+	updated, _ := model.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'j'}})
+	model = updated.(Model)
+
+	if model.rightTop != 6 {
+		t.Fatalf("expected rightTop=6 after j in ModeDetail, got %d", model.rightTop)
+	}
+	if model.selected != initialSelected {
+		t.Fatalf("expected selected to be unchanged, got %d", model.selected)
+	}
+}
+
+func TestUpScrollsRightPanelInModeDetail(t *testing.T) {
+	model := NewModelWithProject(FakeMergeRequests(), ProjectOptions{Path: "group/project", Section: SectionMergeRequests})
+	initialSelected := model.selected
+	model.rightTop = 5
+
+	updated, _ := model.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'k'}})
+	model = updated.(Model)
+
+	if model.rightTop != 4 {
+		t.Fatalf("expected rightTop=4 after k in ModeDetail, got %d", model.rightTop)
+	}
+	if model.selected != initialSelected {
+		t.Fatalf("expected selected to be unchanged, got %d", model.selected)
+	}
+}
+
+func TestRightTopFloorAtZeroInModeDetail(t *testing.T) {
+	model := NewModelWithProject(FakeMergeRequests(), ProjectOptions{Path: "group/project", Section: SectionMergeRequests})
+	model.rightTop = 0
+
+	updated, _ := model.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'k'}})
+	model = updated.(Model)
+
+	if model.rightTop != 0 {
+		t.Fatalf("expected rightTop to stay 0 (floor), got %d", model.rightTop)
+	}
+}
+
+func TestArrowKeysScrollRightPanelInModeDetail(t *testing.T) {
+	model := NewModelWithProject(FakeMergeRequests(), ProjectOptions{Path: "group/project", Section: SectionMergeRequests})
+	model.rightTop = 3
+
+	updated, _ := model.Update(tea.KeyMsg{Type: tea.KeyDown})
+	model = updated.(Model)
+	if model.rightTop != 4 {
+		t.Fatalf("expected rightTop=4 after ↓ in ModeDetail, got %d", model.rightTop)
+	}
+
+	updated, _ = model.Update(tea.KeyMsg{Type: tea.KeyUp})
+	model = updated.(Model)
+	if model.rightTop != 3 {
+		t.Fatalf("expected rightTop=3 after ↑ in ModeDetail, got %d", model.rightTop)
+	}
+}
+
+func TestUpDownInModeEntityListStillMovesSelection(t *testing.T) {
+	model := NewModelWithProject(FakeMergeRequests(), ProjectOptions{Path: "group/project", Section: SectionMergeRequests})
+	model.mode = ModeEntityList
+	initialSelected := model.selected
+	initialRightTop := model.rightTop
+
+	updated, _ := model.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'j'}})
+	model = updated.(Model)
+
+	if model.selected != initialSelected+1 {
+		t.Fatalf("expected selected to increment in ModeEntityList, got %d", model.selected)
+	}
+	if model.rightTop != initialRightTop {
+		t.Fatalf("expected rightTop unchanged in ModeEntityList, got %d", model.rightTop)
 	}
 }
 
