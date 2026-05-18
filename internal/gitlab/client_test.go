@@ -79,7 +79,7 @@ func TestListProjectsReturnsProjectPaths(t *testing.T) {
 	if len(paths) != 2 || paths[0] != "group/new" || paths[1] != "team/old" {
 		t.Fatalf("unexpected project paths: %+v", paths)
 	}
-	if projects.limit != 5 || projects.page != 1 || !projects.membership || projects.orderBy != "last_activity_at" {
+	if projects.limit != 5 || projects.page != 1 || !projects.membership || projects.orderBy != "" {
 		t.Fatalf("unexpected list options: limit=%d page=%d membership=%t orderBy=%q", projects.limit, projects.page, projects.membership, projects.orderBy)
 	}
 }

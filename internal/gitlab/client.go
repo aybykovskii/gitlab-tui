@@ -68,10 +68,8 @@ func (c Client) ListProjects(ctx context.Context, limit int) ([]string, error) {
 	}
 
 	membership := true
-	orderBy := "last_activity_at"
 	items, _, err := c.projects.ListProjects(&glab.ListProjectsOptions{
 		Membership: &membership,
-		OrderBy:    &orderBy,
 		ListOptions: glab.ListOptions{
 			PerPage: int64(limit),
 			Page:    1,
