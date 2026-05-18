@@ -330,23 +330,6 @@ func TestAddIssueCommentCreatesIssueDiscussion(t *testing.T) {
 	}
 }
 
-func TestMergeRequestDiffParsesRows(t *testing.T) {
-	client := NewClientWithMergeRequests(&fakeMergeRequests{})
-
-	rows, err := client.MergeRequestDiff(context.Background(), "group/project", 1)
-	if err != nil {
-		t.Fatalf("expected no error, got %v", err)
-	}
-	if len(rows) != 2 {
-		t.Fatalf("expected 2 rows, got %d", len(rows))
-	}
-	if rows[0].OldLine != 1 || rows[0].OldText != "old" {
-		t.Fatalf("unexpected removed row: %+v", rows[0])
-	}
-	if rows[1].NewLine != 1 || rows[1].NewText != "new" {
-		t.Fatalf("unexpected added row: %+v", rows[1])
-	}
-}
 
 func TestOpenMergeRequestsAddsApprovalCounts(t *testing.T) {
 	client := NewClientWithServices(&fakeMergeRequests{pages: [][]*glab.BasicMergeRequest{{{IID: 3, Title: "MR"}}}}, fakeApprovals{

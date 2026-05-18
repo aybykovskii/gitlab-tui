@@ -20,8 +20,6 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		next, cmd := m.updateKey(msg)
 		next.syncGlobalKeys()
 		return next, cmd
-	case tea.MouseMsg:
-		return m.updateMouse(msg)
 	case projectStartedMsg:
 		m.projectPath = msg.path
 		m.mode = ModeEntityList
@@ -76,7 +74,6 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.loadIssues = msg.data.LoadIssues
 		m.postIssueComment = msg.data.PostIssueComment
 		m.loadIssueDiscussions = msg.data.LoadIssueDiscussions
-		m.loadDiff = msg.data.LoadDiff
 		m.loadDiscussions = msg.data.LoadDiscussions
 		m.loadFiles = msg.data.LoadFiles
 		m.closeIssue = msg.data.CloseIssue
@@ -301,21 +298,6 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			return m, nil
 		}
 		m.issueDiscussions[msg.iid] = msg.discussions
-		return m, nil
-	case diffStartedMsg:
-		m.diffLoading = true
-		m.errorMessage = ""
-		return m, nil
-	case diffFinishedMsg:
-		m.diffLoading = false
-		if msg.err != nil {
-			m.errorMessage = msg.err.Error()
-			return m, nil
-		}
-		m.setDiffRows(msg.iid, msg.rows)
-		m.mode = ModeDiff
-		m.focus = FocusDetail
-		m.rightTop = 0
 		return m, nil
 	}
 
@@ -780,10 +762,7 @@ func (m Model) updateKey(msg tea.KeyMsg) (Model, tea.Cmd) {
 			m.returnToProjectPicker()
 			return m, nil
 		}
-		if m.mode == ModeDiff {
-			m.mode = ModeDetail
-			m.rightTop = 0
-		} else if m.mode == ModeDetail {
+		if m.mode == ModeDetail {
 			m.mode = ModeEntityList
 			m.focus = FocusDetail
 			m.rightTop = 0
@@ -940,13 +919,13 @@ func (m Model) updateKey(msg tea.KeyMsg) (Model, tea.Cmd) {
 			return m.onTabEntered()
 		}
 	case msg.String() == "up" || msg.String() == "k":
-		if m.mode == ModeDetail || m.mode == ModeDiff {
+		if m.mode == ModeDetail {
 			m.rightTop = max(0, m.rightTop-1)
 		} else {
 			m.moveSelection(-1)
 		}
 	case msg.String() == "down" || msg.String() == "j":
-		if m.mode == ModeDetail || m.mode == ModeDiff {
+		if m.mode == ModeDetail {
 			m.rightTop = max(0, m.rightTop+1)
 		} else {
 			m.moveSelection(1)
@@ -965,58 +944,11 @@ func (m Model) updateKey(msg tea.KeyMsg) (Model, tea.Cmd) {
 				}
 			}
 		}
-	case msg.String() == "backspace":
-		if m.mode == ModeDiff {
-			m.mode = ModeDetail
-			m.rightTop = 0
-		}
 	}
 
 	return m, nil
 }
 
-func (m Model) updateMouse(msg tea.MouseMsg) (Model, tea.Cmd) {
-	if m.mode == ModeProjectSelect {
-		if msg.Button == tea.MouseButtonLeft && msg.Y >= 2 {
-			idx := msg.Y - 2
-			if idx >= 0 && idx < len(m.projectRows) && m.projectRows[idx].selectable {
-				m.selected = idx
-				return m.selectProject(m.projectRows[idx].project)
-			}
-		}
-		if msg.Button == tea.MouseButtonWheelUp {
-			m.selected = m.nextSelectable(m.selected, -1)
-		}
-		if msg.Button == tea.MouseButtonWheelDown {
-			m.selected = m.nextSelectable(m.selected, 1)
-		}
-		return m, nil
-	}
-
-	leftWidth := m.leftWidth()
-	m.focus = FocusDetail
-
-	switch msg.Button {
-	case tea.MouseButtonWheelUp:
-		m.scrollFocused(-1)
-	case tea.MouseButtonWheelDown:
-		m.scrollFocused(1)
-	case tea.MouseButtonLeft:
-		if msg.X < leftWidth && msg.Y >= 4 {
-			idx := m.listTop + msg.Y - 4
-			if idx >= 0 && idx < len(m.filtered()) {
-				m.selected = idx
-				m.mode = ModeDetail
-			}
-		} else if msg.X >= leftWidth {
-			if item, ok := m.selectedItem(); ok {
-				return m.openDiffCommand(item)
-			}
-		}
-	}
-
-	return m, nil
-}
 
 func (m *Model) selectEntity() {
 	if m.entityID == "" {
@@ -1054,13 +986,6 @@ func (m *Model) moveSelection(delta int) {
 	}
 }
 
-func (m *Model) scrollFocused(delta int) {
-	if m.focus == FocusList {
-		m.moveSelection(delta)
-		return
-	}
-	m.rightTop = max(0, m.rightTop+delta)
-}
 
 func (m Model) inputActive() bool {
 	return m.projectFilterActive || m.mode == ModeProjectInput || m.commentInput || m.mrCommentInput || m.issueCommentInput || m.editInput || m.replyInput || m.focus == FocusFilter
@@ -1088,8 +1013,6 @@ func (m Model) localKeys() []key.Binding {
 		return newMRDetailKeys().LocalKeys()
 	case ModeLabelSelect:
 		return newMRDetailKeys().LocalKeys()
-	case ModeDiff:
-		return newDiffViewKeys().LocalKeys()
 	case ModeFileDiff:
 		return newFileDiffKeys().LocalKeys()
 	default:
@@ -1124,14 +1047,6 @@ func (m Model) selectedItem() (mr.MergeRequest, bool) {
 	return items[clampSelection(m.selected, len(items))], true
 }
 
-func (m *Model) setDiffRows(iid int, rows []mr.DiffRow) {
-	for i := range m.items {
-		if m.items[i].IID == iid {
-			m.items[i].Diff = rows
-			return
-		}
-	}
-}
 
 func (m Model) leftWidth() int {
 	if m.width <= 0 {

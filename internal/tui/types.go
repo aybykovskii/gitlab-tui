@@ -14,7 +14,6 @@ const (
 	ModeSections
 	ModeEntityList
 	ModeDetail
-	ModeDiff
 	ModeFileDiff
 	ModeLabelSelect
 )
@@ -64,7 +63,6 @@ type ProjectData struct {
 	LoadIssues           LoadIssuesFunc
 	PostIssueComment     PostIssueCommentFunc
 	LoadIssueDiscussions LoadIssueDiscussionsFunc
-	LoadDiff             DiffFunc
 	LoadDiscussions      LoadDiscussionsFunc
 	LoadFiles            LoadFilesFunc
 	CloseIssue           IssueStateActionFunc
@@ -97,7 +95,6 @@ type ProjectOptions struct {
 	Issues               []issue.Issue
 	Refresh              RefreshFunc
 	LoadIssues           LoadIssuesFunc
-	LoadDiff             DiffFunc
 	LoadProject          ProjectLoadFunc
 	LoadDiscussions      LoadDiscussionsFunc
 	LoadFiles            LoadFilesFunc

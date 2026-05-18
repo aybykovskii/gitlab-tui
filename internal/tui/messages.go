@@ -165,10 +165,3 @@ type issueDiscussionsFinishedMsg struct {
 	err         error
 }
 
-type diffStartedMsg struct{}
-
-type diffFinishedMsg struct {
-	iid  int
-	rows []mr.DiffRow
-	err  error
-}

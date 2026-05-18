@@ -104,12 +104,10 @@ type Model struct {
 	issueItems           []issue.Issue
 	issueState           string
 	loadIssues           LoadIssuesFunc
-	loadDiff             DiffFunc
 	loadProject          ProjectLoadFunc
 	loading              bool
 	projectLoading       bool
 	projectError         bool
-	diffLoading          bool
 	errorMessage         string
 	keyBarExpanded       bool
 	threadPanelVisible   bool
@@ -149,7 +147,6 @@ func NewModelWithProject(items []mr.MergeRequest, options ProjectOptions) Model 
 		issueItems:           options.Issues,
 		issueState:           "opened",
 		loadIssues:           options.LoadIssues,
-		loadDiff:             options.LoadDiff,
 		loadProject:          options.LoadProject,
 		loadDiscussions:      options.LoadDiscussions,
 		loadFiles:            options.LoadFiles,
@@ -218,7 +215,7 @@ func newProgram(model tea.Model, stdout io.Writer) *tea.Program {
 }
 
 func programOptions(stdout io.Writer) []tea.ProgramOption {
-	return []tea.ProgramOption{tea.WithMouseCellMotion(), tea.WithAltScreen(), tea.WithOutput(stdout)}
+	return []tea.ProgramOption{tea.WithAltScreen(), tea.WithOutput(stdout)}
 }
 
 func (m Model) Init() tea.Cmd {

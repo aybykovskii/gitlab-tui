@@ -5,8 +5,6 @@ import (
 	"strings"
 
 	tea "github.com/charmbracelet/bubbletea"
-
-	"github.com/aybykovskii/gitlab-tui/internal/mr"
 )
 
 func (m *Model) returnToProjectPicker() {
@@ -125,22 +123,6 @@ func (m Model) ensureDiscussionsLoaded(iid int) tea.Cmd {
 	)
 }
 
-func (m Model) openDiffCommand(item mr.MergeRequest) (Model, tea.Cmd) {
-	if m.loadDiff == nil || len(item.Diff) > 0 {
-		m.mode = ModeDiff
-		m.focus = FocusDetail
-		m.rightTop = 0
-		return m, nil
-	}
-	loadDiff := m.loadDiff
-	return m, tea.Sequence(
-		func() tea.Msg { return diffStartedMsg{} },
-		func() tea.Msg {
-			rows, err := loadDiff(item.IID)
-			return diffFinishedMsg{iid: item.IID, rows: rows, err: err}
-		},
-	)
-}
 
 func (m Model) refreshCommand() tea.Cmd {
 	if m.section == SectionIssues {

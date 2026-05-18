@@ -248,33 +248,6 @@ func (c Client) ListProjectIssues(ctx context.Context, projectPath string, state
 	return result, nil
 }
 
-func (c Client) MergeRequestDiff(ctx context.Context, projectPath string, iid int) ([]mr.DiffRow, error) {
-	if c.mergeRequests == nil {
-		return nil, fmt.Errorf("merge requests client is not configured")
-	}
-
-	options := &glab.ListMergeRequestDiffsOptions{
-		ListOptions: glab.ListOptions{PerPage: 50, Page: 1},
-	}
-	rows := []mr.DiffRow{}
-	for {
-		items, response, err := c.mergeRequests.ListMergeRequestDiffs(projectPath, int64(iid), options, glab.WithContext(ctx))
-		if err != nil {
-			return nil, err
-		}
-		for _, item := range items {
-			if item != nil {
-				rows = append(rows, diff.Parse(item.Diff)...)
-			}
-		}
-		if response == nil || response.NextPage == 0 {
-			break
-		}
-		options.Page = response.NextPage
-	}
-
-	return rows, nil
-}
 
 func MapMergeRequest(item *glab.BasicMergeRequest) mr.MergeRequest {
 	if item == nil {

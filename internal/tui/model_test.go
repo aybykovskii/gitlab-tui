@@ -306,18 +306,6 @@ func TestMRListAndDetailRenderPreviousMRInfo(t *testing.T) {
 	}
 }
 
-func TestMouseClickSelectsListItem(t *testing.T) {
-	model := NewFakeModel()
-	updated, _ := model.Update(tea.WindowSizeMsg{Width: 100, Height: 20})
-	model = updated.(Model)
-
-	updated, _ = model.Update(tea.MouseMsg{X: 2, Y: 5, Button: tea.MouseButtonLeft, Action: tea.MouseActionPress})
-	model = updated.(Model)
-
-	if model.selected != 1 {
-		t.Fatalf("expected clicked second item to be selected, got %d", model.selected)
-	}
-}
 
 func TestProjectSelectionShowsRecentsAndGitLabProjects(t *testing.T) {
 	model := NewModelWithProject(FakeMergeRequests(), ProjectOptions{
@@ -470,12 +458,8 @@ func TestEnterOnSummaryDoesNotTriggerDiff(t *testing.T) {
 	model := NewModelWithProject([]mr.MergeRequest{{IID: 1, Title: "Needs diff"}}, ProjectOptions{
 		Path:    "group/project",
 		Section: SectionMergeRequests,
-		LoadDiff: func(iid int) ([]mr.DiffRow, error) {
-			return []mr.DiffRow{{OldLine: 1, OldText: "old", NewLine: 1, NewText: "new"}}, nil
-		},
 	})
 
-	// Enter on Summary tab should be a no-op — diff is accessed via Files tab
 	updated, cmd := model.Update(tea.KeyMsg{Type: tea.KeyEnter})
 	model = updated.(Model)
 	if cmd != nil {
@@ -483,19 +467,6 @@ func TestEnterOnSummaryDoesNotTriggerDiff(t *testing.T) {
 	}
 	if model.mode != ModeDetail {
 		t.Fatalf("expected to stay in ModeDetail, got %v", model.mode)
-	}
-}
-
-func TestDiffFinishedStoresRowsAndOpensDiff(t *testing.T) {
-	model := NewModelWithProject([]mr.MergeRequest{{IID: 1, Title: "Needs diff"}}, ProjectOptions{Path: "group/project", Section: SectionMergeRequests})
-	updated, _ := model.Update(diffFinishedMsg{iid: 1, rows: []mr.DiffRow{{OldLine: 1, OldText: "old"}}})
-	model = updated.(Model)
-
-	if model.mode != ModeDiff {
-		t.Fatalf("expected diff mode, got %v", model.mode)
-	}
-	if len(model.items[0].Diff) != 1 {
-		t.Fatalf("expected diff rows to be stored, got %+v", model.items[0].Diff)
 	}
 }
 
@@ -557,20 +528,6 @@ func TestRefreshFinishedStoresError(t *testing.T) {
 	}
 }
 
-func TestMouseWheelScrollsRightPanel(t *testing.T) {
-	model := NewFakeModel()
-	before := model.rightTop
-
-	updated, _ := model.Update(tea.MouseMsg{X: 2, Y: 4, Button: tea.MouseButtonWheelDown})
-	model = updated.(Model)
-
-	if model.rightTop != before+1 {
-		t.Fatalf("expected wheel down to scroll right panel (rightTop %d→%d)", before, model.rightTop)
-	}
-	if model.selected != 0 {
-		t.Fatalf("expected wheel not to change MR selection, got selected=%d", model.selected)
-	}
-}
 
 // --- #41: MR detail tabs ---
 
@@ -2462,19 +2419,6 @@ func TestDiffAdditionRowIsMarkedWithPlus(t *testing.T) {
 
 // --- #50: Left panel always read-only, no focus ---
 
-func TestMouseClickOnLeftPanelDoesNotChangeFocus(t *testing.T) {
-	model := NewFakeModel()
-	updated, _ := model.Update(tea.WindowSizeMsg{Width: 100, Height: 20})
-	model = updated.(Model)
-
-	// Click on left side (X=2, well within leftWidth ~35)
-	updated, _ = model.Update(tea.MouseMsg{X: 2, Y: 5, Button: tea.MouseButtonLeft, Action: tea.MouseActionPress})
-	model = updated.(Model)
-
-	if model.focus == FocusList {
-		t.Fatal("expected left panel click not to set FocusList")
-	}
-}
 
 func TestLeftPanelHasNoActiveBorderInDetailMode(t *testing.T) {
 	model := NewFakeModel()

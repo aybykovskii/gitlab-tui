@@ -319,16 +319,3 @@ func renderDiscussionBlock(discussion mr.Discussion, header string, cursor strin
 	return lines
 }
 
-func (m Model) renderDiff(item mr.MergeRequest) string {
-	lines := []string{fmt.Sprintf("Diff !%d %s", item.IID, item.Title), ""}
-	for _, row := range item.Diff {
-		lines = append(lines, fmt.Sprintf("%4d │ %-36s │ %4d │ %s", row.OldLine, row.OldText, row.NewLine, row.NewText))
-	}
-	lines = append(lines, "", "Esc/backspace: back to detail")
-	if m.rightTop >= len(lines) {
-		m.rightTop = max(0, len(lines)-1)
-	}
-	visible := max(1, m.height-2)
-	end := min(len(lines), m.rightTop+visible)
-	return strings.Join(lines[m.rightTop:end], "\n")
-}

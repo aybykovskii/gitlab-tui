@@ -20,9 +20,6 @@ func (m Model) renderList() string {
 	if m.errorMessage != "" {
 		lines = append(lines, "Error: "+m.errorMessage)
 	}
-	if m.diffLoading {
-		lines = append(lines, "Loading diff…")
-	}
 	items := m.filtered()
 	if len(items) == 0 {
 		lines = append(lines, "No opened MRs")
@@ -54,9 +51,6 @@ func (m Model) renderRight() string {
 		return style.Render("No MR selected")
 	}
 	item := items[clampSelection(m.selected, len(items))]
-	if m.mode == ModeDiff {
-		return style.Render(m.renderDiff(item))
-	}
 	reviewLabel := m.reviewTabLabel(item)
 	tabs := fmt.Sprintf("[Summary] [Discussions] [Files] [%s]", reviewLabel)
 	switch m.activeTab {

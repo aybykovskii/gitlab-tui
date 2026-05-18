@@ -14,7 +14,6 @@ type MergeRequest struct {
 	Approvals      string
 	Description    string
 	WebURL         string
-	Diff           []DiffRow
 	Labels         []string
 	Draft          bool
 	Reviewers      []string

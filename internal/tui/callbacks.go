@@ -8,7 +8,6 @@ import (
 type RefreshFunc func() ([]mr.MergeRequest, error)
 type LoadIssuesFunc func(state string, search string) ([]issue.Issue, error)
 type LoadIssueDiscussionsFunc func(iid int) ([]issue.Discussion, error)
-type DiffFunc func(iid int) ([]mr.DiffRow, error)
 type ProjectLoadFunc func(path string) (ProjectData, error)
 type AccountProjectsLoadFunc func() ([]string, error)
 type LoadDiscussionsFunc func(iid int) ([]mr.Discussion, error)
