@@ -2436,6 +2436,78 @@ func TestProjectSelectRecentSelectionUsesProjectPath(t *testing.T) {
 	}
 }
 
+func TestProjectSelectFilterMatchesRecentAndAccountProjects(t *testing.T) {
+	model := NewModelWithProject(nil, ProjectOptions{
+		RecentProjects: []RecentProjectOption{{Path: "team/Alpha", Account: "work"}, {Path: "group/beta", Account: "default"}},
+		LoadProjects:   []AccountProjectLoader{{ID: "default", Host: "https://gitlab.com", Load: func() ([]string, error) { return nil, nil }}},
+	})
+	updated, _ := model.Update(accountProjectsFinishedMsg{accountID: "default", projects: []string{"org/alpha-service", "org/gamma"}})
+	model = updated.(Model)
+
+	updated, _ = model.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'/'}})
+	model = updated.(Model)
+	updated, _ = model.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'a'}})
+	model = updated.(Model)
+	updated, _ = model.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'l'}})
+	model = updated.(Model)
+
+	view := model.View()
+	for _, want := range []string{"team/Alpha (work)", "org/alpha-service"} {
+		if !strings.Contains(view, want) {
+			t.Fatalf("expected filtered view to contain %q, got %q", want, view)
+		}
+	}
+	for _, unwanted := range []string{"group/beta", "org/gamma"} {
+		if strings.Contains(view, unwanted) {
+			t.Fatalf("expected filtered view to hide %q, got %q", unwanted, view)
+		}
+	}
+	if model.selected != 1 {
+		t.Fatalf("expected cursor on first filtered result, got %d rows %+v", model.selected, model.projectRows)
+	}
+}
+
+func TestProjectSelectFilterHidesSectionsWithoutMatchesAndEscResets(t *testing.T) {
+	model := NewModelWithProject(nil, ProjectOptions{
+		RecentProjects: []RecentProjectOption{{Path: "recent/only", Account: "work"}},
+		LoadProjects:   []AccountProjectLoader{{ID: "default", Host: "https://gitlab.com", Load: func() ([]string, error) { return nil, nil }}},
+	})
+	updated, _ := model.Update(accountProjectsFinishedMsg{accountID: "default", projects: []string{"account/project"}})
+	model = updated.(Model)
+
+	updated, _ = model.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'/'}})
+	model = updated.(Model)
+	for _, r := range "only" {
+		updated, _ = model.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{r}})
+		model = updated.(Model)
+	}
+
+	view := model.View()
+	if !strings.Contains(view, "Recent") || strings.Contains(view, "[default]  https://gitlab.com") {
+		t.Fatalf("expected only Recent section after filter, got %q", view)
+	}
+
+	updated, _ = model.Update(tea.KeyMsg{Type: tea.KeyEsc})
+	model = updated.(Model)
+	view = model.View()
+	if !strings.Contains(view, "[default]  https://gitlab.com") || !strings.Contains(view, "account/project") {
+		t.Fatalf("expected full list after Esc reset, got %q", view)
+	}
+}
+
+func TestProjectSelectFilterShowsNoMatches(t *testing.T) {
+	model := NewModelWithProject(nil, ProjectOptions{RecentProjects: []RecentProjectOption{{Path: "group/project", Account: "default"}}})
+
+	updated, _ := model.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'/'}})
+	model = updated.(Model)
+	updated, _ = model.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'z'}})
+	model = updated.(Model)
+
+	if !strings.Contains(model.View(), "No matching projects") {
+		t.Fatalf("expected no-match state, got %q", model.View())
+	}
+}
+
 func TestProjectSelectStartsAccountProjectLoads(t *testing.T) {
 	model := NewModelWithProject(nil, ProjectOptions{LoadProjects: []AccountProjectLoader{
 		{ID: "default", Host: "https://gitlab.com", Load: func() ([]string, error) { return []string{"group/project"}, nil }},

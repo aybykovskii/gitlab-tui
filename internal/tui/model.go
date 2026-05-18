@@ -321,6 +321,7 @@ type Model struct {
 	loadDiscussions      LoadDiscussionsFunc
 	loadFiles            LoadFilesFunc
 	projectInput         string
+	projectFilterActive  bool
 	refresh              RefreshFunc
 	loadDiff             DiffFunc
 	loadProject          ProjectLoadFunc
@@ -640,7 +641,39 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 func (m Model) updateKey(msg tea.KeyMsg) (Model, tea.Cmd) {
 	if m.mode == ModeProjectSelect {
+		if m.projectFilterActive {
+			switch msg.Type {
+			case tea.KeyEsc:
+				m.query = ""
+				m.projectFilterActive = false
+				m.rebuildProjectRows()
+				m.selected = m.nearestSelectable(0)
+				return m, nil
+			case tea.KeyBackspace:
+				if len(m.query) > 0 {
+					m.query = m.query[:len(m.query)-1]
+					m.rebuildProjectRows()
+					m.selected = m.nearestSelectable(0)
+				}
+				return m, nil
+			case tea.KeyRunes:
+				m.query += msg.String()
+				m.rebuildProjectRows()
+				m.selected = m.nearestSelectable(0)
+				return m, nil
+			}
+		}
 		switch msg.String() {
+		case "/":
+			m.projectFilterActive = true
+			m.query = ""
+			m.rebuildProjectRows()
+			m.selected = m.nearestSelectable(0)
+		case "esc":
+			m.query = ""
+			m.projectFilterActive = false
+			m.rebuildProjectRows()
+			m.selected = m.nearestSelectable(0)
 		case "up", "k":
 			m.selected = m.nextSelectable(m.selected, -1)
 		case "down", "j":
@@ -1696,9 +1729,9 @@ func (m Model) renderAppContextPane() string {
 
 func (m *Model) rebuildProjectRows() {
 	m.projectRows = nil
-	if len(m.recentProjectOptions) > 0 {
+	if len(m.filteredRecentProjects()) > 0 {
 		m.projectRows = append(m.projectRows, projectListRow{label: "Recent"})
-		for _, recent := range m.recentProjectOptions {
+		for _, recent := range m.filteredRecentProjects() {
 			label := recent.Path
 			if recent.Account != "" {
 				label += " (" + recent.Account + ")"
@@ -1707,24 +1740,62 @@ func (m *Model) rebuildProjectRows() {
 		}
 	}
 	for _, project := range m.projectList {
-		m.projectRows = append(m.projectRows, projectListRow{project: project, label: project, selectable: true})
-	}
-	for _, loader := range m.loadProjects {
-		state := m.accountProjectStates[loader.ID]
-		header := fmt.Sprintf("[%s]  %s", loader.ID, state.host)
-		m.projectRows = append(m.projectRows, projectListRow{label: header})
-		if state.loading {
-			m.projectRows = append(m.projectRows, projectListRow{label: "Loading…"})
-			continue
-		}
-		if state.err != "" {
-			m.projectRows = append(m.projectRows, projectListRow{label: "Error: " + state.err + "  r: retry"})
-			continue
-		}
-		for _, project := range state.projects[:min(len(state.projects), 15)] {
+		if m.matchesProjectFilter(project) {
 			m.projectRows = append(m.projectRows, projectListRow{project: project, label: project, selectable: true})
 		}
 	}
+	for _, loader := range m.loadProjects {
+		state := m.accountProjectStates[loader.ID]
+		projects := filteredProjectPaths(state.projects[:min(len(state.projects), 15)], m.query)
+		showStatus := !m.projectFilterActive && len(projects) == 0
+		if len(projects) == 0 && !showStatus {
+			continue
+		}
+		header := fmt.Sprintf("[%s]  %s", loader.ID, state.host)
+		m.projectRows = append(m.projectRows, projectListRow{label: header})
+		if state.loading && showStatus {
+			m.projectRows = append(m.projectRows, projectListRow{label: "Loading…"})
+			continue
+		}
+		if state.err != "" && showStatus {
+			m.projectRows = append(m.projectRows, projectListRow{label: "Error: " + state.err + "  r: retry"})
+			continue
+		}
+		for _, project := range projects {
+			m.projectRows = append(m.projectRows, projectListRow{project: project, label: project, selectable: true})
+		}
+	}
+}
+
+func (m Model) filteredRecentProjects() []RecentProjectOption {
+	projects := make([]RecentProjectOption, 0, len(m.recentProjectOptions))
+	for _, recent := range m.recentProjectOptions {
+		if m.matchesProjectFilter(recent.Path) {
+			projects = append(projects, recent)
+		}
+	}
+	return projects
+}
+
+func filteredProjectPaths(projects []string, query string) []string {
+	if strings.TrimSpace(query) == "" {
+		return projects
+	}
+	filtered := make([]string, 0, len(projects))
+	needle := strings.ToLower(query)
+	for _, project := range projects {
+		if strings.Contains(strings.ToLower(project), needle) {
+			filtered = append(filtered, project)
+		}
+	}
+	return filtered
+}
+
+func (m Model) matchesProjectFilter(project string) bool {
+	if strings.TrimSpace(m.query) == "" {
+		return true
+	}
+	return strings.Contains(strings.ToLower(project), strings.ToLower(m.query))
 }
 
 func (m Model) nextSelectable(from int, delta int) int {
@@ -1790,6 +1861,12 @@ func (m Model) renderProjectPicker() string {
 	}
 
 	lines := []string{"Projects", ""}
+	if m.projectFilterActive || m.query != "" {
+		lines = append(lines, "Filter: "+m.query, "")
+	}
+	if len(m.projectRows) == 0 {
+		lines = append(lines, "No matching projects")
+	}
 	for i, row := range m.projectRows {
 		prefix := "  "
 		if i == m.selected && row.selectable {
