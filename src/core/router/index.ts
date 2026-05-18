@@ -1,6 +1,0 @@
-export type { DeepLink } from './deepLink.js'
-export { parseDeepLink } from './deepLink.js'
-export { clearRegistry, getRegisteredFeatures, registerFeature } from './registry.js'
-export type { BuildStackOptions } from './stackBuilder.js'
-export { buildInitialStack } from './stackBuilder.js'
-export type { Feature, NavigationItem, Route } from './types.js'

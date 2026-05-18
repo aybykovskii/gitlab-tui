@@ -3,7 +3,7 @@
 GO_PACKAGES := $(shell go list ./... | grep -v '/node_modules/')
 
 go-build:
-	go build ./cmd/gitlab-tui-go
+	go build ./cmd/gitlab-tui
 
 go-test:
 	go test $(GO_PACKAGES)
