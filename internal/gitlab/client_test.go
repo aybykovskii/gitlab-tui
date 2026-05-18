@@ -2,6 +2,7 @@ package gitlab
 
 import (
 	"context"
+	"errors"
 	"testing"
 
 	glab "gitlab.com/gitlab-org/api/client-go"
@@ -14,6 +15,14 @@ type fakeMergeRequests struct {
 
 type fakeApprovals struct {
 	configs map[int64]*glab.MergeRequestApprovals
+}
+
+type fakeProjects struct {
+	limit      int64
+	membership bool
+	orderBy    string
+	projects   []*glab.Project
+	err        error
 }
 
 func (f *fakeMergeRequests) ListProjectMergeRequests(pid any, opt *glab.ListProjectMergeRequestsOptions, options ...glab.RequestOptionFunc) ([]*glab.BasicMergeRequest, *glab.Response, error) {
@@ -38,6 +47,62 @@ func (f fakeApprovals) GetConfiguration(pid any, mergeRequest int64, options ...
 		return nil, &glab.Response{}, nil
 	}
 	return f.configs[mergeRequest], &glab.Response{}, nil
+}
+
+func (f *fakeProjects) ListProjects(opt *glab.ListProjectsOptions, options ...glab.RequestOptionFunc) ([]*glab.Project, *glab.Response, error) {
+	if opt != nil {
+		f.limit = opt.PerPage
+		if opt.Membership != nil {
+			f.membership = *opt.Membership
+		}
+		if opt.OrderBy != nil {
+			f.orderBy = *opt.OrderBy
+		}
+	}
+	return f.projects, &glab.Response{}, f.err
+}
+
+func TestListProjectsReturnsProjectPaths(t *testing.T) {
+	projects := &fakeProjects{projects: []*glab.Project{
+		{PathWithNamespace: "group/new"},
+		{PathWithNamespace: "team/old"},
+	}}
+	client := NewClientWithProjects(projects)
+
+	paths, err := client.ListProjects(context.Background(), 5)
+	if err != nil {
+		t.Fatalf("expected no error, got %v", err)
+	}
+
+	if len(paths) != 2 || paths[0] != "group/new" || paths[1] != "team/old" {
+		t.Fatalf("unexpected project paths: %+v", paths)
+	}
+	if projects.limit != 5 || !projects.membership || projects.orderBy != "last_activity_at" {
+		t.Fatalf("unexpected list options: limit=%d membership=%t orderBy=%q", projects.limit, projects.membership, projects.orderBy)
+	}
+}
+
+func TestListProjectsReturnsEmptyList(t *testing.T) {
+	client := NewClientWithProjects(&fakeProjects{})
+
+	paths, err := client.ListProjects(context.Background(), 10)
+	if err != nil {
+		t.Fatalf("expected no error, got %v", err)
+	}
+	if len(paths) != 0 {
+		t.Fatalf("expected empty project paths, got %+v", paths)
+	}
+}
+
+func TestListProjectsReturnsAPIError(t *testing.T) {
+	apiErr := errors.New("api failed")
+	client := NewClientWithProjects(&fakeProjects{err: apiErr})
+
+	_, err := client.ListProjects(context.Background(), 10)
+
+	if !errors.Is(err, apiErr) {
+		t.Fatalf("expected API error, got %v", err)
+	}
 }
 
 func TestOpenMergeRequestsMapsAllPages(t *testing.T) {
@@ -145,7 +210,7 @@ func TestMapChangedFileMapsPathMarkersAndLineCounts(t *testing.T) {
 		NewFile:     false,
 		DeletedFile: false,
 		RenamedFile: false,
-		Diff: "@@ -10,3 +10,4 @@\n context\n-old\n+new\n+added\n",
+		Diff:        "@@ -10,3 +10,4 @@\n context\n-old\n+new\n+added\n",
 	})
 	if item.Path != "internal/tui/model.go" {
 		t.Fatalf("expected path, got %q", item.Path)

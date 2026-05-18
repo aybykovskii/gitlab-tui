@@ -25,10 +25,15 @@ type DiscussionsClient interface {
 	ListMergeRequestDiscussions(pid any, mergeRequest int64, opt *glab.ListMergeRequestDiscussionsOptions, options ...glab.RequestOptionFunc) ([]*glab.Discussion, *glab.Response, error)
 }
 
+type ProjectsClient interface {
+	ListProjects(opt *glab.ListProjectsOptions, options ...glab.RequestOptionFunc) ([]*glab.Project, *glab.Response, error)
+}
+
 type Client struct {
 	mergeRequests MergeRequestClient
 	approvals     MergeRequestApprovalsClient
 	discussions   DiscussionsClient
+	projects      ProjectsClient
 }
 
 func NewClient(account config.Account, env []string) (Client, error) {
@@ -42,15 +47,47 @@ func NewClient(account config.Account, env []string) (Client, error) {
 		return Client{}, err
 	}
 
-	return Client{mergeRequests: client.MergeRequests, approvals: client.MergeRequestApprovals, discussions: client.Discussions}, nil
+	return Client{mergeRequests: client.MergeRequests, approvals: client.MergeRequestApprovals, discussions: client.Discussions, projects: client.Projects}, nil
 }
 
 func NewClientWithMergeRequests(mergeRequests MergeRequestClient) Client {
 	return Client{mergeRequests: mergeRequests}
 }
 
+func NewClientWithProjects(projects ProjectsClient) Client {
+	return Client{projects: projects}
+}
+
 func NewClientWithServices(mergeRequests MergeRequestClient, approvals MergeRequestApprovalsClient) Client {
 	return Client{mergeRequests: mergeRequests, approvals: approvals}
+}
+
+func (c Client) ListProjects(ctx context.Context, limit int) ([]string, error) {
+	if c.projects == nil {
+		return nil, fmt.Errorf("projects client is not configured")
+	}
+
+	membership := true
+	orderBy := "last_activity_at"
+	items, _, err := c.projects.ListProjects(&glab.ListProjectsOptions{
+		Membership: &membership,
+		OrderBy:    &orderBy,
+		ListOptions: glab.ListOptions{
+			PerPage: int64(limit),
+		},
+	}, glab.WithContext(ctx))
+	if err != nil {
+		return nil, err
+	}
+
+	paths := make([]string, 0, len(items))
+	for _, item := range items {
+		if item != nil {
+			paths = append(paths, item.PathWithNamespace)
+		}
+	}
+
+	return paths, nil
 }
 
 func (c Client) OpenMergeRequests(ctx context.Context, projectPath string) ([]mr.MergeRequest, error) {
