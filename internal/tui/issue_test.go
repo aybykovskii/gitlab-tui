@@ -83,6 +83,73 @@ func TestIssueStateFilterCyclesAndUpdatesTitle(t *testing.T) {
 	}
 }
 
+func TestIssueDetailSummaryRendersMetadata(t *testing.T) {
+	model := NewModelWithProject(nil, ProjectOptions{Path: "group/project", Section: SectionIssues})
+	model.mode = ModeEntityList
+	model.issueItems = []issue.Issue{{
+		IID:          81,
+		Title:        "Issue Detail",
+		Author:       "Alice",
+		Assignees:    []string{"Bob"},
+		State:        "opened",
+		Labels:       []string{"frontend", "tui"},
+		DueDate:      "2026-05-20",
+		Milestone:    "v1",
+		Weight:       5,
+		CommentCount: 7,
+		Description:  "Detail description",
+	}}
+
+	updated, _ := model.Update(tea.KeyMsg{Type: tea.KeyEnter})
+	model = updated.(Model)
+	view := model.renderRight()
+
+	for _, want := range []string{"#81 Issue Detail", "[>Summary<] [Discussions]", "👤 Alice · assigned: Bob", "🟢 opened · 💬 7", "🏷️ [frontend] [tui]", "📅 Due: 2026-05-20 · 🏁 v1", "⚖️ Weight: 5", "Detail description"} {
+		if !strings.Contains(view, want) {
+			t.Fatalf("expected issue detail to contain %q, got %q", want, view)
+		}
+	}
+}
+
+func TestIssueDetailHidesUnsetWeight(t *testing.T) {
+	model := NewModelWithProject(nil, ProjectOptions{Path: "group/project", Section: SectionIssues})
+	model.mode = ModeDetail
+	model.issueItems = []issue.Issue{{IID: 82, Title: "No Estimate", State: "closed"}}
+
+	view := model.renderRight()
+	if strings.Contains(view, "Weight") {
+		t.Fatalf("expected unset weight to be hidden, got %q", view)
+	}
+	if !strings.Contains(view, "🔴 closed") {
+		t.Fatalf("expected closed state emoji, got %q", view)
+	}
+}
+
+func TestIssueDetailTabsStayWithinSummaryAndDiscussions(t *testing.T) {
+	model := NewModelWithProject(nil, ProjectOptions{Path: "group/project", Section: SectionIssues})
+	model.mode = ModeDetail
+	model.issueItems = []issue.Issue{{IID: 81, Title: "Issue Detail"}}
+
+	for _, want := range []DetailTab{TabDiscussions, TabSummary, TabDiscussions} {
+		updated, _ := model.Update(tea.KeyMsg{Type: tea.KeyTab})
+		model = updated.(Model)
+		if model.activeTab != want {
+			t.Fatalf("expected tab %v, got %v", want, model.activeTab)
+		}
+	}
+}
+
+func TestIssueDetailKeyBarUsesIssueKeys(t *testing.T) {
+	model := NewModelWithProject(nil, ProjectOptions{Path: "group/project", Section: SectionIssues})
+	model.mode = ModeDetail
+	model.issueItems = []issue.Issue{{IID: 81, Title: "Issue Detail"}}
+
+	view := model.renderKeyBar()
+	if !strings.Contains(view, "Tab next tab") || strings.Contains(view, "approve") || strings.Contains(view, "merge") {
+		t.Fatalf("expected issue detail local keys, got %q", view)
+	}
+}
+
 func TestIssueFilterNarrowsByTitleAndAuthor(t *testing.T) {
 	model := NewModelWithProject(nil, ProjectOptions{Path: "group/project", Section: SectionIssues})
 	model.mode = ModeEntityList

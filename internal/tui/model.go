@@ -122,6 +122,10 @@ type MRDetailKeys struct {
 	NextTab key.Binding
 }
 
+type IssueDetailKeys struct {
+	NextTab key.Binding
+}
+
 type DiffViewKeys struct {
 	Up      key.Binding
 	Down    key.Binding
@@ -200,6 +204,12 @@ func newMRDetailKeys() MRDetailKeys {
 func (k MRDetailKeys) LocalKeys() []key.Binding {
 	return []key.Binding{k.Approve, k.Merge, k.Edit, k.OpenURL, k.Comment, k.NextTab}
 }
+
+func newIssueDetailKeys() IssueDetailKeys {
+	return IssueDetailKeys{NextTab: key.NewBinding(key.WithKeys("tab"), key.WithHelp("Tab", "next tab"))}
+}
+
+func (k IssueDetailKeys) LocalKeys() []key.Binding { return []key.Binding{k.NextTab} }
 
 func newDiffViewKeys() DiffViewKeys {
 	return DiffViewKeys{
@@ -955,6 +965,7 @@ func (m Model) updateKey(msg tea.KeyMsg) (Model, tea.Cmd) {
 		case "enter":
 			m.mode = ModeDetail
 			m.focus = FocusDetail
+			m.activeTab = TabSummary
 		case "esc", "backspace":
 			if m.projectError || (m.projectPath != "" && len(m.items) == 0) {
 				m.errorMessage = ""
@@ -1255,7 +1266,7 @@ func (m Model) updateKey(msg tea.KeyMsg) (Model, tea.Cmd) {
 		return m, nil
 	}
 
-	if m.mode == ModeDetail && m.activeTab == TabDiscussions {
+	if m.mode == ModeDetail && m.activeTab == TabDiscussions && m.section != SectionIssues {
 		return m.updateDiscussionsTab(msg)
 	}
 
@@ -1338,6 +1349,10 @@ func (m Model) updateKey(msg tea.KeyMsg) (Model, tea.Cmd) {
 		}
 	case msg.String() == "tab":
 		if m.mode == ModeDetail {
+			if m.section == SectionIssues {
+				m.activeTab = (m.activeTab + 1) % (TabDiscussions + 1)
+				return m, nil
+			}
 			m.activeTab = (m.activeTab + 1) % (TabFiles + 1)
 			return m.onTabEntered()
 		}
@@ -2014,6 +2029,9 @@ func (m Model) localKeys() []key.Binding {
 	case ModeEntityList:
 		return newEntityListKeys().LocalKeys()
 	case ModeDetail:
+		if m.section == SectionIssues {
+			return newIssueDetailKeys().LocalKeys()
+		}
 		return newMRDetailKeys().LocalKeys()
 	case ModeDiff:
 		return newDiffViewKeys().LocalKeys()
@@ -2265,6 +2283,9 @@ func (m Model) renderRight() string {
 	width := max(20, m.width-m.leftWidth())
 	height := m.paneHeight()
 	style := paneStyle(width, height, m.focus == FocusDetail)
+	if m.section == SectionIssues {
+		return style.Render(m.renderIssueDetail())
+	}
 	items := m.filtered()
 	if len(items) == 0 {
 		return style.Render("No MR selected")
@@ -2320,6 +2341,50 @@ func (m Model) renderRight() string {
 		}
 		return style.Render(strings.Join(lines, "\n"))
 	}
+}
+
+func (m Model) renderIssueDetail() string {
+	items := m.filteredIssues()
+	if len(items) == 0 {
+		return "No issue selected"
+	}
+	item := items[clampSelection(m.selected, len(items))]
+	tabs := "[>Summary<] [Discussions]"
+	if m.activeTab == TabDiscussions {
+		tabs = "[Summary] [>Discussions<]"
+	}
+	header := fmt.Sprintf("#%d %s\n%s", item.IID, item.Title, tabs)
+	if m.activeTab == TabDiscussions {
+		return header + "\n\nDiscussions coming soon"
+	}
+	lines := []string{
+		header,
+		"",
+		"👤 " + item.Author + " · assigned: " + strings.Join(item.Assignees, ", "),
+		issueStateIcon(item.State) + " " + item.State + fmt.Sprintf(" · 💬 %d", item.CommentCount),
+		"🏷️ " + formatIssueLabels(item.Labels),
+		"📅 Due: " + item.DueDate + " · 🏁 " + item.Milestone,
+	}
+	if item.Weight > 0 {
+		lines = append(lines, fmt.Sprintf("⚖️ Weight: %d", item.Weight))
+	}
+	lines = append(lines, "", item.Description)
+	return strings.Join(lines, "\n")
+}
+
+func issueStateIcon(state string) string {
+	if state == "closed" {
+		return "🔴"
+	}
+	return "🟢"
+}
+
+func formatIssueLabels(labels []string) string {
+	parts := make([]string, 0, len(labels))
+	for _, label := range labels {
+		parts = append(parts, "["+label+"]")
+	}
+	return strings.Join(parts, " ")
 }
 
 func (m Model) renderDiscussions(item mr.MergeRequest) string {
