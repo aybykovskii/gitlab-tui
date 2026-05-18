@@ -62,5 +62,6 @@ func RememberResolvedProject(cfg *config.Config, account string, path string, no
 	if path == "" {
 		return
 	}
+
 	cfg.RememberProject(config.RecentProject{Account: account, Path: path, LastUsedAt: now})
 }

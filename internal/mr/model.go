@@ -77,6 +77,7 @@ func Filter(list []MergeRequest, query string) []MergeRequest {
 	}
 
 	filtered := make([]MergeRequest, 0, len(list))
+
 	for _, item := range list {
 		text := strings.ToLower(item.Title + " " + item.SourceBranch + " " + item.TargetBranch + " " + item.Author)
 		if strings.Contains(text, query) {

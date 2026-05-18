@@ -16,6 +16,7 @@ func TestRemoteURLsDeduplicatesFetchAndPush(t *testing.T) {
 	if err != nil {
 		t.Fatalf("expected no error, got %v", err)
 	}
+
 	if len(urls) != 2 {
 		t.Fatalf("expected 2 unique urls, got %d", len(urls))
 	}
@@ -26,6 +27,7 @@ func TestProjectPathFromSSHRemote(t *testing.T) {
 	if !ok {
 		t.Fatal("expected remote to match")
 	}
+
 	if path != "group/project" {
 		t.Fatalf("expected group/project, got %q", path)
 	}
@@ -36,6 +38,7 @@ func TestProjectPathFromHTTPSRemote(t *testing.T) {
 	if !ok {
 		t.Fatal("expected remote to match")
 	}
+
 	if path != "group/sub/project" {
 		t.Fatalf("expected group/sub/project, got %q", path)
 	}

@@ -129,6 +129,7 @@ func NewModelWithProject(items []mr.MergeRequest, options ProjectOptions) Model 
 	if len(options.RecentProjects) > 0 {
 		projectListRecents = nil
 	}
+
 	model := Model{
 		items:                items,
 		focus:                FocusDetail,
@@ -183,6 +184,7 @@ func NewModelWithProject(items []mr.MergeRequest, options ProjectOptions) Model 
 		projectListKeys:      newProjectListKeys(),
 	}
 	model.rebuildProjectRows()
+
 	if model.projectPath == "" {
 		if len(model.projectList) > 0 || len(model.recentProjectOptions) > 0 || len(model.loadProjects) > 0 {
 			model.mode = ModeProjectSelect
@@ -197,6 +199,7 @@ func NewModelWithProject(items []mr.MergeRequest, options ProjectOptions) Model 
 	} else {
 		model.mode = ModeSections
 	}
+
 	return model
 }
 
@@ -207,6 +210,7 @@ func Run(stdout io.Writer) error {
 func RunWithProject(stdout io.Writer, options ProjectOptions) error {
 	program := newProgram(NewModelWithProject(nil, options), stdout)
 	_, err := program.Run()
+
 	return err
 }
 
@@ -223,13 +227,16 @@ func (m Model) Init() tea.Cmd {
 		_, cmd := m.openProjectCommand(m.projectPath)
 		return cmd
 	}
+
 	if m.mode == ModeProjectSelect && len(m.loadProjects) > 0 {
 		cmds := make([]tea.Cmd, 0, len(m.loadProjects))
 		for _, loader := range m.loadProjects {
 			cmds = append(cmds, loadAccountProjectsCommand(loader))
 		}
+
 		return tea.Batch(cmds...)
 	}
+
 	return nil
 }
 

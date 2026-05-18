@@ -7,6 +7,14 @@ linters:
     - ineffassign
     - staticcheck
     - unused
+    - wsl
+
+linters-settings:
+  wsl:
+    allow-assign-and-call: true
+    allow-multiline-assign: true
+    enforce-err-cuddling: false
+    force-short-decl-cuddling: false
 
 issues:
   max-issues-per-linter: 0

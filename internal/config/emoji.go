@@ -37,32 +37,42 @@ func (e EmojiConfig) Resolve() EmojiMap {
 	if !e.Enabled {
 		return EmojiMap{}
 	}
+
 	d := defaultEmojiMap()
 	m := e.Icons
+
 	if m.Author == "" {
 		m.Author = d.Author
 	}
+
 	if m.Branch == "" {
 		m.Branch = d.Branch
 	}
+
 	if m.State == "" {
 		m.State = d.State
 	}
+
 	if m.Pipeline == "" {
 		m.Pipeline = d.Pipeline
 	}
+
 	if m.Approvals == "" {
 		m.Approvals = d.Approvals
 	}
+
 	if m.Labels == "" {
 		m.Labels = d.Labels
 	}
+
 	if m.Reviewers == "" {
 		m.Reviewers = d.Reviewers
 	}
+
 	if m.Draft == "" {
 		m.Draft = d.Draft
 	}
+
 	return m
 }
 

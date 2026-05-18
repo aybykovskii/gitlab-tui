@@ -31,6 +31,7 @@ func TestProgramUsesAltScreen(t *testing.T) {
 	if !strings.Contains(output, "\x1b[?1049h") {
 		t.Fatalf("expected program to enter alternate screen, got %q", output)
 	}
+
 	if !strings.Contains(output, "\x1b[?1049l") {
 		t.Fatalf("expected program to leave alternate screen, got %q", output)
 	}
@@ -51,6 +52,7 @@ func TestAllNavigationKeyMapsHaveHelp(t *testing.T) {
 		if len(bindings) == 0 {
 			t.Fatalf("expected %s key map to have bindings", name)
 		}
+
 		for _, binding := range bindings {
 			if binding.Help().Key == "" || binding.Help().Desc == "" {
 				t.Fatalf("expected %s binding to have help, got %+v", name, binding.Help())
@@ -80,6 +82,7 @@ func TestExpandedKeyBarShowsAllProjectListLocalKeys(t *testing.T) {
 			t.Fatalf("expected expanded key bar to contain %q, got %q", want, view)
 		}
 	}
+
 	if !strings.Contains(view, "─") {
 		t.Fatalf("expected expanded key bar separator, got %q", view)
 	}
@@ -110,11 +113,13 @@ func TestHKeyTogglesExpandedKeyBarAndPaneHeight(t *testing.T) {
 	if !model.keyBarExpanded {
 		t.Fatal("expected key bar to expand")
 	}
+
 	if model.paneHeight() >= collapsedHeight {
 		t.Fatalf("expected expanded key bar to shrink panes, collapsed=%d expanded=%d", collapsedHeight, model.paneHeight())
 	}
 
 	updated, _ = model.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'h'}})
+
 	model = updated.(Model)
 	if model.keyBarExpanded {
 		t.Fatal("expected key bar to collapse")
@@ -141,6 +146,7 @@ func TestInputModeQDoesNotQuit(t *testing.T) {
 	if cmd != nil {
 		t.Fatal("expected q to be handled as input, not global quit")
 	}
+
 	if model.mrCommentBuffer != "q" {
 		t.Fatalf("expected q in comment buffer, got %q", model.mrCommentBuffer)
 	}
@@ -178,9 +184,11 @@ func TestEnterOnMergeRequestsSectionOpensMRList(t *testing.T) {
 	if model.mode != ModeEntityList {
 		t.Fatalf("expected ModeEntityList after entering MR section, got %v", model.mode)
 	}
+
 	if model.section != SectionMergeRequests {
 		t.Fatalf("expected MR section, got %q", model.section)
 	}
+
 	if !strings.Contains(model.View(), "Merge Requests") || !strings.Contains(model.View(), "Port TUI shell") {
 		t.Fatalf("expected MR list view, got %q", model.View())
 	}
@@ -204,16 +212,19 @@ func TestKeyboardSelectionAndDiffNavigation(t *testing.T) {
 
 	// In ModeDetail, Down scrolls the right panel rather than moving selection
 	updated, _ := model.Update(tea.KeyMsg{Type: tea.KeyDown})
+
 	model = updated.(Model)
 	if model.rightTop != 3 {
 		t.Fatalf("expected rightTop=3 after Down in ModeDetail, got %d", model.rightTop)
 	}
+
 	if model.selected != 0 {
 		t.Fatalf("expected selected unchanged in ModeDetail, got %d", model.selected)
 	}
 
 	// Enter on Summary tab no longer opens diff — it is a no-op
 	updated, _ = model.Update(tea.KeyMsg{Type: tea.KeyEnter})
+
 	model = updated.(Model)
 	if model.mode != ModeDetail {
 		t.Fatalf("expected to stay in ModeDetail after Enter on Summary, got %v", model.mode)
@@ -221,6 +232,7 @@ func TestKeyboardSelectionAndDiffNavigation(t *testing.T) {
 
 	// Esc from ModeDetail returns to entity list
 	updated, _ = model.Update(tea.KeyMsg{Type: tea.KeyEsc})
+
 	model = updated.(Model)
 	if model.mode != ModeEntityList {
 		t.Fatalf("expected ModeEntityList after Esc from ModeDetail, got %v", model.mode)
@@ -238,6 +250,7 @@ func TestFilterInputNarrowsList(t *testing.T) {
 	if len(filtered) != 1 {
 		t.Fatalf("expected 1 filtered item, got %d", len(filtered))
 	}
+
 	if !strings.Contains(strings.ToLower(filtered[0].Title), "yaml") {
 		t.Fatalf("unexpected filtered item: %+v", filtered[0])
 	}
@@ -254,6 +267,7 @@ func TestDirectMRDeepLinkSelectsLoadedMergeRequest(t *testing.T) {
 	if model.selected != 1 {
 		t.Fatalf("expected loaded target MR selected, got %d", model.selected)
 	}
+
 	if !strings.Contains(model.View(), "!123 Loaded target") {
 		t.Fatalf("expected loaded target MR detail, got %q", model.View())
 	}
@@ -268,6 +282,7 @@ func TestDirectMRDeepLinkSelectsMatchingMergeRequest(t *testing.T) {
 	if model.selected != 1 {
 		t.Fatalf("expected selected MR index 1, got %d", model.selected)
 	}
+
 	view := model.View()
 	if !strings.Contains(view, "!123 Target MR") || !strings.Contains(view, "Deep linked") {
 		t.Fatalf("expected target MR detail, got %q", view)
@@ -337,9 +352,11 @@ func TestProjectSelectionGoesToSectionsImmediately(t *testing.T) {
 	if cmd != nil {
 		t.Fatal("expected no loading command on project selection")
 	}
+
 	if model.mode != ModeSections {
 		t.Fatalf("expected sections mode immediately, got %v", model.mode)
 	}
+
 	if model.projectPath != "group/two" {
 		t.Fatalf("expected selected project path, got %q", model.projectPath)
 	}
@@ -354,6 +371,7 @@ func TestProjectLoadShowsLoadingState(t *testing.T) {
 	if !strings.Contains(view, "Loading project…") {
 		t.Fatalf("expected project loading state, got %q", view)
 	}
+
 	if strings.Contains(view, "Refreshing…") {
 		t.Fatalf("expected project load not to look like refresh, got %q", view)
 	}
@@ -370,11 +388,13 @@ func TestProjectLoadErrorCanReturnToSelection(t *testing.T) {
 	if !strings.Contains(view, "Error: refresh failed") {
 		t.Fatalf("expected load error in view, got %q", view)
 	}
+
 	if !strings.Contains(view, "Esc back") {
 		t.Fatalf("expected recovery key in key bar, got %q", view)
 	}
 
 	updated, _ = model.Update(tea.KeyMsg{Type: tea.KeyEsc})
+
 	model = updated.(Model)
 	if model.mode != ModeProjectSelect {
 		t.Fatalf("expected project select after Esc, got %v", model.mode)
@@ -398,13 +418,14 @@ func TestProjectLoadErrorRetryReloadsSameProject(t *testing.T) {
 	updated, _ = model.Update(projectFinishedMsg{path: "group/project", err: errTestRefresh})
 	model = updated.(Model)
 
-	updated, cmd := model.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune("r")})
-	model = updated.(Model)
+	_, cmd := model.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune("r")})
+
 	if cmd == nil {
 		t.Fatal("expected retry command")
 	}
 
 	_ = cmd
+
 	if calls != 0 {
 		t.Fatalf("expected command creation not to call loader yet, got %d calls", calls)
 	}
@@ -422,6 +443,7 @@ func TestManualProjectLoadErrorReturnsToInput(t *testing.T) {
 	if model.mode != ModeProjectInput {
 		t.Fatalf("expected project input after Esc, got %v", model.mode)
 	}
+
 	if model.focus != FocusFilter {
 		t.Fatalf("expected input focus after Esc, got %v", model.focus)
 	}
@@ -445,9 +467,11 @@ func TestManualProjectInputGoesToSectionsImmediately(t *testing.T) {
 	if cmd != nil {
 		t.Fatal("expected no loading command on manual project input")
 	}
+
 	if model.mode != ModeSections {
 		t.Fatalf("expected sections mode immediately, got %v", model.mode)
 	}
+
 	if model.projectPath != "group/project" {
 		t.Fatalf("expected project path set, got %q", model.projectPath)
 	}
@@ -461,9 +485,11 @@ func TestEnterOnSummaryDoesNotTriggerDiff(t *testing.T) {
 
 	updated, cmd := model.Update(tea.KeyMsg{Type: tea.KeyEnter})
 	model = updated.(Model)
+
 	if cmd != nil {
 		t.Fatal("expected no command from Enter on Summary tab")
 	}
+
 	if model.mode != ModeDetail {
 		t.Fatalf("expected to stay in ModeDetail, got %v", model.mode)
 	}
@@ -478,11 +504,13 @@ func TestEmptyProjectStateCanReturnToProjectSelection(t *testing.T) {
 	if !strings.Contains(view, "No opened MRs") {
 		t.Fatalf("expected empty MR state, got %q", view)
 	}
+
 	if !strings.Contains(view, "r refresh") || !strings.Contains(view, "Esc back") {
 		t.Fatalf("expected empty state actions in key bar, got %q", view)
 	}
 
 	updated, _ = model.Update(tea.KeyMsg{Type: tea.KeyEsc})
+
 	model = updated.(Model)
 	if model.mode != ModeProjectSelect {
 		t.Fatalf("expected project select after Esc, got %v", model.mode)
@@ -512,6 +540,7 @@ func TestRefreshFinishedReplacesItems(t *testing.T) {
 	if len(model.items) != 1 {
 		t.Fatalf("expected refreshed items, got %d", len(model.items))
 	}
+
 	if model.items[0].IID != 99 {
 		t.Fatalf("unexpected refreshed item: %+v", model.items[0])
 	}
@@ -562,9 +591,11 @@ func TestDiscussionsTabTriggersLoadOnFirstVisit(t *testing.T) {
 	if model.activeTab != TabDiscussions {
 		t.Fatalf("expected TabDiscussions, got %v", model.activeTab)
 	}
+
 	if cmd == nil {
 		t.Fatal("expected a load command when switching to Discussions tab for the first time")
 	}
+
 	if !strings.Contains(model.View(), "Loading") {
 		t.Fatalf("expected loading state in Discussions tab, got:\n%s", model.View())
 	}
@@ -616,10 +647,12 @@ func TestFocusedDiscussionThreadIsMarked(t *testing.T) {
 	// Move cursor to second thread
 	updated, _ = model.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune("j")})
 	model = updated.(Model)
+
 	view = model.View()
 	if strings.Count(view, "> [") != 1 {
 		t.Fatalf("expected exactly one focused thread marker, got:\n%s", view)
 	}
+
 	if !strings.Contains(view, "bob") {
 		t.Fatalf("expected second thread visible after j, got:\n%s", view)
 	}
@@ -709,9 +742,11 @@ func TestFilesTabTriggersLoadOnFirstVisit(t *testing.T) {
 	if model.activeTab != TabFiles {
 		t.Fatalf("expected TabFiles, got %v", model.activeTab)
 	}
+
 	if cmd == nil {
 		t.Fatal("expected a load command when switching to Files tab for the first time")
 	}
+
 	if !strings.Contains(model.View(), "Loading") {
 		t.Fatalf("expected loading state in Files tab, got:\n%s", model.View())
 	}
@@ -849,6 +884,7 @@ func TestFileDiffLeftPaneShowsFileListWithCurrentHighlighted(t *testing.T) {
 	if !strings.Contains(view, "> internal/tui/model.go") {
 		t.Fatalf("expected selected file highlighted with '>', got:\n%s", view)
 	}
+
 	if !strings.Contains(view, "cmd/main.go") {
 		t.Fatalf("expected second file in left pane, got:\n%s", view)
 	}
@@ -878,9 +914,11 @@ func TestFileDiffRightPaneShowsPerFileDiffRows(t *testing.T) {
 	if !strings.Contains(view, "Diff internal/tui/model.go") {
 		t.Fatalf("expected file name in diff header, got:\n%s", view)
 	}
+
 	if !strings.Contains(view, "before") {
 		t.Fatalf("expected diff row text in right pane, got:\n%s", view)
 	}
+
 	if !strings.Contains(view, "added line") {
 		t.Fatalf("expected added line in right pane, got:\n%s", view)
 	}
@@ -938,6 +976,7 @@ func TestFileDiffShowsDiscussionGutterWithoutInlineBody(t *testing.T) {
 	if !strings.Contains(view, " 💬 ") {
 		t.Fatalf("expected discussion gutter marker on positioned row, got:\n%s", view)
 	}
+
 	if strings.Contains(view, "fix this") || strings.Contains(view, "alice") || strings.Contains(view, "↳") {
 		t.Fatalf("expected discussion body to stay out of diff rows, got:\n%s", view)
 	}
@@ -945,6 +984,7 @@ func TestFileDiffShowsDiscussionGutterWithoutInlineBody(t *testing.T) {
 
 func fileDiffModelWithFiles(t *testing.T, files []mr.ChangedFile) Model {
 	t.Helper()
+
 	model := NewModelWithProject(FakeMergeRequests(), fileDiffOpts())
 	updated, _ := model.Update(tea.KeyMsg{Type: tea.KeyTab})
 	model = updated.(Model)
@@ -953,6 +993,7 @@ func fileDiffModelWithFiles(t *testing.T, files []mr.ChangedFile) Model {
 	updated, _ = model.Update(filesFinishedMsg{iid: 42, files: files})
 	model = updated.(Model)
 	updated, _ = model.Update(tea.KeyMsg{Type: tea.KeyEnter})
+
 	return updated.(Model)
 }
 
@@ -968,6 +1009,7 @@ func TestRightKeyMovesToNextFile(t *testing.T) {
 	if model.selectedFile != 1 {
 		t.Fatalf("expected selectedFile 1 after right, got %d", model.selectedFile)
 	}
+
 	if !strings.Contains(model.View(), "> b.go") {
 		t.Fatalf("expected b.go highlighted, got:\n%s", model.View())
 	}
@@ -1000,6 +1042,7 @@ func TestLeftKeyMovesToPreviousFile(t *testing.T) {
 	if model.selectedFile != 0 {
 		t.Fatalf("expected selectedFile 0 after left, got %d", model.selectedFile)
 	}
+
 	if !strings.Contains(model.View(), "> a.go") {
 		t.Fatalf("expected a.go highlighted, got:\n%s", model.View())
 	}
@@ -1029,6 +1072,7 @@ func TestEscInFileDiffReturnsToFilesTab(t *testing.T) {
 	if model.mode != ModeDetail {
 		t.Fatalf("expected ModeDetail after Esc, got %v", model.mode)
 	}
+
 	if model.activeTab != TabFiles {
 		t.Fatalf("expected TabFiles after Esc, got %v", model.activeTab)
 	}
@@ -1045,9 +1089,11 @@ func TestBackspaceInFileDiffReturnsToFilesTab(t *testing.T) {
 	if model.mode != ModeDetail {
 		t.Fatalf("expected ModeDetail after Backspace, got %v", model.mode)
 	}
+
 	if model.activeTab != TabFiles {
 		t.Fatalf("expected TabFiles after Backspace, got %v", model.activeTab)
 	}
+
 	if !strings.Contains(model.View(), ">Files<") {
 		t.Fatalf("expected Files tab active in view, got:\n%s", model.View())
 	}
@@ -1076,6 +1122,7 @@ func draftOpts() ProjectOptions {
 
 func draftFileDiffModel(t *testing.T) Model {
 	t.Helper()
+
 	model := NewModelWithProject(FakeMergeRequests(), draftOpts())
 	updated, _ := model.Update(tea.KeyMsg{Type: tea.KeyTab})
 	model = updated.(Model)
@@ -1089,6 +1136,7 @@ func draftFileDiffModel(t *testing.T) Model {
 	}})
 	model = updated.(Model)
 	updated, _ = model.Update(tea.KeyMsg{Type: tea.KeyEnter})
+
 	return updated.(Model)
 }
 
@@ -1104,14 +1152,18 @@ func TestReviewTabAppearsInTabCycleWithDraftCount(t *testing.T) {
 	model = updated.(Model)
 
 	updated, _ = model.Update(tea.KeyMsg{Type: tea.KeyTab})
+
 	model = updated.(Model)
 	if model.activeTab != TabReview {
 		t.Fatalf("expected Review tab after Files, got %v", model.activeTab)
 	}
+
 	if !strings.Contains(model.View(), ">Review (1)<") || !strings.Contains(model.View(), "main.go:2 Check this") {
 		t.Fatalf("expected Review tab with draft count and context, got:\n%s", model.View())
 	}
+
 	updated, _ = model.Update(tea.KeyMsg{Type: tea.KeyTab})
+
 	model = updated.(Model)
 	if model.activeTab != TabSummary {
 		t.Fatalf("expected tab cycle back to Summary, got %v", model.activeTab)
@@ -1131,11 +1183,14 @@ func TestReviewTabOpensDraftDiffAndEscReturnsToReview(t *testing.T) {
 	model.activeTab = TabReview
 
 	updated, _ = model.Update(tea.KeyMsg{Type: tea.KeyEnter})
+
 	model = updated.(Model)
 	if model.mode != ModeFileDiff || model.diffCursor != 1 {
 		t.Fatalf("expected file diff at draft row, mode=%v cursor=%d", model.mode, model.diffCursor)
 	}
+
 	updated, _ = model.Update(tea.KeyMsg{Type: tea.KeyEsc})
+
 	model = updated.(Model)
 	if model.mode != ModeDetail || model.activeTab != TabReview {
 		t.Fatalf("expected Esc to return to Review tab, mode=%v tab=%v", model.mode, model.activeTab)
@@ -1168,24 +1223,31 @@ func TestReviewTabPublishesDraftsWithSummaryAndDiscards(t *testing.T) {
 
 	updated, cmd := model.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune("p")})
 	model = updated.(Model)
+
 	if cmd == nil {
 		t.Fatal("expected publish command")
 	}
+
 	updated, _ = model.Update(cmd())
 	model = updated.(Model)
+
 	if !submitted || postedSummary != "Looks good overall" {
 		t.Fatalf("expected submit and summary post, submitted=%v summary=%q", submitted, postedSummary)
 	}
 
 	updated, cmd = model.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune("D")})
+
 	model = updated.(Model)
 	if len(model.drafts[42]) != 0 {
 		t.Fatalf("expected drafts cleared, got %d", len(model.drafts[42]))
 	}
+
 	if cmd == nil {
 		t.Fatal("expected discard command")
 	}
+
 	cmd()
+
 	if !discarded {
 		t.Fatal("expected discard callback")
 	}
@@ -1205,6 +1267,7 @@ func TestModelStoresDraftCommentForCurrentMR(t *testing.T) {
 	if len(model.drafts[42]) != 1 {
 		t.Fatalf("expected 1 draft stored, got %d", len(model.drafts[42]))
 	}
+
 	if model.drafts[42][0].Body != "Fix this please" {
 		t.Fatalf("unexpected draft body: %q", model.drafts[42][0].Body)
 	}
@@ -1224,6 +1287,7 @@ func TestDraftMarkerAppearsInGutterWithoutInlineBody(t *testing.T) {
 	if !strings.Contains(view, "📝 ") {
 		t.Fatalf("expected draft gutter marker in diff view, got:\n%s", view)
 	}
+
 	if strings.Contains(view, "[DRAFT]") || strings.Contains(view, "Check this") {
 		t.Fatalf("expected draft body to stay out of diff rows, got:\n%s", view)
 	}
@@ -1243,6 +1307,7 @@ func TestDraftRangeMarkerSpansMultipleRows(t *testing.T) {
 
 	view := model.View()
 	count := strings.Count(view, "📝 ")
+
 	if count < 2 {
 		t.Fatalf("expected draft gutter marker on both rows of range (got %d), view:\n%s", count, view)
 	}
@@ -1278,6 +1343,7 @@ func TestFileDiffGuttersUseTextSymbolsWhenEmojiDisabled(t *testing.T) {
 	if !strings.Contains(view, "●○ ") {
 		t.Fatalf("expected text draft/discussion gutter markers, got:\n%s", view)
 	}
+
 	if strings.Contains(view, "📝") || strings.Contains(view, "💬") {
 		t.Fatalf("expected no emoji markers when emoji disabled, got:\n%s", view)
 	}
@@ -1305,6 +1371,7 @@ func TestVKeyStartsRangeSelection(t *testing.T) {
 	if model.rangeStart != model.diffCursor {
 		t.Fatalf("expected rangeStart == diffCursor (%d), got rangeStart=%d", model.diffCursor, model.rangeStart)
 	}
+
 	view := model.View()
 	if !strings.Contains(view, "· ") {
 		t.Fatalf("expected range selection gutter marker · in view, got:\n%s", view)
@@ -1315,6 +1382,7 @@ func TestEscCancelsRangeSelection(t *testing.T) {
 	model := draftFileDiffModel(t)
 
 	updated, _ := model.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune("v")})
+
 	model = updated.(Model)
 	if model.rangeStart < 0 {
 		t.Fatal("expected range selection to be active")
@@ -1326,6 +1394,7 @@ func TestEscCancelsRangeSelection(t *testing.T) {
 	if model.rangeStart != -1 {
 		t.Fatalf("expected rangeStart -1 after Esc, got %d", model.rangeStart)
 	}
+
 	if model.mode != ModeFileDiff {
 		t.Fatalf("expected to remain in ModeFileDiff after cancelling range, got %v", model.mode)
 	}
@@ -1347,6 +1416,7 @@ func TestCKeyEntersCommentInputAndEnterSavesDraft(t *testing.T) {
 		updated, _ = model.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{ch}})
 		model = updated.(Model)
 	}
+
 	if model.commentBuffer != "My draft comment" {
 		t.Fatalf("expected buffer 'My draft comment', got %q", model.commentBuffer)
 	}
@@ -1358,9 +1428,11 @@ func TestCKeyEntersCommentInputAndEnterSavesDraft(t *testing.T) {
 	if model.commentInput {
 		t.Fatal("expected commentInput false after Enter")
 	}
+
 	if len(model.drafts[42]) != 1 {
 		t.Fatalf("expected 1 draft saved, got %d", len(model.drafts[42]))
 	}
+
 	if model.drafts[42][0].Body != "My draft comment" {
 		t.Fatalf("unexpected draft body: %q", model.drafts[42][0].Body)
 	}
@@ -1431,6 +1503,7 @@ func TestPKeySubmitsDraftsAndClearsOnSuccess(t *testing.T) {
 	if !submitted {
 		t.Fatal("expected submit function to have been called")
 	}
+
 	if len(model.drafts[42]) != 0 {
 		t.Fatalf("expected drafts cleared after submit, got %d", len(model.drafts[42]))
 	}
@@ -1480,10 +1553,12 @@ func TestDKeyDiscardsAllLocalDrafts(t *testing.T) {
 	if len(model.drafts[42]) != 0 {
 		t.Fatalf("expected drafts cleared immediately after D, got %d", len(model.drafts[42]))
 	}
+
 	if cmd != nil {
 		msg := cmd()
 		model.Update(msg)
 	}
+
 	if !discarded {
 		t.Fatal("expected discard function to have been called")
 	}
@@ -1507,6 +1582,7 @@ func discussionWriteOpts() ProjectOptions {
 
 func discussionsTabModel(t *testing.T) Model {
 	t.Helper()
+
 	model := NewModelWithProject(FakeMergeRequests(), discussionWriteOpts())
 	// Navigate to Discussions tab
 	updated, _ := model.Update(tea.KeyMsg{Type: tea.KeyTab})
@@ -1516,6 +1592,7 @@ func discussionsTabModel(t *testing.T) Model {
 		{ID: "d1", Resolved: false, Notes: []mr.Note{{Author: "alice", Body: "Fix naming"}}},
 		{ID: "d2", Resolved: true, Notes: []mr.Note{{Author: "bob", Body: "LGTM"}}},
 	}})
+
 	return updated.(Model)
 }
 
@@ -1545,6 +1622,7 @@ func TestDiscussionCursorDoesNotExceedBounds(t *testing.T) {
 	model := discussionsTabModel(t)
 
 	updated, _ := model.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune("k")})
+
 	model = updated.(Model)
 	if model.discussionCursor != 0 {
 		t.Fatalf("expected cursor to stay at 0 (already first), got %d", model.discussionCursor)
@@ -1554,6 +1632,7 @@ func TestDiscussionCursorDoesNotExceedBounds(t *testing.T) {
 	updated, _ = model.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune("j")})
 	model = updated.(Model)
 	updated, _ = model.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune("j")})
+
 	model = updated.(Model)
 	if model.discussionCursor != 1 {
 		t.Fatalf("expected cursor to stay at 1 (last), got %d", model.discussionCursor)
@@ -1569,9 +1648,11 @@ func TestRKeyOpensReplyInputForFocusedDiscussion(t *testing.T) {
 	if !model.replyInput {
 		t.Fatal("expected replyInput true after r")
 	}
+
 	if model.replyDraft {
 		t.Fatal("expected replyDraft false for instant reply")
 	}
+
 	if model.replyDiscussionID != "d1" {
 		t.Fatalf("expected replyDiscussionID d1, got %q", model.replyDiscussionID)
 	}
@@ -1582,12 +1663,15 @@ func TestEnterInReplyInputSendsReplyAndAddsNote(t *testing.T) {
 	opts := discussionWriteOpts()
 	opts.ReplyToDiscussion = func(iid int, discussionID string, body string) error {
 		called = true
+
 		if discussionID != "d1" {
 			t.Errorf("expected d1, got %q", discussionID)
 		}
+
 		if body != "My reply" {
 			t.Errorf("expected 'My reply', got %q", body)
 		}
+
 		return nil
 	}
 
@@ -1612,6 +1696,7 @@ func TestEnterInReplyInputSendsReplyAndAddsNote(t *testing.T) {
 	if model.replyInput {
 		t.Fatal("expected replyInput closed after Enter")
 	}
+
 	if cmd == nil {
 		t.Fatal("expected reply command")
 	}
@@ -1623,9 +1708,11 @@ func TestEnterInReplyInputSendsReplyAndAddsNote(t *testing.T) {
 	if !called {
 		t.Fatal("expected ReplyToDiscussion to be called")
 	}
+
 	if len(model.discussions[42][0].Notes) != 2 {
 		t.Fatalf("expected 2 notes after reply, got %d", len(model.discussions[42][0].Notes))
 	}
+
 	if model.discussions[42][0].Notes[1].Body != "My reply" {
 		t.Fatalf("unexpected note body: %q", model.discussions[42][0].Notes[1].Body)
 	}
@@ -1636,9 +1723,11 @@ func TestDKeyOpensDraftReplyAndEnterCallsService(t *testing.T) {
 	opts := discussionWriteOpts()
 	opts.DraftReply = func(iid int, discussionID string, body string) error {
 		called = true
+
 		if body != "Draft reply" {
 			t.Errorf("expected 'Draft reply', got %q", body)
 		}
+
 		return nil
 	}
 
@@ -1665,7 +1754,9 @@ func TestDKeyOpensDraftReplyAndEnterCallsService(t *testing.T) {
 	if cmd == nil {
 		t.Fatal("expected draft reply command")
 	}
+
 	cmd()
+
 	if !called {
 		t.Fatal("expected DraftReply to be called")
 	}
@@ -1676,9 +1767,11 @@ func TestXKeyResolvesOpenDiscussion(t *testing.T) {
 	opts := discussionWriteOpts()
 	opts.ResolveDiscussion = func(iid int, discussionID string) error {
 		resolved = true
+
 		if discussionID != "d1" {
 			t.Errorf("expected d1, got %q", discussionID)
 		}
+
 		return nil
 	}
 
@@ -1696,6 +1789,7 @@ func TestXKeyResolvesOpenDiscussion(t *testing.T) {
 	if cmd == nil {
 		t.Fatal("expected resolve command")
 	}
+
 	msg := cmd()
 	updated, _ = model.Update(msg)
 	model = updated.(Model)
@@ -1703,6 +1797,7 @@ func TestXKeyResolvesOpenDiscussion(t *testing.T) {
 	if !resolved {
 		t.Fatal("expected ResolveDiscussion to be called")
 	}
+
 	if !model.discussions[42][0].Resolved {
 		t.Fatal("expected discussion marked resolved")
 	}
@@ -1730,6 +1825,7 @@ func TestXKeyUnresolvesResolvedDiscussion(t *testing.T) {
 	if cmd == nil {
 		t.Fatal("expected unresolve command")
 	}
+
 	msg := cmd()
 	updated, _ = model.Update(msg)
 	model = updated.(Model)
@@ -1737,6 +1833,7 @@ func TestXKeyUnresolvesResolvedDiscussion(t *testing.T) {
 	if !unresolved {
 		t.Fatal("expected UnresolveDiscussion to be called")
 	}
+
 	if model.discussions[42][0].Resolved {
 		t.Fatal("expected discussion marked unresolved")
 	}
@@ -1744,6 +1841,7 @@ func TestXKeyUnresolvesResolvedDiscussion(t *testing.T) {
 
 func diffViewWithInlineDiscussion(t *testing.T, replyFn ReplyToDiscussionFunc) Model {
 	t.Helper()
+
 	opts := ProjectOptions{
 		Path:    "group/project",
 		Section: SectionMergeRequests,
@@ -1780,6 +1878,7 @@ func diffViewWithInlineDiscussion(t *testing.T, replyFn ReplyToDiscussionFunc) M
 	}})
 	model = updated.(Model)
 	updated, _ = model.Update(tea.KeyMsg{Type: tea.KeyEnter})
+
 	return updated.(Model)
 }
 
@@ -1793,6 +1892,7 @@ func TestRKeyInDiffViewOnInlineDiscussionOpensReplyInput(t *testing.T) {
 	if !model.replyInput {
 		t.Fatalf("expected replyInput true, got false; mode=%v cursor=%d", model.mode, model.diffCursor)
 	}
+
 	if model.replyDiscussionID != "inline-d1" {
 		t.Fatalf("expected replyDiscussionID inline-d1, got %q", model.replyDiscussionID)
 	}
@@ -1807,9 +1907,11 @@ func TestDKeyInDiffViewOpensDraftReplyForInlineDiscussion(t *testing.T) {
 	if !model.replyInput {
 		t.Fatal("expected replyInput true after d")
 	}
+
 	if !model.replyDraft {
 		t.Fatal("expected replyDraft true after d")
 	}
+
 	if model.replyDiscussionID != "inline-d1" {
 		t.Fatalf("expected replyDiscussionID inline-d1, got %q", model.replyDiscussionID)
 	}
@@ -1859,6 +1961,7 @@ func TestXKeyInDiffViewResolvesInlineDiscussion(t *testing.T) {
 	if cmd == nil {
 		t.Fatal("expected resolve command from x")
 	}
+
 	msg := cmd()
 	updated, _ = model.Update(msg)
 	model = updated.(Model)
@@ -1866,6 +1969,7 @@ func TestXKeyInDiffViewResolvesInlineDiscussion(t *testing.T) {
 	if !resolved {
 		t.Fatal("expected ResolveDiscussion to be called")
 	}
+
 	if !model.discussions[42][0].Resolved {
 		t.Fatal("expected inline discussion marked resolved")
 	}
@@ -1875,6 +1979,7 @@ func TestXKeyInDiffViewResolvesInlineDiscussion(t *testing.T) {
 
 func instantCommentFileDiffModel(t *testing.T, postFn PostInlineCommentFunc) Model {
 	t.Helper()
+
 	opts := ProjectOptions{
 		Path:    "group/project",
 		Section: SectionMergeRequests,
@@ -1898,6 +2003,7 @@ func instantCommentFileDiffModel(t *testing.T, postFn PostInlineCommentFunc) Mod
 	}})
 	model = updated.(Model)
 	updated, _ = model.Update(tea.KeyMsg{Type: tea.KeyEnter})
+
 	return updated.(Model)
 }
 
@@ -1910,6 +2016,7 @@ func TestIKeyOpensInstantInlineCommentInput(t *testing.T) {
 	if !model.commentInput {
 		t.Fatal("expected commentInput true after i")
 	}
+
 	if !model.commentInstant {
 		t.Fatal("expected commentInstant true after i")
 	}
@@ -1919,12 +2026,15 @@ func TestEnterInInstantCommentCallsAPIAndDoesNotSaveDraft(t *testing.T) {
 	called := false
 	model := instantCommentFileDiffModel(t, func(iid int, position mr.DiffPosition, body string) error {
 		called = true
+
 		if body != "Instant review" {
 			t.Errorf("expected 'Instant review', got %q", body)
 		}
+
 		if position.NewPath != "main.go" {
 			t.Errorf("expected path main.go, got %q", position.NewPath)
 		}
+
 		return nil
 	})
 
@@ -1939,11 +2049,13 @@ func TestEnterInInstantCommentCallsAPIAndDoesNotSaveDraft(t *testing.T) {
 	if cmd == nil {
 		t.Fatal("expected API command on Enter for instant comment")
 	}
+
 	cmd()
 
 	if !called {
 		t.Fatal("expected PostInlineCommentFunc to be called")
 	}
+
 	if len(model.drafts[42]) != 0 {
 		t.Fatalf("expected no local draft saved, got %d", len(model.drafts[42]))
 	}
@@ -1970,6 +2082,7 @@ func TestInstantCommentAPIErrorShownInView(t *testing.T) {
 	if model.mode != ModeFileDiff {
 		t.Fatalf("expected to stay in ModeFileDiff after error, got %v", model.mode)
 	}
+
 	if !strings.Contains(model.View(), "network timeout") {
 		t.Fatalf("expected error in view, got:\n%s", model.View())
 	}
@@ -2017,10 +2130,13 @@ func TestEnterInMRCommentInputCallsPostMRCommentFunc(t *testing.T) {
 	if model.mrCommentInput {
 		t.Fatal("expected mrCommentInput closed after Enter")
 	}
+
 	if cmd == nil {
 		t.Fatal("expected command from Enter in MR comment input")
 	}
+
 	cmd()
+
 	if !called {
 		t.Fatal("expected PostMRCommentFunc to be called")
 	}
@@ -2044,12 +2160,15 @@ func TestEscInMRCommentInputCancelsWithoutSending(t *testing.T) {
 	if model.mrCommentInput {
 		t.Fatal("expected mrCommentInput false after Esc")
 	}
+
 	if cmd != nil {
 		t.Fatal("expected no command on Esc")
 	}
+
 	if called {
 		t.Fatal("expected PostMRCommentFunc NOT to be called after Esc")
 	}
+
 	if model.mrCommentBuffer != "" {
 		t.Fatalf("expected buffer cleared after Esc, got %q", model.mrCommentBuffer)
 	}
@@ -2080,6 +2199,7 @@ func TestMRCommentAPIErrorShownInViewWithoutLosingContext(t *testing.T) {
 	if model.mode != ModeDetail {
 		t.Fatalf("expected to stay in ModeDetail after error, got %v", model.mode)
 	}
+
 	if !strings.Contains(model.View(), "forbidden") {
 		t.Fatalf("expected error in view, got:\n%s", model.View())
 	}
@@ -2089,12 +2209,15 @@ func TestMRCommentAPIErrorShownInViewWithoutLosingContext(t *testing.T) {
 
 func mrActionsModel(t *testing.T, opts ProjectOptions) Model {
 	t.Helper()
+
 	if opts.Path == "" {
 		opts.Path = "group/project"
 	}
+
 	if opts.Section == "" {
 		opts.Section = SectionMergeRequests
 	}
+
 	return NewModelWithProject(FakeMergeRequests(), opts)
 }
 
@@ -2116,6 +2239,7 @@ func TestAKeyApprovesCurrentMR(t *testing.T) {
 	if cmd == nil {
 		t.Fatal("expected approve command")
 	}
+
 	msg := cmd()
 	updated, _ = model.Update(msg)
 	model = updated.(Model)
@@ -2123,6 +2247,7 @@ func TestAKeyApprovesCurrentMR(t *testing.T) {
 	if !called {
 		t.Fatal("expected ApproveMRFunc to be called")
 	}
+
 	if !strings.Contains(model.View(), "Approved") {
 		t.Fatalf("expected 'Approved' in view, got:\n%s", model.View())
 	}
@@ -2139,6 +2264,7 @@ func TestMKeySetsMergeConfirmPending(t *testing.T) {
 	if !model.mergeConfirmPending {
 		t.Fatal("expected mergeConfirmPending true after first M")
 	}
+
 	if !strings.Contains(model.View(), "confirm merge") {
 		t.Fatalf("expected confirmation prompt in view, got:\n%s", model.View())
 	}
@@ -2152,13 +2278,14 @@ func TestMKeyAgainConfirmsMerge(t *testing.T) {
 
 	updated, _ := model.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune("M")})
 	model = updated.(Model)
-	updated, cmd := model.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune("M")})
-	model = updated.(Model)
+	_, cmd := model.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune("M")})
 
 	if cmd == nil {
 		t.Fatal("expected merge command on second M")
 	}
+
 	cmd()
+
 	if !called {
 		t.Fatal("expected MergeMRFunc to be called")
 	}
@@ -2177,6 +2304,7 @@ func TestOtherKeyAfterMCancelsMerge(t *testing.T) {
 	if model.mergeConfirmPending {
 		t.Fatal("expected mergeConfirmPending cleared after non-M key")
 	}
+
 	if cmd != nil {
 		t.Fatal("expected no merge command")
 	}
@@ -2192,13 +2320,14 @@ func TestOKeyOpensURLInBrowser(t *testing.T) {
 		OpenURL: func(url string) error { opened = url; return nil },
 	})
 
-	updated, cmd := model.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune("o")})
-	model = updated.(Model)
+	_, cmd := model.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune("o")})
 
 	if cmd == nil {
 		t.Fatal("expected open URL command")
 	}
+
 	cmd()
+
 	if opened != "https://gitlab.com/group/project/-/merge_requests/42" {
 		t.Fatalf("expected MR URL opened, got %q", opened)
 	}
@@ -2215,9 +2344,11 @@ func TestEKeyOpensEditModeOnTitleField(t *testing.T) {
 	if !model.editInput {
 		t.Fatal("expected editInput true after e")
 	}
+
 	if model.editField != "title" {
 		t.Fatalf("expected editField 'title', got %q", model.editField)
 	}
+
 	if model.editBuffer != "Port TUI shell to Bubble Tea" {
 		t.Fatalf("expected buffer pre-filled with current title, got %q", model.editBuffer)
 	}
@@ -2238,6 +2369,7 @@ func TestTabInEditModeMoveToDescriptionField(t *testing.T) {
 	if model.editField != "description" {
 		t.Fatalf("expected editField 'description' after Tab, got %q", model.editField)
 	}
+
 	if model.editTitle != "New title" {
 		t.Fatalf("expected editTitle saved, got %q", model.editTitle)
 	}
@@ -2279,9 +2411,11 @@ func TestEnterInEditModeSavesAndCallsEditMR(t *testing.T) {
 	if model.editInput {
 		t.Fatal("expected editInput closed after Enter")
 	}
+
 	if cmd == nil {
 		t.Fatal("expected edit command")
 	}
+
 	msg := cmd()
 	updated, _ = model.Update(msg)
 	model = updated.(Model)
@@ -2289,6 +2423,7 @@ func TestEnterInEditModeSavesAndCallsEditMR(t *testing.T) {
 	if !called {
 		t.Fatal("expected EditMRFunc to be called")
 	}
+
 	if model.items[0].Title != "New title" {
 		t.Fatalf("expected title updated locally, got %q", model.items[0].Title)
 	}
@@ -2329,17 +2464,18 @@ func TestEKeyInDiffViewOpensFileInEditor(t *testing.T) {
 	model = updated.(Model)
 
 	// Press 'e' to open in editor
-	updated, cmd := model.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune("e")})
-	model = updated.(Model)
+	_, cmd := model.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune("e")})
 
 	if cmd == nil {
 		t.Fatal("expected open editor command")
 	}
+
 	cmd()
 
 	if openedPath != "internal/tui/model.go" {
 		t.Fatalf("expected path internal/tui/model.go, got %q", openedPath)
 	}
+
 	if openedLine != 11 {
 		t.Fatalf("expected line 11, got %d", openedLine)
 	}
@@ -2349,6 +2485,7 @@ func TestEKeyInDiffViewOpensFileInEditor(t *testing.T) {
 
 func fileDiffModelWithRows(t *testing.T, rows []mr.DiffRow) Model {
 	t.Helper()
+
 	opts := ProjectOptions{
 		Path:    "group/project",
 		Section: SectionMergeRequests,
@@ -2367,6 +2504,7 @@ func fileDiffModelWithRows(t *testing.T, rows []mr.DiffRow) Model {
 	}})
 	model = updated.(Model)
 	updated, _ = model.Update(tea.KeyMsg{Type: tea.KeyEnter})
+
 	return updated.(Model)
 }
 
@@ -2456,6 +2594,7 @@ func TestMRSectionSelectionTriggersLoadingWhenNotLoaded(t *testing.T) {
 
 	// Select project → ModeSections immediately
 	updated, _ := model.Update(tea.KeyMsg{Type: tea.KeyEnter})
+
 	model = updated.(Model)
 	if model.mode != ModeSections {
 		t.Fatalf("setup: expected ModeSections, got %v", model.mode)
@@ -2468,6 +2607,7 @@ func TestMRSectionSelectionTriggersLoadingWhenNotLoaded(t *testing.T) {
 	if cmd == nil {
 		t.Fatal("expected loading command when selecting MR section with unloaded project")
 	}
+
 	if loadCalled {
 		t.Fatal("expected LoadProject not yet called (command not executed)")
 	}
@@ -2500,9 +2640,11 @@ func TestMRSectionLoadingCompletionShowsMRList(t *testing.T) {
 	if model.mode != ModeEntityList {
 		t.Fatalf("expected ModeEntityList after load, got %v", model.mode)
 	}
+
 	if len(model.items) != 2 {
 		t.Fatalf("expected 2 MRs loaded, got %d", len(model.items))
 	}
+
 	view := model.View()
 	if !strings.Contains(view, "First MR") {
 		t.Fatalf("expected MR list in view, got:\n%s", view)
@@ -2513,6 +2655,7 @@ func TestMRSectionLoadingCompletionShowsMRList(t *testing.T) {
 
 func entityListModel(t *testing.T) Model {
 	t.Helper()
+
 	model := NewModelWithProject(nil, ProjectOptions{
 		Recents:     []string{"group/project"},
 		LoadProject: func(path string) (ProjectData, error) { return ProjectData{}, nil },
@@ -2528,10 +2671,12 @@ func entityListModel(t *testing.T) Model {
 			{IID: 11, Title: "Beta MR"},
 		}},
 	})
+
 	model = updated.(Model)
 	if model.mode != ModeEntityList {
 		t.Fatalf("setup: expected ModeEntityList, got %v", model.mode)
 	}
+
 	return model
 }
 
@@ -2542,6 +2687,7 @@ func TestEntityListViewShowsSectionsContextOnLeft(t *testing.T) {
 	if !strings.Contains(view, "Merge Requests") {
 		t.Fatalf("expected sections context on left, got:\n%s", view)
 	}
+
 	if !strings.Contains(view, "Alpha MR") {
 		t.Fatalf("expected entity list on right, got:\n%s", view)
 	}
@@ -2583,9 +2729,11 @@ func TestProjectPickerRendersLeftContextPane(t *testing.T) {
 	if !strings.Contains(view, "gitlab-tui") {
 		t.Fatalf("expected left context pane with 'gitlab-tui', got:\n%s", view)
 	}
+
 	if !strings.Contains(view, "Projects") {
 		t.Fatalf("expected 'Projects' heading in right pane, got:\n%s", view)
 	}
+
 	if !strings.Contains(view, "recent/project") {
 		t.Fatalf("expected project in right pane, got:\n%s", view)
 	}
@@ -2601,6 +2749,7 @@ func TestProjectInputRendersLeftContextPane(t *testing.T) {
 	if !strings.Contains(view, "gitlab-tui") {
 		t.Fatalf("expected left context pane with 'gitlab-tui', got:\n%s", view)
 	}
+
 	if !strings.Contains(view, "Open GitLab project") {
 		t.Fatalf("expected 'Open GitLab project' in right pane, got:\n%s", view)
 	}
@@ -2611,6 +2760,7 @@ func TestTabKeyCyclesDetailTabs(t *testing.T) {
 
 	// Summary (default) → Discussions
 	updated, _ := model.Update(tea.KeyMsg{Type: tea.KeyTab})
+
 	model = updated.(Model)
 	if model.activeTab != TabDiscussions {
 		t.Fatalf("expected TabDiscussions after first Tab, got %v", model.activeTab)
@@ -2618,6 +2768,7 @@ func TestTabKeyCyclesDetailTabs(t *testing.T) {
 
 	// Discussions → Files
 	updated, _ = model.Update(tea.KeyMsg{Type: tea.KeyTab})
+
 	model = updated.(Model)
 	if model.activeTab != TabFiles {
 		t.Fatalf("expected TabFiles after second Tab, got %v", model.activeTab)
@@ -2625,6 +2776,7 @@ func TestTabKeyCyclesDetailTabs(t *testing.T) {
 
 	// Files → Review
 	updated, _ = model.Update(tea.KeyMsg{Type: tea.KeyTab})
+
 	model = updated.(Model)
 	if model.activeTab != TabReview {
 		t.Fatalf("expected TabReview after third Tab, got %v", model.activeTab)
@@ -2632,6 +2784,7 @@ func TestTabKeyCyclesDetailTabs(t *testing.T) {
 
 	// Review → Summary (wrap)
 	updated, _ = model.Update(tea.KeyMsg{Type: tea.KeyTab})
+
 	model = updated.(Model)
 	if model.activeTab != TabSummary {
 		t.Fatalf("expected TabSummary after fourth Tab, got %v", model.activeTab)
@@ -2662,17 +2815,21 @@ func TestProjectSelectShowsRecentSectionBeforeAccounts(t *testing.T) {
 	view := model.View()
 	recentIndex := strings.Index(view, "Recent")
 	accountIndex := strings.Index(view, "[default]  https://gitlab.com")
+
 	if recentIndex == -1 || accountIndex == -1 || recentIndex > accountIndex {
 		t.Fatalf("expected Recent before account section, got %q", view)
 	}
+
 	for _, want := range []string{"group/new (work)", "group/old (default)"} {
 		if !strings.Contains(view, want) {
 			t.Fatalf("expected recent entry %q, got %q", want, view)
 		}
 	}
+
 	if model.projectRows[0].selectable {
 		t.Fatalf("expected Recent header to be non-selectable: %+v", model.projectRows[0])
 	}
+
 	if model.selected != 2 {
 		t.Fatalf("expected cursor to skip Recent header and spacer, selected=%d rows=%+v", model.selected, model.projectRows)
 	}
@@ -2722,11 +2879,13 @@ func TestProjectSelectFilterMatchesRecentAndAccountProjects(t *testing.T) {
 			t.Fatalf("expected filtered view to contain %q, got %q", want, view)
 		}
 	}
+
 	for _, unwanted := range []string{"group/beta", "org/gamma"} {
 		if strings.Contains(view, unwanted) {
 			t.Fatalf("expected filtered view to hide %q, got %q", unwanted, view)
 		}
 	}
+
 	if model.selected != 2 {
 		t.Fatalf("expected cursor on first filtered result, got %d rows %+v", model.selected, model.projectRows)
 	}
@@ -2742,6 +2901,7 @@ func TestProjectSelectFilterHidesSectionsWithoutMatchesAndEscResets(t *testing.T
 
 	updated, _ = model.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'/'}})
 	model = updated.(Model)
+
 	for _, runeValue := range "only" {
 		updated, _ = model.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{runeValue}})
 		model = updated.(Model)
@@ -2754,6 +2914,7 @@ func TestProjectSelectFilterHidesSectionsWithoutMatchesAndEscResets(t *testing.T
 
 	updated, _ = model.Update(tea.KeyMsg{Type: tea.KeyEsc})
 	model = updated.(Model)
+
 	view = model.View()
 	if !strings.Contains(view, "[default]  https://gitlab.com") || !strings.Contains(view, "account/project") {
 		t.Fatalf("expected full list after Esc reset, got %q", view)
@@ -2784,9 +2945,11 @@ func TestProjectSelectStartsAccountProjectLoads(t *testing.T) {
 	if model.mode != ModeProjectSelect {
 		t.Fatalf("expected project select mode, got %v", model.mode)
 	}
+
 	if cmd == nil {
 		t.Fatal("expected account project load batch")
 	}
+
 	view := model.View()
 	for _, want := range []string{"[default]  https://gitlab.com", "[work]  https://gitlab.example.com", "Loading…"} {
 		if !strings.Contains(view, want) {
@@ -2806,10 +2969,13 @@ func TestProjectSelectShowsLoadedAccountProjectsAndSkipsHeaders(t *testing.T) {
 	if model.projectRows[0].selectable {
 		t.Fatalf("expected account header to be non-selectable: %+v", model.projectRows[0])
 	}
+
 	if model.selected != 1 {
 		t.Fatalf("expected first project row selected, got %d rows %+v", model.selected, model.projectRows)
 	}
+
 	updated, _ = model.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'j'}})
+
 	model = updated.(Model)
 	if got, ok := model.selectedProject(); !ok || got != "group/two" {
 		t.Fatalf("expected second project selected, got %q ok=%t", got, ok)
@@ -2831,11 +2997,14 @@ func TestProjectSelectShowsErrorAndRetriesOnlyFailedAccounts(t *testing.T) {
 	if !strings.Contains(model.View(), "Error: refresh failed  r: retry") {
 		t.Fatalf("expected error row, got %q", model.View())
 	}
+
 	_, cmd := model.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'r'}})
 	if cmd == nil {
 		t.Fatal("expected retry command")
 	}
+
 	_ = cmd()
+
 	if failedCalls != 1 || successCalls != 0 {
 		t.Fatalf("expected only failed loader to run, failed=%d success=%d", failedCalls, successCalls)
 	}
@@ -2854,6 +3023,7 @@ func TestDownScrollsRightPanelInModeDetail(t *testing.T) {
 	if model.rightTop != 6 {
 		t.Fatalf("expected rightTop=6 after j in ModeDetail, got %d", model.rightTop)
 	}
+
 	if model.selected != initialSelected {
 		t.Fatalf("expected selected to be unchanged, got %d", model.selected)
 	}
@@ -2870,6 +3040,7 @@ func TestUpScrollsRightPanelInModeDetail(t *testing.T) {
 	if model.rightTop != 4 {
 		t.Fatalf("expected rightTop=4 after k in ModeDetail, got %d", model.rightTop)
 	}
+
 	if model.selected != initialSelected {
 		t.Fatalf("expected selected to be unchanged, got %d", model.selected)
 	}
@@ -2892,12 +3063,14 @@ func TestArrowKeysScrollRightPanelInModeDetail(t *testing.T) {
 	model.rightTop = 3
 
 	updated, _ := model.Update(tea.KeyMsg{Type: tea.KeyDown})
+
 	model = updated.(Model)
 	if model.rightTop != 4 {
 		t.Fatalf("expected rightTop=4 after ↓ in ModeDetail, got %d", model.rightTop)
 	}
 
 	updated, _ = model.Update(tea.KeyMsg{Type: tea.KeyUp})
+
 	model = updated.(Model)
 	if model.rightTop != 3 {
 		t.Fatalf("expected rightTop=3 after ↑ in ModeDetail, got %d", model.rightTop)
@@ -2916,6 +3089,7 @@ func TestUpDownInModeEntityListStillMovesSelection(t *testing.T) {
 	if model.selected != initialSelected+1 {
 		t.Fatalf("expected selected to increment in ModeEntityList, got %d", model.selected)
 	}
+
 	if model.rightTop != initialRightTop {
 		t.Fatalf("expected rightTop unchanged in ModeEntityList, got %d", model.rightTop)
 	}
@@ -2932,6 +3106,7 @@ func TestEnteringMRCommentInputDisablesGlobalKeys(t *testing.T) {
 	if model.globals.Quit.Enabled() {
 		t.Fatal("expected Quit to be disabled when entering MR comment input")
 	}
+
 	if model.globals.Back.Enabled() {
 		t.Fatal("expected Back to be disabled when entering MR comment input")
 	}
@@ -2948,6 +3123,7 @@ func TestExitingMRCommentInputRestoresGlobalKeys(t *testing.T) {
 	if !model.globals.Quit.Enabled() {
 		t.Fatal("expected Quit to be restored after exiting MR comment input")
 	}
+
 	if !model.globals.Back.Enabled() {
 		t.Fatal("expected Back to be restored after exiting MR comment input")
 	}
@@ -2962,6 +3138,7 @@ func TestEnteringEditInputDisablesGlobalKeys(t *testing.T) {
 	if model.globals.Quit.Enabled() {
 		t.Fatal("expected Quit to be disabled when entering edit input")
 	}
+
 	if model.globals.Back.Enabled() {
 		t.Fatal("expected Back to be disabled when entering edit input")
 	}
@@ -2978,6 +3155,7 @@ func TestExitingEditInputRestoresGlobalKeys(t *testing.T) {
 	if !model.globals.Quit.Enabled() {
 		t.Fatal("expected Quit to be restored after exiting edit input")
 	}
+
 	if !model.globals.Back.Enabled() {
 		t.Fatal("expected Back to be restored after exiting edit input")
 	}
@@ -2994,6 +3172,7 @@ func TestEnteringReplyInputInDiscussionsDisablesGlobalKeys(t *testing.T) {
 	if model.globals.Quit.Enabled() {
 		t.Fatal("expected Quit to be disabled when entering reply input")
 	}
+
 	if model.globals.Back.Enabled() {
 		t.Fatal("expected Back to be disabled when entering reply input")
 	}
@@ -3012,6 +3191,7 @@ func TestExitingReplyInputInDiscussionsRestoresGlobalKeys(t *testing.T) {
 	if !model.globals.Quit.Enabled() {
 		t.Fatal("expected Quit to be restored after exiting reply input")
 	}
+
 	if !model.globals.Back.Enabled() {
 		t.Fatal("expected Back to be restored after exiting reply input")
 	}
@@ -3030,6 +3210,7 @@ func TestEnteringCommentInputInFileDiffDisablesGlobalKeys(t *testing.T) {
 	if model.globals.Quit.Enabled() {
 		t.Fatal("expected Quit to be disabled when entering comment input in FileDiff")
 	}
+
 	if model.globals.Back.Enabled() {
 		t.Fatal("expected Back to be disabled when entering comment input in FileDiff")
 	}
@@ -3050,6 +3231,7 @@ func TestExitingCommentInputInFileDiffRestoresGlobalKeys(t *testing.T) {
 	if !model.globals.Quit.Enabled() {
 		t.Fatal("expected Quit to be restored after exiting comment input")
 	}
+
 	if !model.globals.Back.Enabled() {
 		t.Fatal("expected Back to be restored after exiting comment input")
 	}
@@ -3064,6 +3246,7 @@ func TestEnteringFocusFilterDisablesGlobalKeys(t *testing.T) {
 	if model.globals.Quit.Enabled() {
 		t.Fatal("expected Quit to be disabled when entering filter")
 	}
+
 	if model.globals.Back.Enabled() {
 		t.Fatal("expected Back to be disabled when entering filter")
 	}
@@ -3080,6 +3263,7 @@ func TestExitingFocusFilterRestoresGlobalKeys(t *testing.T) {
 	if !model.globals.Quit.Enabled() {
 		t.Fatal("expected Quit to be restored after exiting filter")
 	}
+
 	if !model.globals.Back.Enabled() {
 		t.Fatal("expected Back to be restored after exiting filter")
 	}
@@ -3094,6 +3278,7 @@ func TestEnteringProjectInputModeDisablesGlobalKeys(t *testing.T) {
 	if model.globals.Quit.Enabled() {
 		t.Fatal("expected Quit to be disabled when entering project input mode")
 	}
+
 	if model.globals.Back.Enabled() {
 		t.Fatal("expected Back to be disabled when entering project input mode")
 	}
@@ -3110,6 +3295,7 @@ func TestQInEditInputDoesNotQuit(t *testing.T) {
 	if cmd != nil {
 		t.Fatal("expected q in edit mode to be treated as input, not global quit")
 	}
+
 	if !strings.HasSuffix(model.editBuffer, "q") {
 		t.Fatalf("expected edit buffer to end with q, got %q", model.editBuffer)
 	}
@@ -3136,6 +3322,7 @@ func TestKeyBarShowsInputHintsInFilterMode(t *testing.T) {
 	if !strings.Contains(view, "Enter") || !strings.Contains(view, "send") {
 		t.Fatalf("expected input hints in key bar during filter, got %q", view)
 	}
+
 	if !strings.Contains(view, "Esc") || !strings.Contains(view, "cancel") {
 		t.Fatalf("expected Esc cancel hint in key bar during filter, got %q", view)
 	}
@@ -3155,6 +3342,7 @@ func TestProjectSelectEnterOpensSelectedLoadedProjectSections(t *testing.T) {
 	if cmd != nil {
 		t.Fatal("expected section transition without loading command")
 	}
+
 	if model.projectPath != "group/project" || model.mode != ModeSections {
 		t.Fatalf("expected selected project sections to open, path=%q mode=%v", model.projectPath, model.mode)
 	}
@@ -3179,6 +3367,7 @@ func TestDKeyInModeDetailFlipsDraftOptimistically(t *testing.T) {
 
 func TestDKeyInModeDetailCallsToggleDraftFunc(t *testing.T) {
 	var calledIID int
+
 	items := []mr.MergeRequest{{IID: 42, Title: "Fix login", Draft: false, State: "opened"}}
 	model := NewModelWithProject(items, ProjectOptions{
 		Path:    "group/project",
@@ -3195,6 +3384,7 @@ func TestDKeyInModeDetailCallsToggleDraftFunc(t *testing.T) {
 	if cmd == nil {
 		t.Fatal("expected a command to be returned for ToggleDraftMR")
 	}
+
 	msg := cmd()
 	model.Update(msg)
 
@@ -3216,6 +3406,7 @@ func TestDKeyInModeDetailWithNilFuncFlipsDraftLocally(t *testing.T) {
 	if model.items[0].Draft {
 		t.Fatal("expected Draft to be flipped to false")
 	}
+
 	if cmd != nil {
 		t.Fatal("expected no command when ToggleDraftMR is nil")
 	}
@@ -3244,6 +3435,7 @@ func TestDKeyInModeDetailDoesNotTriggerInDiscussionsTab(t *testing.T) {
 	if model.items[0].Draft {
 		t.Fatal("expected Draft NOT to be toggled when in discussions tab")
 	}
+
 	if !model.replyInput {
 		t.Fatal("expected replyInput to be opened (draft reply in discussions tab)")
 	}
@@ -3294,6 +3486,7 @@ func TestSummaryRendersEmojiAuthorWhenEnabled(t *testing.T) {
 	if !strings.Contains(view, "👤") {
 		t.Fatalf("expected 👤 author emoji in summary when enabled, got:\n%s", view)
 	}
+
 	if !strings.Contains(view, "🌿") {
 		t.Fatalf("expected 🌿 branch emoji in summary when enabled, got:\n%s", view)
 	}
@@ -3316,6 +3509,7 @@ func TestSummaryRendersReviewersAndAssignees(t *testing.T) {
 	if !strings.Contains(view, "bob") {
 		t.Fatalf("expected reviewer 'bob' in summary, got:\n%s", view)
 	}
+
 	if !strings.Contains(view, "dave") {
 		t.Fatalf("expected assignee 'dave' in summary, got:\n%s", view)
 	}
@@ -3358,6 +3552,7 @@ func TestLabelSelectorRendersMarkers(t *testing.T) {
 	if !strings.Contains(view, "●") {
 		t.Fatalf("expected ● marker for selected label 'bug', got:\n%s", view)
 	}
+
 	if !strings.Contains(view, "○") {
 		t.Fatalf("expected ○ marker for unselected label 'feature', got:\n%s", view)
 	}
@@ -3417,11 +3612,13 @@ func TestLabelSelectorSpaceTogglesSelection(t *testing.T) {
 	model = updated.(Model)
 
 	found := false
+
 	for _, label := range model.labelPending {
 		if label == "feature" {
 			found = true
 		}
 	}
+
 	if !found {
 		t.Fatal("expected 'feature' to be selected after Space on it")
 	}
@@ -3450,9 +3647,11 @@ func TestLabelSelectorEscReturnsToDetailWithoutAPICall(t *testing.T) {
 	if model.mode != ModeDetail {
 		t.Fatalf("expected ModeDetail after Esc, got %v", model.mode)
 	}
+
 	if called {
 		t.Fatal("expected UpdateMRLabels NOT to be called on Esc")
 	}
+
 	if len(model.items[0].Labels) != 1 || model.items[0].Labels[0] != "bug" {
 		t.Fatalf("expected MR labels unchanged after Esc, got %v", model.items[0].Labels)
 	}
@@ -3460,6 +3659,7 @@ func TestLabelSelectorEscReturnsToDetailWithoutAPICall(t *testing.T) {
 
 func TestLabelSelectorEnterCallsUpdateMRLabels(t *testing.T) {
 	var calledWith []string
+
 	model := NewModelWithProject(
 		[]mr.MergeRequest{{IID: 42, Title: "Fix", State: "opened", Labels: []string{"bug"}}},
 		ProjectOptions{
@@ -3490,9 +3690,11 @@ func TestLabelSelectorEnterCallsUpdateMRLabels(t *testing.T) {
 	if model.mode != ModeDetail {
 		t.Fatalf("expected ModeDetail after Enter, got %v", model.mode)
 	}
+
 	if cmd == nil {
 		t.Fatal("expected command for UpdateMRLabels")
 	}
+
 	msg := cmd()
 	model.Update(msg)
 
@@ -3557,11 +3759,13 @@ func TestLabelSelectorReopensWithSavedSelection(t *testing.T) {
 	model = updated.(Model)
 
 	featureSelected := false
+
 	for _, label := range model.labelPending {
 		if label == "feature" {
 			featureSelected = true
 		}
 	}
+
 	if !featureSelected {
 		t.Fatalf("expected 'feature' in pending after reopen, got %v", model.labelPending)
 	}

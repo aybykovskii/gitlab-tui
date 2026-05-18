@@ -27,6 +27,7 @@ func TestProjectResolverUsesProjectOverrideFirst(t *testing.T) {
 	if resolution.Source != ProjectSourceOverride {
 		t.Fatalf("expected override source, got %v", resolution.Source)
 	}
+
 	if resolution.Path != "override/project" {
 		t.Fatalf("expected override/project, got %q", resolution.Path)
 	}
@@ -43,6 +44,7 @@ func TestProjectResolverUsesGitRemoteFirst(t *testing.T) {
 	if resolution.Source != ProjectSourceGitRemote {
 		t.Fatalf("expected git remote source, got %v", resolution.Source)
 	}
+
 	if resolution.Path != "group/project" {
 		t.Fatalf("expected group/project, got %q", resolution.Path)
 	}
@@ -60,6 +62,7 @@ func TestProjectResolverFallsBackToRecentProjects(t *testing.T) {
 	if resolution.Source != ProjectSourceRecentProjects {
 		t.Fatalf("expected recent projects source, got %v", resolution.Source)
 	}
+
 	if len(resolution.Recents) != 1 || resolution.Recents[0].Path != "recent/project" {
 		t.Fatalf("unexpected recents: %+v", resolution.Recents)
 	}
@@ -81,6 +84,7 @@ func TestRememberResolvedProject(t *testing.T) {
 	if len(cfg.RecentProjectHistory) != 1 {
 		t.Fatalf("expected 1 recent project, got %d", len(cfg.RecentProjectHistory))
 	}
+
 	if cfg.RecentProjectHistory[0].Account != "default" || cfg.RecentProjectHistory[0].Path != "group/project" {
 		t.Fatalf("unexpected recent project: %+v", cfg.RecentProjectHistory[0])
 	}

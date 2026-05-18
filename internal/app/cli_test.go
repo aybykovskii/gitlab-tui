@@ -15,6 +15,7 @@ func TestParseCLIProjectOverride(t *testing.T) {
 	if intent.ProjectOverride != "group/project" {
 		t.Fatalf("expected project override, got %q", intent.ProjectOverride)
 	}
+
 	if intent.Section != tui.SectionPipelines {
 		t.Fatalf("expected pipeline section, got %q", intent.Section)
 	}
@@ -36,9 +37,11 @@ func TestParseCLISectionEntityIntent(t *testing.T) {
 	if intent.Section != tui.SectionMergeRequests {
 		t.Fatalf("expected MR section, got %q", intent.Section)
 	}
+
 	if intent.EntityID != "123" {
 		t.Fatalf("expected entity id 123, got %q", intent.EntityID)
 	}
+
 	if intent.ProjectOverride != "" {
 		t.Fatalf("expected no project override, got %q", intent.ProjectOverride)
 	}
@@ -49,6 +52,7 @@ func TestParseCLIProjectWithoutValueErrors(t *testing.T) {
 	if err == nil {
 		t.Fatal("expected error for --project without value")
 	}
+
 	if err.Error() != "--project requires a value" {
 		t.Fatalf("expected informative error, got %q", err.Error())
 	}

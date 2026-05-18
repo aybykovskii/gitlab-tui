@@ -27,12 +27,14 @@ func (m Model) updateFileDiffReplyInput(msg tea.KeyMsg) (Model, tea.Cmd) {
 		m.replyInput = false
 		m.replyBuffer = ""
 		m.replyDiscussionID = ""
+
 		return m, nil
 
 	case tea.KeyBackspace:
 		if len(m.replyBuffer) > 0 {
 			m.replyBuffer = m.replyBuffer[:len(m.replyBuffer)-1]
 		}
+
 		return m, nil
 
 	case tea.KeyRunes, tea.KeySpace:
@@ -61,6 +63,7 @@ func (m Model) updateFileDiffReplyInput(msg tea.KeyMsg) (Model, tea.Cmd) {
 			if callback == nil {
 				return m, nil
 			}
+
 			return m, func() tea.Msg {
 				err := callback(iid, discussionID, body)
 				return replyFinishedMsg{iid: iid, discussionID: discussionID, body: body, draft: true, err: err}
@@ -71,6 +74,7 @@ func (m Model) updateFileDiffReplyInput(msg tea.KeyMsg) (Model, tea.Cmd) {
 		if callback == nil {
 			return m, nil
 		}
+
 		return m, func() tea.Msg {
 			err := callback(iid, discussionID, body)
 			return replyFinishedMsg{iid: iid, discussionID: discussionID, body: body, draft: false, err: err}
@@ -85,12 +89,14 @@ func (m Model) updateFileDiffCommentInput(msg tea.KeyMsg) (Model, tea.Cmd) {
 	case tea.KeyEsc:
 		m.commentInput = false
 		m.commentBuffer = ""
+
 		return m, nil
 
 	case tea.KeyBackspace:
 		if len(m.commentBuffer) > 0 {
 			m.commentBuffer = m.commentBuffer[:len(m.commentBuffer)-1]
 		}
+
 		return m, nil
 
 	case tea.KeyRunes, tea.KeySpace:
@@ -184,6 +190,7 @@ func (m Model) updateFileDiffKeys(msg tea.KeyMsg) (Model, tea.Cmd) {
 		if len(files) > m.selectedFile {
 			rowCount = len(files[m.selectedFile].Diff)
 		}
+
 		m.diffCursor = clamp(m.diffCursor-1, 0, max(0, rowCount-1))
 		m.threadPanelCursor = 0
 
@@ -192,6 +199,7 @@ func (m Model) updateFileDiffKeys(msg tea.KeyMsg) (Model, tea.Cmd) {
 		if len(files) > m.selectedFile {
 			rowCount = len(files[m.selectedFile].Diff)
 		}
+
 		m.diffCursor = clamp(m.diffCursor+1, 0, max(0, rowCount-1))
 		m.threadPanelCursor = 0
 
@@ -255,6 +263,7 @@ func (m Model) updateFileDiffKeys(msg tea.KeyMsg) (Model, tea.Cmd) {
 			m.rangeStart = -1
 			return m, nil
 		}
+
 		m.mode = ModeDetail
 		m.activeTab = m.fileDiffReturnTab
 		m.fileDiffTop = 0
@@ -291,6 +300,7 @@ func (m Model) toggleDiscussionResolveAtCursor() (Model, tea.Cmd) {
 				m.discussions[iid][i].Resolved = true
 				return m, nil
 			}
+
 			return m, func() tea.Msg {
 				err := callback(iid, activeID)
 				return resolveFinishedMsg{iid: iid, discussionID: activeID, resolved: true, err: err}
@@ -302,6 +312,7 @@ func (m Model) toggleDiscussionResolveAtCursor() (Model, tea.Cmd) {
 			m.discussions[iid][i].Resolved = false
 			return m, nil
 		}
+
 		return m, func() tea.Msg {
 			err := callback(iid, activeID)
 			return resolveFinishedMsg{iid: iid, discussionID: activeID, resolved: false, err: err}
@@ -328,6 +339,7 @@ func (m Model) submitDraftsCommand() (Model, tea.Cmd) {
 		if err == nil && summary != "" && post != nil {
 			err = post(iid, summary)
 		}
+
 		return draftsSubmittedMsg{iid: iid, err: err}
 	}
 }
@@ -340,6 +352,7 @@ func (m Model) openEditorAtCursorCommand() (Model, tea.Cmd) {
 
 	file := files[m.selectedFile]
 	line := 0
+
 	if m.diffCursor < len(file.Diff) {
 		line = file.Diff[m.diffCursor].NewLine
 	}

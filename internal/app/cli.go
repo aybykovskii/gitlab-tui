@@ -14,14 +14,17 @@ type CLIIntent struct {
 
 func ParseCLI(args []string) (CLIIntent, error) {
 	intent := CLIIntent{}
+
 	remaining := args
 	if len(remaining) > 0 && remaining[0] == "--project" {
 		if len(remaining) < 2 {
 			return CLIIntent{}, fmt.Errorf("--project requires a value")
 		}
+
 		intent.ProjectOverride = remaining[1]
 		remaining = remaining[2:]
 	}
+
 	if len(remaining) == 0 {
 		return intent, nil
 	}
@@ -30,10 +33,12 @@ func ParseCLI(args []string) (CLIIntent, error) {
 	if !ok {
 		return CLIIntent{}, fmt.Errorf("unknown command: %s", remaining[0])
 	}
+
 	intent.Section = section
 	if len(remaining) > 1 {
 		intent.EntityID = remaining[1]
 	}
+
 	if len(remaining) > 2 {
 		return CLIIntent{}, fmt.Errorf("too many arguments")
 	}

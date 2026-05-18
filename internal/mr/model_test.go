@@ -13,6 +13,7 @@ func TestFilterMatchesTitleAndBranches(t *testing.T) {
 	if len(filtered) != 1 {
 		t.Fatalf("expected 1 result, got %d", len(filtered))
 	}
+
 	if filtered[0].Title != "Render diff" {
 		t.Fatalf("unexpected result: %+v", filtered[0])
 	}

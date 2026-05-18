@@ -67,8 +67,10 @@ func (a App) Run(args []string, stdout io.Writer, stderr io.Writer) int {
 	if err != nil {
 		fmt.Fprintln(stderr, err)
 		writeUsage(stderr)
+
 		return 2
 	}
+
 	return a.runTUI(stdout, stderr, intent)
 }
 
@@ -76,6 +78,7 @@ func (a App) runTUI(stdout io.Writer, stderr io.Writer, intent CLIIntent) int {
 	cfg := config.Default()
 	configPath, err := (config.Paths{Env: a.env}).Path()
 	configLoaded := false
+
 	if err == nil {
 		loaded, loadErr := config.Load(configPath)
 		if loadErr == nil {
@@ -92,12 +95,14 @@ func (a App) runTUI(stdout io.Writer, stderr io.Writer, intent CLIIntent) int {
 		fmt.Fprintf(stderr, "resolve cwd: %v\n", err)
 		return 1
 	}
+
 	resolution := ProjectResolver{Config: cfg, Remotes: gitremote.CommandRunner{Dir: cwd}, ProjectOverride: intent.ProjectOverride}.Resolve()
 	options := buildProjectOptions(&cfg, configPath, configLoaded, resolution, intent, func(account config.Account) (gitLabClient, error) {
 		client, err := gitlabclient.NewClient(account, a.env)
 		if err != nil {
 			return nil, err
 		}
+
 		return client, nil
 	})
 
@@ -105,6 +110,7 @@ func (a App) runTUI(stdout io.Writer, stderr io.Writer, intent CLIIntent) int {
 		fmt.Fprintf(stderr, "run TUI: %v\n", err)
 		return 1
 	}
+
 	return 0
 }
 
@@ -114,10 +120,12 @@ func buildProjectOptions(cfg *config.Config, configPath string, configLoaded boo
 		if !ok {
 			return tui.ProjectData{}, fmt.Errorf("account %q not found", resolution.Account)
 		}
+
 		client, err := newClient(account)
 		if err != nil {
 			return tui.ProjectData{}, fmt.Errorf("create GitLab client: %w", err)
 		}
+
 		loadMRs := func() ([]mr.MergeRequest, error) {
 			return client.OpenMergeRequests(context.Background(), projectPath)
 		}
@@ -151,18 +159,22 @@ func buildProjectOptions(cfg *config.Config, configPath string, configLoaded boo
 		loadFiles := func(iid int) ([]mr.ChangedFile, error) {
 			return client.MergeRequestChangedFiles(context.Background(), projectPath, iid)
 		}
+
 		type mrResult struct {
 			items []mr.MergeRequest
 			err   error
 		}
+
 		type labelsResult struct {
 			labels []mr.Label
 			err    error
 		}
 
 		var issues []issue.Issue
+
 		if intent.Section == tui.SectionIssues {
 			var issueErr error
+
 			issues, issueErr = loadIssues("opened", "")
 			if issueErr != nil {
 				return tui.ProjectData{}, fmt.Errorf("load issues: %w", issueErr)
@@ -171,6 +183,7 @@ func buildProjectOptions(cfg *config.Config, configPath string, configLoaded boo
 
 		mrCh := make(chan mrResult, 1)
 		labelsCh := make(chan labelsResult, 1)
+
 		go func() {
 			items, err := loadMRs()
 			mrCh <- mrResult{items, err}
@@ -184,10 +197,12 @@ func buildProjectOptions(cfg *config.Config, configPath string, configLoaded boo
 		if mrRes.err != nil {
 			return tui.ProjectData{}, fmt.Errorf("load merge requests: %w", mrRes.err)
 		}
+
 		labelsRes := <-labelsCh
 		labels := labelsRes.labels
 
 		RememberResolvedProject(cfg, resolution.Account, projectPath, time.Now())
+
 		if configLoaded {
 			if err := config.Save(configPath, *cfg); err != nil {
 				return tui.ProjectData{}, fmt.Errorf("save recent project: %w", err)
@@ -214,6 +229,7 @@ func buildProjectOptions(cfg *config.Config, configPath string, configLoaded boo
 		options.Recents = append(options.Recents, recent.Path)
 		options.RecentProjects = append(options.RecentProjects, tui.RecentProjectOption{Path: recent.Path, Account: recent.Account})
 	}
+
 	for _, account := range cfg.Accounts {
 		account := account
 		options.LoadProjects = append(options.LoadProjects, tui.AccountProjectLoader{
@@ -228,6 +244,7 @@ func buildProjectOptions(cfg *config.Config, configPath string, configLoaded boo
 			},
 		})
 	}
+
 	return options
 }
 
@@ -244,6 +261,7 @@ func (a App) runInit(stdout io.Writer, stderr io.Writer) int {
 	}
 
 	fmt.Fprintf(stdout, "created config: %s\n", path)
+
 	return 0
 }
 

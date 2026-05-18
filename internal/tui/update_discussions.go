@@ -13,6 +13,7 @@ func (m Model) selectedIssue() (issue.Issue, bool) {
 	if len(items) == 0 {
 		return issue.Issue{}, false
 	}
+
 	return items[clampSelection(m.selected, len(items))], true
 }
 
@@ -21,10 +22,12 @@ func (m Model) focusedIssueDiscussion() (issue.Discussion, bool) {
 	if !ok {
 		return issue.Discussion{}, false
 	}
+
 	discussions := m.issueDiscussions[item.IID]
 	if m.discussionCursor < 0 || m.discussionCursor >= len(discussions) {
 		return issue.Discussion{}, false
 	}
+
 	return discussions[m.discussionCursor], true
 }
 
@@ -33,10 +36,12 @@ func (m Model) focusedDiscussion() (mr.Discussion, bool) {
 	if !ok {
 		return mr.Discussion{}, false
 	}
+
 	discussions := m.discussions[item.IID]
 	if m.discussionCursor < 0 || m.discussionCursor >= len(discussions) {
 		return mr.Discussion{}, false
 	}
+
 	return discussions[m.discussionCursor], true
 }
 
@@ -58,6 +63,7 @@ func (m Model) updateIssueDiscussionsTab(msg tea.KeyMsg) (Model, tea.Cmd) {
 			m.replyBuffer = ""
 			m.replyDiscussionID = ""
 		}
+
 		return m, nil
 	}
 
@@ -77,6 +83,7 @@ func (m Model) updateIssueDiscussionsTab(msg tea.KeyMsg) (Model, tea.Cmd) {
 			m.replyBuffer = ""
 		}
 	}
+
 	return m, nil
 }
 
@@ -102,29 +109,36 @@ func (m Model) updateDiscussionsTab(msg tea.KeyMsg) (Model, tea.Cmd) {
 			m.replyDiscussionID = ""
 			m.replyDraft = false
 			item, ok := m.selectedItem()
+
 			if !ok {
 				return m, nil
 			}
+
 			iid := item.IID
+
 			if isDraft {
 				callback := m.draftReply
 				if callback == nil {
 					return m, nil
 				}
+
 				return m, func() tea.Msg {
 					err := callback(iid, discussionID, body)
 					return replyFinishedMsg{iid: iid, discussionID: discussionID, body: body, draft: true, err: err}
 				}
 			}
+
 			callback := m.replyToDiscussion
 			if callback == nil {
 				return m, nil
 			}
+
 			return m, func() tea.Msg {
 				err := callback(iid, discussionID, body)
 				return replyFinishedMsg{iid: iid, discussionID: discussionID, body: body, draft: false, err: err}
 			}
 		}
+
 		return m, nil
 	}
 
@@ -132,6 +146,7 @@ func (m Model) updateDiscussionsTab(msg tea.KeyMsg) (Model, tea.Cmd) {
 	if !ok {
 		return m, nil
 	}
+
 	discussions := m.discussions[item.IID]
 	count := len(discussions)
 
@@ -158,6 +173,7 @@ func (m Model) updateDiscussionsTab(msg tea.KeyMsg) (Model, tea.Cmd) {
 		if discussion, ok := m.focusedDiscussion(); ok {
 			iid := item.IID
 			discussionID := discussion.ID
+
 			resolved := !discussion.Resolved
 			if resolved {
 				callback := m.resolveDiscussion
@@ -165,16 +181,19 @@ func (m Model) updateDiscussionsTab(msg tea.KeyMsg) (Model, tea.Cmd) {
 					m.discussions[iid][m.discussionCursor].Resolved = true
 					return m, nil
 				}
+
 				return m, func() tea.Msg {
 					err := callback(iid, discussionID)
 					return resolveFinishedMsg{iid: iid, discussionID: discussionID, resolved: true, err: err}
 				}
 			}
+
 			callback := m.unresolveDiscussion
 			if callback == nil {
 				m.discussions[iid][m.discussionCursor].Resolved = false
 				return m, nil
 			}
+
 			return m, func() tea.Msg {
 				err := callback(iid, discussionID)
 				return resolveFinishedMsg{iid: iid, discussionID: discussionID, resolved: false, err: err}
@@ -186,5 +205,6 @@ func (m Model) updateDiscussionsTab(msg tea.KeyMsg) (Model, tea.Cmd) {
 	case key.Matches(msg, m.globals.Quit):
 		return m, tea.Quit
 	}
+
 	return m, nil
 }

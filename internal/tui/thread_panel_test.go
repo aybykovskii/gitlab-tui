@@ -32,13 +32,16 @@ func makeFileDiffModel(items []mr.MergeRequest, file mr.ChangedFile, discussions
 	model.width = 100
 	model.height = 30
 	iid := items[0].IID
+
 	model.changedFiles[iid] = []mr.ChangedFile{file}
 	if discussions != nil {
 		model.discussions[iid] = discussions
 	}
+
 	if drafts != nil {
 		model.drafts[iid] = drafts
 	}
+
 	return model
 }
 
@@ -69,6 +72,7 @@ func TestThreadPanelShowsDiscussionAtCursorLine(t *testing.T) {
 	if !strings.Contains(view, "alice") {
 		t.Fatalf("expected Thread Panel to show discussion author, got: %q", view)
 	}
+
 	if !strings.Contains(view, "Nice change!") {
 		t.Fatalf("expected Thread Panel to show note body, got: %q", view)
 	}
@@ -101,6 +105,7 @@ func TestToggleTHidesThreadPanelButKeepsGutterMarker(t *testing.T) {
 	if strings.Contains(view, "alice") {
 		t.Fatalf("expected Thread Panel hidden after 't', but author still visible: %q", view)
 	}
+
 	if !strings.Contains(view, "○") {
 		t.Fatalf("expected gutter marker ○ to remain after 't', got: %q", view)
 	}
@@ -158,6 +163,7 @@ func TestDraftCommentShowsDraftIndicatorInThreadPanel(t *testing.T) {
 	if !strings.Contains(view, "📝") && !strings.Contains(view, "Draft") {
 		t.Fatalf("expected draft indicator in Thread Panel, got: %q", view)
 	}
+
 	if !strings.Contains(view, "WIP note") {
 		t.Fatalf("expected draft body in Thread Panel, got: %q", view)
 	}
@@ -175,6 +181,7 @@ func TestFileDiffRKeyOpensReplyInputAtCursorDiscussion(t *testing.T) {
 	if !model.replyInput {
 		t.Fatal("expected replyInput to be true after 'r' on discussion line")
 	}
+
 	if model.replyDiscussionID != "d1" {
 		t.Fatalf("expected replyDiscussionID d1, got %q", model.replyDiscussionID)
 	}

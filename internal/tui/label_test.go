@@ -75,6 +75,7 @@ func TestProjectLabelsStoredAfterProjectLoad(t *testing.T) {
 	if len(model.projectLabels) != 2 {
 		t.Fatalf("expected 2 cached labels, got %d", len(model.projectLabels))
 	}
+
 	if model.projectLabels[0].Name != "bug" {
 		t.Fatalf("expected first label 'bug', got %q", model.projectLabels[0].Name)
 	}

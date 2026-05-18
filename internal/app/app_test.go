@@ -23,6 +23,7 @@ type fakeGitLabClient struct {
 func (f *fakeGitLabClient) ListProjects(ctx context.Context, limit int) ([]string, error) {
 	f.listCalled = true
 	f.listLimit = limit
+
 	return []string{f.account + "/project"}, nil
 }
 
@@ -97,18 +98,22 @@ func TestBuildProjectOptionsUsesAccountsAndLimitedRecentProjects(t *testing.T) {
 	options := buildProjectOptions(&cfg, "", false, ProjectResolution{Account: "default", Path: "remote/project", Source: ProjectSourceGitRemote}, CLIIntent{}, func(account config.Account) (gitLabClient, error) {
 		client := &fakeGitLabClient{account: account.ID}
 		clients[account.ID] = client
+
 		return client, nil
 	})
 
 	if len(options.LoadProjects) != 2 {
 		t.Fatalf("expected 2 account loaders, got %d", len(options.LoadProjects))
 	}
+
 	if len(options.Recents) != 2 || options.Recents[0] != "group/newest" || options.Recents[1] != "group/middle" {
 		t.Fatalf("expected limited recent paths in newest order, got %+v", options.Recents)
 	}
+
 	if len(options.RecentProjects) != 2 || options.RecentProjects[0].Account != "work" || options.RecentProjects[1].Account != "default" {
 		t.Fatalf("expected account-tagged recent projects, got %+v", options.RecentProjects)
 	}
+
 	if options.Path != "remote/project" {
 		t.Fatalf("expected resolved project path, got %q", options.Path)
 	}
@@ -118,9 +123,11 @@ func TestBuildProjectOptionsUsesAccountsAndLimitedRecentProjects(t *testing.T) {
 		if err != nil {
 			t.Fatalf("load projects for %s: %v", loader.ID, err)
 		}
+
 		if len(projects) != 1 || projects[0] != loader.ID+"/project" {
 			t.Fatalf("unexpected projects for %s: %+v", loader.ID, projects)
 		}
+
 		if clients[loader.ID].listLimit != 15 || !clients[loader.ID].listCalled {
 			t.Fatalf("expected loader %s to call ListProjects(15), got called=%t limit=%d", loader.ID, clients[loader.ID].listCalled, clients[loader.ID].listLimit)
 		}
@@ -129,6 +136,7 @@ func TestBuildProjectOptionsUsesAccountsAndLimitedRecentProjects(t *testing.T) {
 
 func TestRunVersion(t *testing.T) {
 	var stdout bytes.Buffer
+
 	var stderr bytes.Buffer
 
 	code := New("test-version").Run([]string{"version"}, &stdout, &stderr)
@@ -136,9 +144,11 @@ func TestRunVersion(t *testing.T) {
 	if code != 0 {
 		t.Fatalf("expected exit code 0, got %d", code)
 	}
+
 	if got := strings.TrimSpace(stdout.String()); got != "test-version" {
 		t.Fatalf("expected version output, got %q", got)
 	}
+
 	if stderr.Len() != 0 {
 		t.Fatalf("expected empty stderr, got %q", stderr.String())
 	}
@@ -146,7 +156,9 @@ func TestRunVersion(t *testing.T) {
 
 func TestRunInitCreatesConfig(t *testing.T) {
 	var stdout bytes.Buffer
+
 	var stderr bytes.Buffer
+
 	configPath := filepath.Join(t.TempDir(), "config.yaml")
 
 	code := NewWithEnv("test-version", []string{"GITLAB_TUI_CONFIG_FILE=" + configPath}).Run([]string{"init"}, &stdout, &stderr)
@@ -154,9 +166,11 @@ func TestRunInitCreatesConfig(t *testing.T) {
 	if code != 0 {
 		t.Fatalf("expected exit code 0, got %d, stderr %q", code, stderr.String())
 	}
+
 	if !strings.Contains(stdout.String(), "created config: "+configPath) {
 		t.Fatalf("expected created config output, got %q", stdout.String())
 	}
+
 	if _, err := os.Stat(configPath); err != nil {
 		t.Fatalf("expected config file to exist: %v", err)
 	}
@@ -164,6 +178,7 @@ func TestRunInitCreatesConfig(t *testing.T) {
 
 func TestRunSectionAliasIsNotUnknownCommand(t *testing.T) {
 	var stdout bytes.Buffer
+
 	var stderr bytes.Buffer
 
 	code := NewWithEnv("test-version", []string{"GITLAB_TOKEN="}).Run([]string{"mr"}, &stdout, &stderr)
@@ -171,6 +186,7 @@ func TestRunSectionAliasIsNotUnknownCommand(t *testing.T) {
 	if strings.Contains(stderr.String(), "unknown command") {
 		t.Fatalf("section alias 'mr' produced unknown command error: %q", stderr.String())
 	}
+
 	if code == 2 {
 		t.Fatalf("section alias 'mr' produced CLI parse error (exit 2), stderr %q", stderr.String())
 	}
@@ -178,6 +194,7 @@ func TestRunSectionAliasIsNotUnknownCommand(t *testing.T) {
 
 func TestRunUnknownCommand(t *testing.T) {
 	var stdout bytes.Buffer
+
 	var stderr bytes.Buffer
 
 	code := New("test-version").Run([]string{"wat"}, &stdout, &stderr)
@@ -185,6 +202,7 @@ func TestRunUnknownCommand(t *testing.T) {
 	if code != 2 {
 		t.Fatalf("expected exit code 2, got %d", code)
 	}
+
 	if !strings.Contains(stderr.String(), "unknown command: wat") {
 		t.Fatalf("expected unknown command error, got %q", stderr.String())
 	}
@@ -222,9 +240,11 @@ func TestLoadProjectIncludesLabelsInProjectData(t *testing.T) {
 	if err != nil {
 		t.Fatalf("loadProject: %v", err)
 	}
+
 	if len(data.Labels) != 2 {
 		t.Fatalf("expected 2 labels, got %d", len(data.Labels))
 	}
+
 	if data.Labels[0].Name != "bug" {
 		t.Fatalf("expected first label 'bug', got %q", data.Labels[0].Name)
 	}

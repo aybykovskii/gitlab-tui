@@ -17,6 +17,7 @@ type CommandRunner struct {
 func (r CommandRunner) RunGit(args ...string) ([]byte, error) {
 	cmd := exec.Command("git", args...)
 	cmd.Dir = r.Dir
+
 	return cmd.Output()
 }
 
@@ -32,14 +33,17 @@ func RemoteURLs(runner Runner) ([]string, error) {
 
 	seen := map[string]bool{}
 	urls := []string{}
+
 	for _, line := range strings.Split(string(out), "\n") {
 		fields := strings.Fields(line)
 		if len(fields) < 2 {
 			continue
 		}
+
 		remoteURL := fields[1]
 		if !seen[remoteURL] {
 			seen[remoteURL] = true
+
 			urls = append(urls, remoteURL)
 		}
 	}
@@ -71,6 +75,7 @@ func projectPathFromRemote(remoteURL string, host string) (string, bool) {
 		if parsed.Hostname() != host {
 			return "", false
 		}
+
 		return parsed.Path, true
 	}
 
@@ -86,5 +91,6 @@ func hostName(rawHost string) string {
 	if parsed, err := url.Parse(rawHost); err == nil && parsed.Hostname() != "" {
 		return parsed.Hostname()
 	}
+
 	return strings.TrimSuffix(rawHost, "/")
 }

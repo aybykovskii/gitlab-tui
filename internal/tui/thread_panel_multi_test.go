@@ -37,6 +37,7 @@ func TestThreadPanelCursorAdvancesWithCloseBracket(t *testing.T) {
 	if model.threadPanelCursor != 1 {
 		t.Fatalf("expected threadPanelCursor=1 after ']', got %d", model.threadPanelCursor)
 	}
+
 	view := model.renderFileDiffPane()
 	if !strings.Contains(view, "bob") || !strings.Contains(view, "Second note") {
 		t.Fatalf("expected Thread Panel to show d2 (bob/Second note), got:\n%s", view)
@@ -142,6 +143,7 @@ func TestFileDiffRKeyUsesThreadPanelCursorDiscussion(t *testing.T) {
 	if !model.replyInput {
 		t.Fatal("expected replyInput true after 'r'")
 	}
+
 	if model.replyDiscussionID != "d2" {
 		t.Fatalf("expected replyDiscussionID d2, got %q", model.replyDiscussionID)
 	}

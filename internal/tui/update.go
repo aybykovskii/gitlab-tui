@@ -17,6 +17,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case tea.KeyMsg:
 		next, cmd := m.updateKey(msg)
 		next.syncGlobalKeys()
+
 		return next, cmd
 	case projectStartedMsg:
 		m.projectPath = msg.path
@@ -28,6 +29,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.projectError = false
 		m.items = nil
 		m.errorMessage = ""
+
 		return m, nil
 	case accountProjectsStartedMsg:
 		state := m.accountProjectStates[msg.accountID]
@@ -35,38 +37,47 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		state.err = ""
 		m.accountProjectStates[msg.accountID] = state
 		m.rebuildProjectRows()
+
 		return m, nil
 	case accountProjectsFinishedMsg:
 		state := m.accountProjectStates[msg.accountID]
 		state.loading = false
 		state.projects = msg.projects
 		state.err = ""
+
 		if msg.err != nil {
 			state.err = msg.err.Error()
 			state.projects = nil
 		}
+
 		m.accountProjectStates[msg.accountID] = state
 		m.rebuildProjectRows()
 		m.selected = m.nearestSelectable(m.selected)
+
 		return m, nil
 	case projectFinishedMsg:
 		m.loading = false
 		m.projectLoading = false
+
 		if msg.err != nil {
 			m.projectError = true
 			m.projectLoaded = false
 			m.items = nil
 			m.errorMessage = msg.err.Error()
+
 			return m, nil
 		}
+
 		m.projectError = false
 		m.projectLoaded = true
 		m.projectPath = msg.path
 		m.items = msg.data.Items
 		m.projectLabels = msg.data.Labels
+
 		if msg.data.UpdateMRLabels != nil {
 			m.updateMRLabels = msg.data.UpdateMRLabels
 		}
+
 		m.issueItems = msg.data.Issues
 		m.refresh = msg.data.Refresh
 		m.loadIssues = msg.data.LoadIssues
@@ -83,6 +94,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.selectEntity()
 		m.listTop = 0
 		m.rightTop = 0
+
 		if m.section == SectionMergeRequests {
 			if m.entityID != "" {
 				m.mode = ModeDetail
@@ -94,11 +106,14 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		} else {
 			m.mode = ModeSections
 		}
+
 		m.focus = FocusDetail
+
 		return m, nil
 	case discussionsStartedMsg:
 		m.discussionsLoading = true
 		m.discussionsError = ""
+
 		return m, nil
 	case discussionsFinishedMsg:
 		m.discussionsLoading = false
@@ -106,11 +121,14 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			m.discussionsError = msg.err.Error()
 			return m, nil
 		}
+
 		m.discussions[msg.iid] = msg.discussions
+
 		return m, nil
 	case filesStartedMsg:
 		m.filesLoading = true
 		m.filesError = ""
+
 		return m, nil
 	case approveMRFinishedMsg:
 		if msg.err != nil {
@@ -118,6 +136,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		} else {
 			m.actionError = "Approved"
 		}
+
 		return m, nil
 	case mergeMRFinishedMsg:
 		m.mergeConfirmPending = false
@@ -126,6 +145,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		} else {
 			m.actionError = "Merged"
 		}
+
 		return m, nil
 	case editMRFinishedMsg:
 		if msg.err != nil {
@@ -138,16 +158,19 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				}
 			}
 		}
+
 		return m, nil
 	case openURLMsg:
 		if msg.err != nil {
 			m.actionError = msg.err.Error()
 		}
+
 		return m, nil
 	case openEditorMsg:
 		if msg.err != nil {
 			m.actionError = msg.err.Error()
 		}
+
 		return m, nil
 	case updateMRLabelsFinishedMsg:
 		if msg.err != nil {
@@ -157,8 +180,10 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 					break
 				}
 			}
+
 			m.actionError = msg.err.Error()
 		}
+
 		return m, nil
 	case toggleDraftFinishedMsg:
 		if msg.err != nil {
@@ -168,8 +193,10 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 					break
 				}
 			}
+
 			m.actionError = msg.err.Error()
 		}
+
 		return m, nil
 	case inlineCommentFinishedMsg:
 		if msg.err != nil {
@@ -177,6 +204,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		} else {
 			m.commentError = ""
 		}
+
 		return m, nil
 	case mrCommentFinishedMsg:
 		if msg.err != nil {
@@ -184,43 +212,51 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		} else {
 			m.mrCommentError = ""
 		}
+
 		return m, nil
 	case issueStateFinishedMsg:
 		if msg.err != nil {
 			m.actionError = msg.err.Error()
 			return m, nil
 		}
+
 		for i := range m.issueItems {
 			if m.issueItems[i].IID == msg.iid {
 				m.issueItems[i].State = msg.state
 				break
 			}
 		}
+
 		return m, nil
 	case editIssueFinishedMsg:
 		if msg.err != nil {
 			m.actionError = msg.err.Error()
 			return m, nil
 		}
+
 		for i := range m.issueItems {
 			if m.issueItems[i].IID == msg.iid {
 				m.issueItems[i].Title = msg.title
 				m.issueItems[i].Description = msg.description
+
 				break
 			}
 		}
+
 		return m, nil
 	case issueAssigneeFinishedMsg:
 		if msg.err != nil {
 			m.actionError = msg.err.Error()
 			return m, nil
 		}
+
 		for i := range m.issueItems {
 			if m.issueItems[i].IID == msg.iid {
 				m.issueItems[i].Assignees = msg.assignees
 				break
 			}
 		}
+
 		return m, nil
 	case replyFinishedMsg:
 		if msg.err == nil && !msg.draft {
@@ -235,6 +271,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				}
 			}
 		}
+
 		return m, nil
 	case resolveFinishedMsg:
 		if msg.err == nil {
@@ -246,6 +283,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				}
 			}
 		}
+
 		return m, nil
 	case draftAddedMsg:
 		m.drafts[msg.iid] = append(m.drafts[msg.iid], msg.draft)
@@ -254,6 +292,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		if msg.err == nil {
 			m.drafts[msg.iid] = nil
 		}
+
 		return m, nil
 	case draftsDiscardedMsg:
 		m.drafts[msg.iid] = nil
@@ -264,11 +303,14 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			m.filesError = msg.err.Error()
 			return m, nil
 		}
+
 		m.changedFiles[msg.iid] = msg.files
+
 		return m, nil
 	case refreshStartedMsg:
 		m.loading = true
 		m.errorMessage = ""
+
 		return m, nil
 	case refreshFinishedMsg:
 		m.loading = false
@@ -276,9 +318,11 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			m.errorMessage = msg.err.Error()
 			return m, nil
 		}
+
 		m.items = msg.items
 		m.selected = clampSelection(m.selected, len(m.filtered()))
 		m.listTop = 0
+
 		return m, nil
 	case issuesFinishedMsg:
 		m.loading = false
@@ -286,16 +330,20 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			m.errorMessage = msg.err.Error()
 			return m, nil
 		}
+
 		m.issueItems = msg.items
 		m.selected = clampSelection(m.selected, len(m.filteredIssues()))
 		m.listTop = 0
+
 		return m, nil
 	case issueDiscussionsFinishedMsg:
 		if msg.err != nil {
 			m.discussionsError = msg.err.Error()
 			return m, nil
 		}
+
 		m.issueDiscussions[msg.iid] = msg.discussions
+
 		return m, nil
 	}
 
@@ -334,25 +382,32 @@ func (m Model) updateKey(msg tea.KeyMsg) (Model, tea.Cmd) {
 			if m.section == SectionIssues {
 				return m.updateIssueEdit(msg)
 			}
+
 			return m.updateMREdit(msg)
 		}
+
 		if m.issueCommentInput {
 			return m.updateIssueCommentInput(msg)
 		}
+
 		if m.mrCommentInput {
 			return m.updateMRCommentInput(msg)
 		}
+
 		if m.activeTab == TabReview && msg.String() != "tab" {
 			return m.updateReviewTab(msg)
 		}
+
 		if m.mergeConfirmPending && msg.String() != "M" {
 			m.mergeConfirmPending = false
 			return m, nil
 		}
+
 		if m.activeTab == TabDiscussions && msg.String() != "tab" {
 			if m.section == SectionIssues {
 				return m.updateIssueDiscussionsTab(msg)
 			}
+
 			return m.updateDiscussionsTab(msg)
 		}
 	}
@@ -364,10 +419,12 @@ func (m *Model) selectEntity() {
 	if m.entityID == "" {
 		return
 	}
+
 	iid, err := strconv.Atoi(m.entityID)
 	if err != nil {
 		return
 	}
+
 	for i, item := range m.filtered() {
 		if item.IID == iid {
 			m.selected = i
@@ -381,6 +438,7 @@ func (m *Model) moveSelection(delta int) {
 	if m.section == SectionIssues {
 		count = len(m.filteredIssues())
 	}
+
 	if count == 0 {
 		m.selected = 0
 		return
@@ -388,9 +446,11 @@ func (m *Model) moveSelection(delta int) {
 
 	m.selected = clamp(m.selected+delta, 0, count-1)
 	visible := max(1, m.height-4)
+
 	if m.selected < m.listTop {
 		m.listTop = m.selected
 	}
+
 	if m.selected >= m.listTop+visible {
 		m.listTop = m.selected - visible + 1
 	}
@@ -410,6 +470,7 @@ func (m Model) localKeys() []key.Binding {
 	if m.mode == ModeProjectSelect {
 		return m.projectListKeys.LocalKeys()
 	}
+
 	switch m.mode {
 	case ModeSections:
 		return newSectionsKeys().LocalKeys()
@@ -419,6 +480,7 @@ func (m Model) localKeys() []key.Binding {
 		if m.section == SectionIssues {
 			return newIssueDetailKeys().LocalKeys()
 		}
+
 		return newMRDetailKeys().LocalKeys()
 	case ModeLabelSelect:
 		return newMRDetailKeys().LocalKeys()
@@ -433,6 +495,7 @@ func (m Model) globalKeys() []key.Binding {
 	if m.inputActive() {
 		return []key.Binding{key.NewBinding(key.WithKeys("enter"), key.WithHelp("Enter", "send")), key.NewBinding(key.WithKeys("esc"), key.WithHelp("Esc", "cancel"))}
 	}
+
 	return []key.Binding{m.globals.Quit, m.globals.Back, m.globals.ToggleKeyBar}
 }
 
@@ -441,6 +504,7 @@ func (m Model) keyBarHeight() int {
 	if m.keyBarExpanded {
 		content = max(4, (len(m.localKeys())+1)/2+2)
 	}
+
 	return content + 2
 }
 
@@ -453,6 +517,7 @@ func (m Model) selectedItem() (mr.MergeRequest, bool) {
 	if len(items) == 0 {
 		return mr.MergeRequest{}, false
 	}
+
 	return items[clampSelection(m.selected, len(items))], true
 }
 
@@ -460,6 +525,7 @@ func (m Model) leftWidth() int {
 	if m.width <= 0 {
 		return 40
 	}
+
 	return max(24, m.width*35/100)
 }
 
@@ -467,6 +533,7 @@ func min(a int, b int) int {
 	if a < b {
 		return a
 	}
+
 	return b
 }
 
@@ -474,5 +541,6 @@ func max(a int, b int) int {
 	if a > b {
 		return a
 	}
+
 	return b
 }

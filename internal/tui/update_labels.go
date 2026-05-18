@@ -6,10 +6,12 @@ import (
 
 func (m Model) updateLabelSelect(msg tea.KeyMsg) (Model, tea.Cmd) {
 	count := len(m.projectLabels)
+
 	switch msg.Type {
 	case tea.KeyEsc:
 		m.mode = ModeDetail
 		m.labelPending = nil
+
 		return m, nil
 	case tea.KeyEnter:
 		item, ok := m.selectedItem()
@@ -17,21 +19,27 @@ func (m Model) updateLabelSelect(msg tea.KeyMsg) (Model, tea.Cmd) {
 			m.mode = ModeDetail
 			return m, nil
 		}
+
 		selected := append([]string(nil), m.labelPending...)
 		prev := append([]string(nil), item.Labels...)
+
 		for i := range m.items {
 			if m.items[i].IID == item.IID {
 				m.items[i].Labels = selected
 				break
 			}
 		}
+
 		m.mode = ModeDetail
 		m.labelPending = nil
+
 		if m.updateMRLabels == nil {
 			return m, nil
 		}
+
 		callback := m.updateMRLabels
 		iid := item.IID
+
 		return m, func() tea.Msg {
 			err := callback(iid, selected)
 			return updateMRLabelsFinishedMsg{iid: iid, labels: selected, prev: prev, err: err}
@@ -58,6 +66,7 @@ func (m Model) updateLabelSelect(msg tea.KeyMsg) (Model, tea.Cmd) {
 			m.labelPending = toggleStringSlice(m.labelPending, name)
 		}
 	}
+
 	return m, nil
 }
 
@@ -67,5 +76,6 @@ func (m Model) labelColor(name string) string {
 			return label.Color
 		}
 	}
+
 	return ""
 }

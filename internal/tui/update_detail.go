@@ -20,6 +20,7 @@ func (m Model) updateDetailKeys(msg tea.KeyMsg) (Model, tea.Cmd) {
 		if m.projectError && m.projectPath != "" {
 			return m.openProjectCommand(m.projectPath)
 		}
+
 		return m, m.refreshCommand()
 
 	case msg.String() == "m":
@@ -99,6 +100,7 @@ func (m Model) handleBack() (Model, tea.Cmd) {
 	if m.projectError || (m.projectPath != "" && len(m.items) == 0) {
 		m.errorMessage = ""
 		m.returnToProjectPicker()
+
 		return m, nil
 	}
 
@@ -166,17 +168,20 @@ func (m Model) openURLCommand() (Model, tea.Cmd) {
 	}
 
 	var webURL string
+
 	if m.section == SectionIssues {
 		item, ok := m.selectedIssue()
 		if !ok || item.WebURL == "" {
 			return m, nil
 		}
+
 		webURL = item.WebURL
 	} else {
 		item, ok := m.selectedItem()
 		if !ok || item.WebURL == "" {
 			return m, nil
 		}
+
 		webURL = item.WebURL
 	}
 
@@ -195,6 +200,7 @@ func (m *Model) openEditInput() {
 		if !ok {
 			return
 		}
+
 		m.editInput = true
 		m.editField = "title"
 		m.editBuffer = item.Title
@@ -204,6 +210,7 @@ func (m *Model) openEditInput() {
 		if !ok {
 			return
 		}
+
 		m.editInput = true
 		m.editField = "title"
 		m.editBuffer = item.Title
@@ -217,11 +224,13 @@ func (m Model) openLabelSelector() (Model, tea.Cmd) {
 		if !ok {
 			return m, nil
 		}
+
 		m.mode = ModeLabelSelect
 		m.labelCursor = 0
 		pending := make([]string, len(item.Labels))
 		copy(pending, item.Labels)
 		m.labelPending = pending
+
 		return m, nil
 	}
 
@@ -250,6 +259,7 @@ func (m Model) toggleDraftMRCommand() (Model, tea.Cmd) {
 	}
 
 	prev := item.Draft
+
 	for i := range m.items {
 		if m.items[i].IID == item.IID {
 			m.items[i].Draft = !prev

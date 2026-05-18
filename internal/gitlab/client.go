@@ -111,6 +111,7 @@ func (c Client) ListProjects(ctx context.Context, limit int) ([]string, error) {
 	}
 
 	membership := true
+
 	items, _, err := c.projects.ListProjects(&glab.ListProjectsOptions{
 		Membership: &membership,
 		ListOptions: glab.ListOptions{
@@ -123,6 +124,7 @@ func (c Client) ListProjects(ctx context.Context, limit int) ([]string, error) {
 	}
 
 	paths := make([]string, 0, len(items))
+
 	for _, item := range items {
 		if item != nil {
 			paths = append(paths, item.PathWithNamespace)
@@ -147,25 +149,32 @@ func (c Client) OpenMergeRequests(ctx context.Context, projectPath string) ([]mr
 	}
 
 	var result []mr.MergeRequest
+
 	for {
 		items, response, err := c.mergeRequests.ListProjectMergeRequests(projectPath, options, glab.WithContext(ctx))
 		if err != nil {
 			return nil, err
 		}
+
 		for _, item := range items {
 			mapped := MapMergeRequest(item)
+
 			if c.approvals != nil && item != nil {
 				approval, _, approvalErr := c.approvals.GetConfiguration(projectPath, item.IID, glab.WithContext(ctx))
 				if approvalErr != nil {
 					return nil, approvalErr
 				}
+
 				mapped.Approvals = formatApprovals(approval)
 			}
+
 			result = append(result, mapped)
 		}
+
 		if response == nil || response.NextPage == 0 {
 			break
 		}
+
 		options.Page = response.NextPage
 	}
 
@@ -176,7 +185,9 @@ func (c Client) EditIssue(ctx context.Context, projectPath string, iid int, titl
 	if c.issues == nil {
 		return fmt.Errorf("issues client is not configured")
 	}
+
 	_, _, err := c.issues.UpdateIssue(projectPath, int64(iid), &glab.UpdateIssueOptions{Title: &title, Description: &description}, glab.WithContext(ctx))
+
 	return err
 }
 
@@ -184,8 +195,10 @@ func (c Client) UpdateIssueLabels(ctx context.Context, projectPath string, iid i
 	if c.issues == nil {
 		return fmt.Errorf("issues client is not configured")
 	}
+
 	labelOptions := glab.LabelOptions(labels)
 	_, _, err := c.issues.UpdateIssue(projectPath, int64(iid), &glab.UpdateIssueOptions{Labels: &labelOptions}, glab.WithContext(ctx))
+
 	return err
 }
 
@@ -193,8 +206,10 @@ func (c Client) AssignSelfIssue(ctx context.Context, projectPath string, iid int
 	if c.issues == nil {
 		return fmt.Errorf("issues client is not configured")
 	}
+
 	self := int64(0)
 	_, _, err := c.issues.UpdateIssue(projectPath, int64(iid), &glab.UpdateIssueOptions{AssigneeID: &self}, glab.WithContext(ctx))
+
 	return err
 }
 
@@ -202,8 +217,10 @@ func (c Client) UnassignSelfIssue(ctx context.Context, projectPath string, iid i
 	if c.issues == nil {
 		return fmt.Errorf("issues client is not configured")
 	}
+
 	unassigned := int64(0)
 	_, _, err := c.issues.UpdateIssue(projectPath, int64(iid), &glab.UpdateIssueOptions{AssigneeID: &unassigned}, glab.WithContext(ctx))
+
 	return err
 }
 
@@ -219,7 +236,9 @@ func (c Client) updateIssueState(ctx context.Context, projectPath string, iid in
 	if c.issues == nil {
 		return fmt.Errorf("issues client is not configured")
 	}
+
 	_, _, err := c.issues.UpdateIssue(projectPath, int64(iid), &glab.UpdateIssueOptions{StateEvent: &stateEvent}, glab.WithContext(ctx))
+
 	return err
 }
 
@@ -236,6 +255,7 @@ func (c Client) ListProjectIssues(ctx context.Context, projectPath string, state
 			Page:    1,
 		},
 	}
+
 	items, _, err := c.issues.ListProjectIssues(projectPath, options, glab.WithContext(ctx))
 	if err != nil {
 		return nil, err
@@ -245,6 +265,7 @@ func (c Client) ListProjectIssues(ctx context.Context, projectPath string, state
 	for _, item := range items {
 		result = append(result, MapIssue(item))
 	}
+
 	return result, nil
 }
 
@@ -255,9 +276,11 @@ func MapMergeRequest(item *glab.BasicMergeRequest) mr.MergeRequest {
 
 	author := ""
 	authorUsername := ""
+
 	if item.Author != nil {
 		author = item.Author.Name
 		authorUsername = item.Author.Username
+
 		if author == "" {
 			author = authorUsername
 		}
@@ -289,16 +312,20 @@ func MapMergeRequest(item *glab.BasicMergeRequest) mr.MergeRequest {
 
 func userNames(users []*glab.BasicUser) []string {
 	names := make([]string, 0, len(users))
+
 	for _, u := range users {
 		if u == nil {
 			continue
 		}
+
 		name := u.Name
 		if name == "" {
 			name = u.Username
 		}
+
 		names = append(names, name)
 	}
+
 	return names
 }
 
@@ -306,18 +333,22 @@ func (c Client) ListProjectLabels(ctx context.Context, projectPath string) ([]mr
 	if c.labels == nil {
 		return nil, fmt.Errorf("labels client is not configured")
 	}
+
 	items, _, err := c.labels.ListLabels(projectPath, &glab.ListLabelsOptions{
 		ListOptions: glab.ListOptions{PerPage: 100, Page: 1},
 	}, glab.WithContext(ctx))
 	if err != nil {
 		return nil, err
 	}
+
 	result := make([]mr.Label, 0, len(items))
+
 	for _, item := range items {
 		if item != nil {
 			result = append(result, mr.Label{Name: item.Name, Color: item.Color})
 		}
 	}
+
 	return result, nil
 }
 
@@ -325,10 +356,12 @@ func (c Client) UpdateMRLabels(ctx context.Context, projectPath string, iid int,
 	if c.mrEdit == nil {
 		return fmt.Errorf("merge request edit client is not configured")
 	}
+
 	opts := glab.LabelOptions(labels)
 	_, _, err := c.mrEdit.UpdateMergeRequest(projectPath, int64(iid), &glab.UpdateMergeRequestOptions{
 		Labels: &opts,
 	}, glab.WithContext(ctx))
+
 	return err
 }
 
@@ -336,13 +369,16 @@ func (c Client) ToggleDraftMR(ctx context.Context, projectPath string, iid int, 
 	if c.mrEdit == nil {
 		return fmt.Errorf("merge request edit client is not configured")
 	}
+
 	newTitle := strings.TrimPrefix(title, "Draft: ")
 	if draft {
 		newTitle = "Draft: " + newTitle
 	}
+
 	_, _, err := c.mrEdit.UpdateMergeRequest(projectPath, int64(iid), &glab.UpdateMergeRequestOptions{
 		Title: &newTitle,
 	}, glab.WithContext(ctx))
+
 	return err
 }
 
@@ -353,23 +389,28 @@ func MapIssue(item *glab.Issue) issue.Issue {
 
 	author := ""
 	authorUsername := ""
+
 	if item.Author != nil {
 		author = item.Author.Name
 		authorUsername = item.Author.Username
+
 		if author == "" {
 			author = authorUsername
 		}
 	}
 
 	assignees := make([]string, 0, len(item.Assignees))
+
 	for _, assignee := range item.Assignees {
 		if assignee == nil {
 			continue
 		}
+
 		name := assignee.Name
 		if name == "" {
 			name = assignee.Username
 		}
+
 		assignees = append(assignees, name)
 	}
 
@@ -405,10 +446,12 @@ func formatApprovals(approval *glab.MergeRequestApprovals) string {
 	if approval == nil || approval.ApprovalsRequired == 0 {
 		return "—"
 	}
+
 	approved := approval.ApprovalsRequired - approval.ApprovalsLeft
 	if approved < 0 {
 		approved = 0
 	}
+
 	return fmt.Sprintf("%d/%d", approved, approval.ApprovalsRequired)
 }
 
@@ -416,26 +459,33 @@ func (c Client) MergeRequestDiscussions(ctx context.Context, projectPath string,
 	if c.discussions == nil {
 		return nil, fmt.Errorf("discussions client is not configured")
 	}
+
 	opt := &glab.ListMergeRequestDiscussionsOptions{
 		ListOptions: glab.ListOptions{PerPage: 100, Page: 1},
 	}
+
 	var result []mr.Discussion
+
 	for {
 		items, response, err := c.discussions.ListMergeRequestDiscussions(projectPath, int64(iid), opt, glab.WithContext(ctx))
 		if err != nil {
 			return nil, err
 		}
+
 		for _, item := range items {
 			d := MapDiscussion(item)
 			if len(d.Notes) > 0 {
 				result = append(result, d)
 			}
 		}
+
 		if response == nil || response.NextPage == 0 {
 			break
 		}
+
 		opt.Page = response.NextPage
 	}
+
 	return result, nil
 }
 
@@ -443,7 +493,9 @@ func (c Client) AddIssueComment(ctx context.Context, projectPath string, iid int
 	if c.discussions == nil {
 		return fmt.Errorf("discussions client is not configured")
 	}
+
 	_, _, err := c.discussions.CreateIssueDiscussion(projectPath, int64(iid), &glab.CreateIssueDiscussionOptions{Body: &body}, glab.WithContext(ctx))
+
 	return err
 }
 
@@ -451,26 +503,33 @@ func (c Client) ListIssueDiscussions(ctx context.Context, projectPath string, ii
 	if c.discussions == nil {
 		return nil, fmt.Errorf("discussions client is not configured")
 	}
+
 	opt := &glab.ListIssueDiscussionsOptions{
 		ListOptions: glab.ListOptions{PerPage: 100, Page: 1},
 	}
+
 	var result []issue.Discussion
+
 	for {
 		items, response, err := c.discussions.ListIssueDiscussions(projectPath, int64(iid), opt, glab.WithContext(ctx))
 		if err != nil {
 			return nil, err
 		}
+
 		for _, item := range items {
 			d := MapDiscussion(item)
 			if len(d.Notes) > 0 {
 				result = append(result, d)
 			}
 		}
+
 		if response == nil || response.NextPage == 0 {
 			break
 		}
+
 		opt.Page = response.NextPage
 	}
+
 	return result, nil
 }
 
@@ -478,25 +537,32 @@ func (c Client) MergeRequestChangedFiles(ctx context.Context, projectPath string
 	if c.mergeRequests == nil {
 		return nil, fmt.Errorf("merge requests client is not configured")
 	}
+
 	opt := &glab.ListMergeRequestDiffsOptions{
 		ListOptions: glab.ListOptions{PerPage: 50, Page: 1},
 	}
+
 	var result []mr.ChangedFile
+
 	for {
 		items, response, err := c.mergeRequests.ListMergeRequestDiffs(projectPath, int64(iid), opt, glab.WithContext(ctx))
 		if err != nil {
 			return nil, err
 		}
+
 		for _, item := range items {
 			if item != nil {
 				result = append(result, MapChangedFile(item))
 			}
 		}
+
 		if response == nil || response.NextPage == 0 {
 			break
 		}
+
 		opt.Page = response.NextPage
 	}
+
 	return result, nil
 }
 
@@ -504,18 +570,23 @@ func MapDiscussion(item *glab.Discussion) mr.Discussion {
 	if item == nil {
 		return mr.Discussion{}
 	}
+
 	d := mr.Discussion{ID: item.ID, Resolved: true}
+
 	for _, note := range item.Notes {
 		if note == nil || note.System {
 			continue
 		}
+
 		author := note.Author.Name
 		if author == "" {
 			author = note.Author.Username
 		}
+
 		if !note.Resolved {
 			d.Resolved = false
 		}
+
 		d.Notes = append(d.Notes, mr.Note{
 			Author:   author,
 			Body:     note.Body,
@@ -530,9 +601,11 @@ func MapDiscussion(item *glab.Discussion) mr.Discussion {
 			}
 		}
 	}
+
 	if len(d.Notes) == 0 {
 		d.Resolved = true
 	}
+
 	return d
 }
 
@@ -540,12 +613,15 @@ func MapChangedFile(item *glab.MergeRequestDiff) mr.ChangedFile {
 	if item == nil {
 		return mr.ChangedFile{}
 	}
+
 	path := item.NewPath
 	if path == "" {
 		path = item.OldPath
 	}
+
 	rows := diff.Parse(item.Diff)
 	added, removed := 0, 0
+
 	for _, row := range rows {
 		if row.OldLine == 0 && row.NewLine != 0 {
 			added++
@@ -553,6 +629,7 @@ func MapChangedFile(item *glab.MergeRequestDiff) mr.ChangedFile {
 			removed++
 		}
 	}
+
 	return mr.ChangedFile{
 		Path:         path,
 		OldPath:      item.OldPath,

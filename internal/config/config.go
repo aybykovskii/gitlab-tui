@@ -65,6 +65,7 @@ func (p Paths) Path() (string, error) {
 	home := getenv(p.Env, "HOME")
 	if home == "" {
 		var err error
+
 		home, err = os.UserHomeDir()
 		if err != nil || home == "" {
 			return "", errors.New("cannot resolve config path: HOME is not set")
@@ -84,6 +85,7 @@ func Load(path string) (Config, error) {
 	if err := yaml.Unmarshal(data, &cfg); err != nil {
 		return Config{}, err
 	}
+
 	if err := cfg.Validate(); err != nil {
 		return Config{}, err
 	}
@@ -95,6 +97,7 @@ func Save(path string, cfg Config) error {
 	if err := cfg.Validate(); err != nil {
 		return err
 	}
+
 	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
 		return err
 	}
@@ -121,26 +124,33 @@ func (c Config) Validate() error {
 	if c.DefaultAccount == "" {
 		return errors.New("default_account is required")
 	}
+
 	if len(c.Accounts) == 0 {
 		return errors.New("at least one account is required")
 	}
 
 	seen := map[string]bool{}
 	defaultFound := false
+
 	for _, account := range c.Accounts {
 		if account.ID == "" {
 			return errors.New("account id is required")
 		}
+
 		if seen[account.ID] {
 			return fmt.Errorf("duplicate account id: %s", account.ID)
 		}
+
 		seen[account.ID] = true
+
 		if account.ID == c.DefaultAccount {
 			defaultFound = true
 		}
+
 		if account.Host == "" {
 			return fmt.Errorf("account %s host is required", account.ID)
 		}
+
 		if account.TokenEnv == "" {
 			return fmt.Errorf("account %s token_env is required", account.ID)
 		}
@@ -160,6 +170,7 @@ func (c Config) RecentProjects() []RecentProject {
 
 	projects := append([]RecentProject(nil), c.RecentProjectHistory...)
 	sortRecentProjects(projects)
+
 	if c.RecentProjectsLimit < len(projects) {
 		projects = projects[:c.RecentProjectsLimit]
 	}
@@ -169,6 +180,7 @@ func (c Config) RecentProjects() []RecentProject {
 
 func (c Config) RecentProjectsForAccount(accountID string) []RecentProject {
 	projects := make([]RecentProject, 0, len(c.RecentProjectHistory))
+
 	for _, project := range c.RecentProjectHistory {
 		if project.Account == accountID {
 			projects = append(projects, project)

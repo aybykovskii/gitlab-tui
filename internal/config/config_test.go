@@ -13,6 +13,7 @@ func TestPathUsesOverride(t *testing.T) {
 	if err != nil {
 		t.Fatalf("expected no error, got %v", err)
 	}
+
 	if path != "/tmp/custom.yaml" {
 		t.Fatalf("expected override path, got %q", path)
 	}
@@ -23,6 +24,7 @@ func TestPathUsesXDGConfigHome(t *testing.T) {
 	if err != nil {
 		t.Fatalf("expected no error, got %v", err)
 	}
+
 	want := filepath.Join("/tmp/xdg", "gitlab-tui", "config.yaml")
 	if path != want {
 		t.Fatalf("expected %q, got %q", want, path)
@@ -34,6 +36,7 @@ func TestPathFallsBackToHome(t *testing.T) {
 	if err != nil {
 		t.Fatalf("expected no error, got %v", err)
 	}
+
 	want := filepath.Join("/tmp/home", ".config", "gitlab-tui", "config.yaml")
 	if path != want {
 		t.Fatalf("expected %q, got %q", want, path)
@@ -52,16 +55,20 @@ func TestSaveAndLoad(t *testing.T) {
 	if err != nil {
 		t.Fatalf("load config: %v", err)
 	}
+
 	if loaded.DefaultAccount != "default" {
 		t.Fatalf("expected default account, got %q", loaded.DefaultAccount)
 	}
+
 	account, ok := loaded.Account("default")
 	if !ok {
 		t.Fatal("expected default account to exist")
 	}
+
 	if account.Host != "https://gitlab.com" || account.TokenEnv != DefaultTokenEnv {
 		t.Fatalf("unexpected account: %+v", account)
 	}
+
 	if loaded.RecentProjectsLimit != 10 {
 		t.Fatalf("expected default recent projects limit 10, got %d", loaded.RecentProjectsLimit)
 	}
@@ -75,6 +82,7 @@ accounts:
     host: https://gitlab.com
     token_env: GITLAB_TOKEN
 `)
+
 	if err := os.WriteFile(path, data, 0o600); err != nil {
 		t.Fatalf("write config: %v", err)
 	}
@@ -102,6 +110,7 @@ func TestSavePersistsRecentProjectsLimit(t *testing.T) {
 	if err != nil {
 		t.Fatalf("load config: %v", err)
 	}
+
 	if loaded.RecentProjectsLimit != 0 {
 		t.Fatalf("expected recent projects limit 0, got %d", loaded.RecentProjectsLimit)
 	}
@@ -117,6 +126,7 @@ func TestInitDoesNotOverwriteExistingConfig(t *testing.T) {
 	if err == nil {
 		t.Fatal("expected init to fail for existing config")
 	}
+
 	if errors.Is(err, os.ErrExist) {
 		t.Fatalf("expected contextual error, got %v", err)
 	}
@@ -148,6 +158,7 @@ func TestRecentProjectsReturnsMixedAccountsSortedAndLimited(t *testing.T) {
 	if len(projects) != 2 {
 		t.Fatalf("expected 2 projects, got %d", len(projects))
 	}
+
 	if projects[0].Path != "group/newest" || projects[1].Path != "group/middle" {
 		t.Fatalf("unexpected recent projects: %+v", projects)
 	}
@@ -195,6 +206,7 @@ func TestRecentProjectsForAccountSortsByLastUsed(t *testing.T) {
 	if len(projects) != 2 {
 		t.Fatalf("expected 2 projects, got %d", len(projects))
 	}
+
 	if projects[0].Path != "group/new" || projects[1].Path != "group/old" {
 		t.Fatalf("unexpected order: %+v", projects)
 	}
@@ -210,6 +222,7 @@ func TestRememberProjectUpdatesExistingEntry(t *testing.T) {
 	if len(cfg.RecentProjectHistory) != 1 {
 		t.Fatalf("expected 1 recent project, got %d", len(cfg.RecentProjectHistory))
 	}
+
 	if !cfg.RecentProjectHistory[0].LastUsedAt.Equal(newer) {
 		t.Fatalf("expected newer timestamp, got %s", cfg.RecentProjectHistory[0].LastUsedAt)
 	}
@@ -217,10 +230,12 @@ func TestRememberProjectUpdatesExistingEntry(t *testing.T) {
 
 func TestAccountTokenReadsConfiguredEnv(t *testing.T) {
 	account := Account{ID: "work", Host: "https://gitlab.example.com", TokenEnv: "GITLAB_WORK_TOKEN"}
+
 	token, err := account.Token([]string{"GITLAB_WORK_TOKEN=secret"})
 	if err != nil {
 		t.Fatalf("expected token, got %v", err)
 	}
+
 	if token != "secret" {
 		t.Fatalf("expected token, got %q", token)
 	}

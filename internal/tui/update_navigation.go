@@ -15,6 +15,7 @@ func (m Model) updateProjectSelect(msg tea.KeyMsg) (Model, tea.Cmd) {
 			m.projectFilterActive = false
 			m.rebuildProjectRows()
 			m.selected = m.nearestSelectable(0)
+
 			return m, nil
 		case tea.KeyBackspace:
 			if len(m.query) > 0 {
@@ -22,11 +23,13 @@ func (m Model) updateProjectSelect(msg tea.KeyMsg) (Model, tea.Cmd) {
 				m.rebuildProjectRows()
 				m.selected = m.nearestSelectable(0)
 			}
+
 			return m, nil
 		case tea.KeyRunes:
 			m.query += msg.String()
 			m.rebuildProjectRows()
 			m.selected = m.nearestSelectable(0)
+
 			return m, nil
 		}
 	}
@@ -91,14 +94,18 @@ func (m Model) updateSections(msg tea.KeyMsg) (Model, tea.Cmd) {
 			if m.projectLoaded {
 				m.mode = ModeEntityList
 				m.focus = FocusDetail
+
 				return m, nil
 			}
+
 			return m.openProjectCommand(m.projectPath)
 		}
+
 		if sec.available && sec.id == SectionIssues {
 			m.section = SectionIssues
 			m.mode = ModeEntityList
 			m.focus = FocusDetail
+
 			return m, m.loadIssuesCommand()
 		}
 	case "esc", "backspace":
@@ -148,6 +155,7 @@ func (m Model) updateEntityList(msg tea.KeyMsg) (Model, tea.Cmd) {
 		if m.projectError && m.projectPath != "" {
 			return m.openProjectCommand(m.projectPath)
 		}
+
 		return m, m.refreshCommand()
 	case "s":
 		if m.section == SectionIssues {

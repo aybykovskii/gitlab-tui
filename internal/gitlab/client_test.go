@@ -51,14 +51,17 @@ type fakeProjects struct {
 
 func (f *fakeMergeRequests) ListProjectMergeRequests(pid any, opt *glab.ListProjectMergeRequestsOptions, options ...glab.RequestOptionFunc) ([]*glab.BasicMergeRequest, *glab.Response, error) {
 	f.calls++
+
 	page := int(opt.Page)
 	if page == 0 {
 		page = 1
 	}
+
 	response := &glab.Response{}
 	if page < len(f.pages) {
 		response.NextPage = int64(page + 1)
 	}
+
 	return f.pages[page-1], response, nil
 }
 
@@ -68,16 +71,20 @@ func (f *fakeMergeRequests) ListMergeRequestDiffs(pid any, mergeRequest int64, o
 
 func (f *fakeIssues) ListProjectIssues(pid any, opt *glab.ListProjectIssuesOptions, options ...glab.RequestOptionFunc) ([]*glab.Issue, *glab.Response, error) {
 	f.calls++
+
 	if opt != nil {
 		if opt.State != nil {
 			f.state = *opt.State
 		}
+
 		if opt.Search != nil {
 			f.search = *opt.Search
 		}
+
 		f.limit = opt.PerPage
 		f.page = opt.Page
 	}
+
 	return f.items, &glab.Response{}, nil
 }
 
@@ -86,18 +93,23 @@ func (f *fakeIssues) UpdateIssue(pid any, issue int64, opt *glab.UpdateIssueOpti
 	if opt != nil && opt.StateEvent != nil {
 		f.stateEvent = *opt.StateEvent
 	}
+
 	if opt != nil && opt.Title != nil {
 		f.title = *opt.Title
 	}
+
 	if opt != nil && opt.Description != nil {
 		f.description = *opt.Description
 	}
+
 	if opt != nil && opt.Labels != nil {
 		f.labels = strings.Join(*opt.Labels, ",")
 	}
+
 	if opt != nil && opt.AssigneeID != nil {
 		f.assigneeID = *opt.AssigneeID
 	}
+
 	return &glab.Issue{}, &glab.Response{}, nil
 }
 
@@ -115,6 +127,7 @@ func (f *fakeDiscussions) CreateIssueDiscussion(pid any, issue int64, opt *glab.
 	if opt != nil && opt.Body != nil {
 		f.commentBody = *opt.Body
 	}
+
 	return &glab.Discussion{}, &glab.Response{}, nil
 }
 
@@ -122,6 +135,7 @@ func (f fakeApprovals) GetConfiguration(pid any, mergeRequest int64, options ...
 	if f.configs == nil {
 		return nil, &glab.Response{}, nil
 	}
+
 	return f.configs[mergeRequest], &glab.Response{}, nil
 }
 
@@ -129,13 +143,16 @@ func (f *fakeProjects) ListProjects(opt *glab.ListProjectsOptions, options ...gl
 	if opt != nil {
 		f.limit = opt.PerPage
 		f.page = opt.Page
+
 		if opt.Membership != nil {
 			f.membership = *opt.Membership
 		}
+
 		if opt.OrderBy != nil {
 			f.orderBy = *opt.OrderBy
 		}
 	}
+
 	return f.projects, &glab.Response{}, f.err
 }
 
@@ -154,6 +171,7 @@ func TestListProjectsReturnsProjectPaths(t *testing.T) {
 	if len(paths) != 2 || paths[0] != "group/new" || paths[1] != "team/old" {
 		t.Fatalf("unexpected project paths: %+v", paths)
 	}
+
 	if projects.limit != 5 || projects.page != 1 || !projects.membership || projects.orderBy != "" {
 		t.Fatalf("unexpected list options: limit=%d page=%d membership=%t orderBy=%q", projects.limit, projects.page, projects.membership, projects.orderBy)
 	}
@@ -166,6 +184,7 @@ func TestListProjectsReturnsEmptyList(t *testing.T) {
 	if err != nil {
 		t.Fatalf("expected no error, got %v", err)
 	}
+
 	if len(paths) != 0 {
 		t.Fatalf("expected empty project paths, got %+v", paths)
 	}
@@ -197,12 +216,15 @@ func TestOpenMergeRequestsMapsAllPages(t *testing.T) {
 	if len(items) != 2 {
 		t.Fatalf("expected 2 items, got %d", len(items))
 	}
+
 	if items[0].IID != 1 || items[0].Author != "alice" {
 		t.Fatalf("unexpected first item: %+v", items[0])
 	}
+
 	if items[1].IID != 2 || items[1].Author != "Bob" {
 		t.Fatalf("unexpected second item: %+v", items[1])
 	}
+
 	if fake.calls != 2 {
 		t.Fatalf("expected 2 calls, got %d", fake.calls)
 	}
@@ -226,9 +248,11 @@ func TestListProjectIssuesPassesStateAndMapsItems(t *testing.T) {
 	if issues.state != "opened" || issues.search != "api" || issues.limit != 50 || issues.page != 1 {
 		t.Fatalf("unexpected list options: state=%q search=%q limit=%d page=%d", issues.state, issues.search, issues.limit, issues.page)
 	}
+
 	if len(items) != 1 {
 		t.Fatalf("expected 1 item, got %d", len(items))
 	}
+
 	if items[0].IID != 79 || items[0].Title != "Issues API" || items[0].Author != "Alice" || items[0].CommentCount != 2 {
 		t.Fatalf("unexpected mapped issue: %+v", items[0])
 	}
@@ -241,6 +265,7 @@ func TestListProjectIssuesReturnsEmptyList(t *testing.T) {
 	if err != nil {
 		t.Fatalf("expected no error, got %v", err)
 	}
+
 	if len(items) != 0 {
 		t.Fatalf("expected empty issues, got %+v", items)
 	}
@@ -261,9 +286,11 @@ func TestListIssueDiscussionsMapsComments(t *testing.T) {
 	if discussions.issueIID != 79 {
 		t.Fatalf("expected issue iid 79, got %d", discussions.issueIID)
 	}
+
 	if len(items) != 1 || items[0].ID != "issue-discussion-1" {
 		t.Fatalf("unexpected discussions: %+v", items)
 	}
+
 	if len(items[0].Notes) != 1 || items[0].Notes[0].Author != "Alice" || items[0].Notes[0].Body != "Looks good" {
 		t.Fatalf("unexpected notes: %+v", items[0].Notes)
 	}
@@ -276,6 +303,7 @@ func TestIssueUpdateActionsMapOptions(t *testing.T) {
 	if err := client.EditIssue(context.Background(), "group/project", 84, "New title", "New description"); err != nil {
 		t.Fatalf("expected no error, got %v", err)
 	}
+
 	if issues.updateIID != 84 || issues.title != "New title" || issues.description != "New description" {
 		t.Fatalf("unexpected edit update: %+v", issues)
 	}
@@ -283,6 +311,7 @@ func TestIssueUpdateActionsMapOptions(t *testing.T) {
 	if err := client.UpdateIssueLabels(context.Background(), "group/project", 84, []string{"bug", "tui"}); err != nil {
 		t.Fatalf("expected no error, got %v", err)
 	}
+
 	if issues.labels != "bug,tui" {
 		t.Fatalf("unexpected labels update: %q", issues.labels)
 	}
@@ -290,6 +319,7 @@ func TestIssueUpdateActionsMapOptions(t *testing.T) {
 	if err := client.AssignSelfIssue(context.Background(), "group/project", 84); err != nil {
 		t.Fatalf("expected no error, got %v", err)
 	}
+
 	if issues.assigneeID != 0 {
 		t.Fatalf("unexpected assign self id: %d", issues.assigneeID)
 	}
@@ -306,6 +336,7 @@ func TestCloseAndReopenIssueUpdateStateEvent(t *testing.T) {
 	if err := client.CloseIssue(context.Background(), "group/project", 83); err != nil {
 		t.Fatalf("expected no error, got %v", err)
 	}
+
 	if issues.updateIID != 83 || issues.stateEvent != "close" {
 		t.Fatalf("unexpected close update: iid=%d state=%q", issues.updateIID, issues.stateEvent)
 	}
@@ -313,6 +344,7 @@ func TestCloseAndReopenIssueUpdateStateEvent(t *testing.T) {
 	if err := client.ReopenIssue(context.Background(), "group/project", 83); err != nil {
 		t.Fatalf("expected no error, got %v", err)
 	}
+
 	if issues.updateIID != 83 || issues.stateEvent != "reopen" {
 		t.Fatalf("unexpected reopen update: iid=%d state=%q", issues.updateIID, issues.stateEvent)
 	}
@@ -325,6 +357,7 @@ func TestAddIssueCommentCreatesIssueDiscussion(t *testing.T) {
 	if err := client.AddIssueComment(context.Background(), "group/project", 82, "General comment"); err != nil {
 		t.Fatalf("expected no error, got %v", err)
 	}
+
 	if discussions.commentIID != 82 || discussions.commentBody != "General comment" {
 		t.Fatalf("unexpected issue comment: iid=%d body=%q", discussions.commentIID, discussions.commentBody)
 	}
@@ -339,6 +372,7 @@ func TestOpenMergeRequestsAddsApprovalCounts(t *testing.T) {
 	if err != nil {
 		t.Fatalf("expected no error, got %v", err)
 	}
+
 	if items[0].Approvals != "1/2" {
 		t.Fatalf("expected approval counts, got %q", items[0].Approvals)
 	}
@@ -354,15 +388,19 @@ func TestMapDiscussionMapsNotesAndResolution(t *testing.T) {
 		},
 	})
 	_ = resolved
+
 	if item.ID != "abc123" {
 		t.Fatalf("expected ID abc123, got %q", item.ID)
 	}
+
 	if item.Resolved {
 		t.Fatal("expected discussion to be unresolved (first note is unresolved)")
 	}
+
 	if len(item.Notes) != 2 {
 		t.Fatalf("expected 2 notes, got %d", len(item.Notes))
 	}
+
 	if item.Notes[0].Author != "Alice" || item.Notes[0].Body != "Needs a fix" {
 		t.Fatalf("unexpected first note: %+v", item.Notes[0])
 	}
@@ -379,6 +417,7 @@ func TestMapDiscussionExcludesSystemNotes(t *testing.T) {
 	if len(item.Notes) != 1 {
 		t.Fatalf("expected 1 non-system note, got %d", len(item.Notes))
 	}
+
 	if item.Notes[0].Author != "Alice" {
 		t.Fatalf("expected Alice, got %q", item.Notes[0].Author)
 	}
@@ -396,12 +435,15 @@ func TestMapChangedFileMapsPathMarkersAndLineCounts(t *testing.T) {
 	if item.Path != "internal/tui/model.go" {
 		t.Fatalf("expected path, got %q", item.Path)
 	}
+
 	if item.IsNew || item.IsDeleted || item.IsRenamed {
 		t.Fatalf("unexpected markers: %+v", item)
 	}
+
 	if item.AddedLines != 2 {
 		t.Fatalf("expected 2 added lines, got %d", item.AddedLines)
 	}
+
 	if item.RemovedLines != 1 {
 		t.Fatalf("expected 1 removed line, got %d", item.RemovedLines)
 	}
@@ -412,6 +454,7 @@ func TestMapChangedFileMarksNewAndDeletedFiles(t *testing.T) {
 	if !newFile.IsNew {
 		t.Fatal("expected IsNew=true")
 	}
+
 	if newFile.AddedLines != 1 {
 		t.Fatalf("expected 1 added line, got %d", newFile.AddedLines)
 	}
@@ -420,6 +463,7 @@ func TestMapChangedFileMarksNewAndDeletedFiles(t *testing.T) {
 	if !deleted.IsDeleted {
 		t.Fatal("expected IsDeleted=true")
 	}
+
 	if deleted.Path != "old.go" {
 		t.Fatalf("expected old.go path for deleted file, got %q", deleted.Path)
 	}
@@ -445,6 +489,7 @@ type fakeMergeRequestEdit struct {
 func (f *fakeMergeRequestEdit) UpdateMergeRequest(pid any, mergeRequest int64, opt *glab.UpdateMergeRequestOptions, options ...glab.RequestOptionFunc) (*glab.MergeRequest, *glab.Response, error) {
 	f.lastIID = mergeRequest
 	f.lastOpts = opt
+
 	return &glab.MergeRequest{}, &glab.Response{}, f.err
 }
 
@@ -466,12 +511,15 @@ func TestMapMergeRequestFillsLabelsAndDraft(t *testing.T) {
 	if !item.Draft {
 		t.Fatal("expected Draft=true")
 	}
+
 	if len(item.Labels) != 2 || item.Labels[0] != "backend" || item.Labels[1] != "performance" {
 		t.Fatalf("expected labels [backend performance], got %v", item.Labels)
 	}
+
 	if len(item.Assignees) != 2 || item.Assignees[0] != "Alice" || item.Assignees[1] != "bob" {
 		t.Fatalf("expected assignees [Alice bob], got %v", item.Assignees)
 	}
+
 	if len(item.Reviewers) != 1 || item.Reviewers[0] != "Carol" {
 		t.Fatalf("expected reviewers [Carol], got %v", item.Reviewers)
 	}
@@ -488,12 +536,15 @@ func TestListProjectLabelsReturnsMappedLabels(t *testing.T) {
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
+
 	if len(labels) != 2 {
 		t.Fatalf("expected 2 labels, got %d", len(labels))
 	}
+
 	if labels[0].Name != "backend" || labels[0].Color != "#e11d48" {
 		t.Fatalf("unexpected first label: %+v", labels[0])
 	}
+
 	if labels[1].Name != "bug" || labels[1].Color != "#dc2626" {
 		t.Fatalf("unexpected second label: %+v", labels[1])
 	}
@@ -517,12 +568,15 @@ func TestUpdateMRLabelsSetsLabelsOnMR(t *testing.T) {
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
+
 	if fake.lastIID != 42 {
 		t.Fatalf("expected iid=42, got %d", fake.lastIID)
 	}
+
 	if fake.lastOpts == nil || fake.lastOpts.Labels == nil {
 		t.Fatal("expected UpdateMergeRequest to be called with labels")
 	}
+
 	got := []string(*fake.lastOpts.Labels)
 	if len(got) != 2 || got[0] != "backend" || got[1] != "bug" {
 		t.Fatalf("unexpected labels: %v", got)
@@ -547,9 +601,11 @@ func TestToggleDraftMRAddsDraftPrefix(t *testing.T) {
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
+
 	if fake.lastOpts == nil || fake.lastOpts.Title == nil {
 		t.Fatal("expected UpdateMergeRequest to be called with title")
 	}
+
 	if *fake.lastOpts.Title != "Draft: My MR" {
 		t.Fatalf("expected title 'Draft: My MR', got %q", *fake.lastOpts.Title)
 	}
@@ -563,9 +619,11 @@ func TestToggleDraftMRRemovesDraftPrefix(t *testing.T) {
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
+
 	if fake.lastOpts == nil || fake.lastOpts.Title == nil {
 		t.Fatal("expected UpdateMergeRequest to be called with title")
 	}
+
 	if *fake.lastOpts.Title != "My MR" {
 		t.Fatalf("expected title 'My MR' after removing draft prefix, got %q", *fake.lastOpts.Title)
 	}
@@ -579,6 +637,7 @@ func TestToggleDraftMRDoesNotDoublePrefixAlreadyDraft(t *testing.T) {
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
+
 	if *fake.lastOpts.Title != "Draft: My MR" {
 		t.Fatalf("expected no double prefix, got %q", *fake.lastOpts.Title)
 	}
@@ -605,9 +664,11 @@ func TestMapMergeRequestKeepsPreviousMRInfo(t *testing.T) {
 	if item.Pipeline != "success" {
 		t.Fatalf("expected success pipeline, got %q", item.Pipeline)
 	}
+
 	if item.Author != "Alice Doe" || item.AuthorUsername != "alice" {
 		t.Fatalf("unexpected author: %+v", item)
 	}
+
 	if item.WebURL != "https://gitlab.com/group/project/-/merge_requests/3" {
 		t.Fatalf("unexpected web URL: %q", item.WebURL)
 	}
