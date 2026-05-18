@@ -1130,6 +1130,105 @@ func draftFileDiffModel(t *testing.T) Model {
 	return updated.(Model)
 }
 
+func TestReviewTabAppearsInTabCycleWithDraftCount(t *testing.T) {
+	model := draftFileDiffModel(t)
+	updated, _ := model.Update(draftAddedMsg{iid: 42, draft: mr.DraftComment{
+		LocalID:  "d1",
+		Body:     "Check this",
+		Position: &mr.DiffPosition{NewPath: "main.go", NewLine: 2},
+	}})
+	model = updated.(Model)
+	updated, _ = model.Update(tea.KeyMsg{Type: tea.KeyEsc})
+	model = updated.(Model)
+
+	updated, _ = model.Update(tea.KeyMsg{Type: tea.KeyTab})
+	model = updated.(Model)
+	if model.activeTab != TabReview {
+		t.Fatalf("expected Review tab after Files, got %v", model.activeTab)
+	}
+	if !strings.Contains(model.View(), ">Review (1)<") || !strings.Contains(model.View(), "main.go:2 Check this") {
+		t.Fatalf("expected Review tab with draft count and context, got:\n%s", model.View())
+	}
+	updated, _ = model.Update(tea.KeyMsg{Type: tea.KeyTab})
+	model = updated.(Model)
+	if model.activeTab != TabSummary {
+		t.Fatalf("expected tab cycle back to Summary, got %v", model.activeTab)
+	}
+}
+
+func TestReviewTabOpensDraftDiffAndEscReturnsToReview(t *testing.T) {
+	model := draftFileDiffModel(t)
+	updated, _ := model.Update(draftAddedMsg{iid: 42, draft: mr.DraftComment{
+		LocalID:  "d1",
+		Body:     "Check this",
+		Position: &mr.DiffPosition{NewPath: "main.go", NewLine: 2},
+	}})
+	model = updated.(Model)
+	updated, _ = model.Update(tea.KeyMsg{Type: tea.KeyEsc})
+	model = updated.(Model)
+	model.activeTab = TabReview
+
+	updated, _ = model.Update(tea.KeyMsg{Type: tea.KeyEnter})
+	model = updated.(Model)
+	if model.mode != ModeFileDiff || model.diffCursor != 1 {
+		t.Fatalf("expected file diff at draft row, mode=%v cursor=%d", model.mode, model.diffCursor)
+	}
+	updated, _ = model.Update(tea.KeyMsg{Type: tea.KeyEsc})
+	model = updated.(Model)
+	if model.mode != ModeDetail || model.activeTab != TabReview {
+		t.Fatalf("expected Esc to return to Review tab, mode=%v tab=%v", model.mode, model.activeTab)
+	}
+}
+
+func TestReviewTabPublishesDraftsWithSummaryAndDiscards(t *testing.T) {
+	submitted := false
+	postedSummary := ""
+	discarded := false
+	model := NewModelWithProject(FakeMergeRequests(), ProjectOptions{
+		Path:    "group/project",
+		Section: SectionMergeRequests,
+		SubmitDrafts: func(iid int, drafts []mr.DraftComment) error {
+			submitted = iid == 42 && len(drafts) == 1
+			return nil
+		},
+		PostMRComment: func(iid int, body string) error {
+			postedSummary = body
+			return nil
+		},
+		DiscardDrafts: func(iid int) error {
+			discarded = iid == 42
+			return nil
+		},
+	})
+	model.activeTab = TabReview
+	model.drafts[42] = []mr.DraftComment{{LocalID: "d1", Body: "Check this", Position: &mr.DiffPosition{NewPath: "main.go", NewLine: 2}}}
+	model.reviewSummary = "Looks good overall"
+
+	updated, cmd := model.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune("p")})
+	model = updated.(Model)
+	if cmd == nil {
+		t.Fatal("expected publish command")
+	}
+	updated, _ = model.Update(cmd())
+	model = updated.(Model)
+	if !submitted || postedSummary != "Looks good overall" {
+		t.Fatalf("expected submit and summary post, submitted=%v summary=%q", submitted, postedSummary)
+	}
+
+	updated, cmd = model.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune("D")})
+	model = updated.(Model)
+	if len(model.drafts[42]) != 0 {
+		t.Fatalf("expected drafts cleared, got %d", len(model.drafts[42]))
+	}
+	if cmd == nil {
+		t.Fatal("expected discard command")
+	}
+	cmd()
+	if !discarded {
+		t.Fatal("expected discard callback")
+	}
+}
+
 func TestModelStoresDraftCommentForCurrentMR(t *testing.T) {
 	model := draftFileDiffModel(t)
 
@@ -2564,11 +2663,18 @@ func TestTabKeyCyclesDetailTabs(t *testing.T) {
 		t.Fatalf("expected TabFiles after second Tab, got %v", model.activeTab)
 	}
 
-	// Files → Summary (wrap)
+	// Files → Review
+	updated, _ = model.Update(tea.KeyMsg{Type: tea.KeyTab})
+	model = updated.(Model)
+	if model.activeTab != TabReview {
+		t.Fatalf("expected TabReview after third Tab, got %v", model.activeTab)
+	}
+
+	// Review → Summary (wrap)
 	updated, _ = model.Update(tea.KeyMsg{Type: tea.KeyTab})
 	model = updated.(Model)
 	if model.activeTab != TabSummary {
-		t.Fatalf("expected TabSummary after third Tab, got %v", model.activeTab)
+		t.Fatalf("expected TabSummary after fourth Tab, got %v", model.activeTab)
 	}
 }
 

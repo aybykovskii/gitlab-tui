@@ -35,6 +35,7 @@ const (
 	TabSummary DetailTab = iota
 	TabDiscussions
 	TabFiles
+	TabReview
 )
 
 type Section string
@@ -519,7 +520,11 @@ type Model struct {
 	selectedFile         int
 	fileDiffTop          int
 	diffCursor           int
+	fileDiffReturnTab    DetailTab
 	rangeStart           int
+	reviewCursor         int
+	reviewSummaryInput   bool
+	reviewSummary        string
 	commentInput         bool
 	commentInstant       bool
 	commentBuffer        string
@@ -1391,13 +1396,16 @@ func (m Model) updateKey(msg tea.KeyMsg) (Model, tea.Cmd) {
 			if ok && m.submitDrafts != nil {
 				drafts := m.drafts[item.IID]
 				submit := m.submitDrafts
+				post := m.postMRComment
+				summary := strings.TrimSpace(m.reviewSummary)
 				iid := item.IID
-				return m, tea.Sequence(
-					func() tea.Msg {
-						err := submit(iid, drafts)
-						return draftsSubmittedMsg{iid: iid, err: err}
-					},
-				)
+				return m, func() tea.Msg {
+					err := submit(iid, drafts)
+					if err == nil && summary != "" && post != nil {
+						err = post(iid, summary)
+					}
+					return draftsSubmittedMsg{iid: iid, err: err}
+				}
 			}
 		case "e":
 			files := m.currentFiles()
@@ -1432,7 +1440,7 @@ func (m Model) updateKey(msg tea.KeyMsg) (Model, tea.Cmd) {
 				return m, nil
 			}
 			m.mode = ModeDetail
-			m.activeTab = TabFiles
+			m.activeTab = m.fileDiffReturnTab
 			m.fileDiffTop = 0
 		}
 		return m, nil
@@ -1450,6 +1458,9 @@ func (m Model) updateKey(msg tea.KeyMsg) (Model, tea.Cmd) {
 	}
 	if m.mode == ModeDetail && m.mrCommentInput {
 		return m.updateMRCommentInput(msg)
+	}
+	if m.mode == ModeDetail && m.activeTab == TabReview && msg.String() != "tab" {
+		return m.updateReviewTab(msg)
 	}
 
 	if m.mode == ModeDetail && m.mergeConfirmPending && msg.String() != "M" {
@@ -1625,7 +1636,7 @@ func (m Model) updateKey(msg tea.KeyMsg) (Model, tea.Cmd) {
 				m.activeTab = (m.activeTab + 1) % (TabDiscussions + 1)
 				return m, m.loadIssueDiscussionsCommand()
 			}
-			m.activeTab = (m.activeTab + 1) % (TabFiles + 1)
+			m.activeTab = (m.activeTab + 1) % (TabReview + 1)
 			return m.onTabEntered()
 		}
 	case msg.String() == "up" || msg.String() == "k":
@@ -1645,6 +1656,7 @@ func (m Model) updateKey(msg tea.KeyMsg) (Model, tea.Cmd) {
 			if item, ok := m.selectedItem(); ok {
 				if files, loaded := m.changedFiles[item.IID]; loaded && len(files) > 0 {
 					m.mode = ModeFileDiff
+					m.fileDiffReturnTab = TabFiles
 					m.selectedFile = 0
 					m.fileDiffTop = 0
 					return m, nil
@@ -1662,6 +1674,93 @@ func (m Model) updateKey(msg tea.KeyMsg) (Model, tea.Cmd) {
 	}
 
 	return m, nil
+}
+
+func (m Model) updateReviewTab(msg tea.KeyMsg) (Model, tea.Cmd) {
+	item, ok := m.selectedItem()
+	if !ok {
+		return m, nil
+	}
+	drafts := m.drafts[item.IID]
+	if m.reviewSummaryInput {
+		switch msg.Type {
+		case tea.KeyEnter:
+			m.reviewSummaryInput = false
+		case tea.KeyEsc:
+			m.reviewSummaryInput = false
+		case tea.KeyBackspace:
+			if len(m.reviewSummary) > 0 {
+				m.reviewSummary = m.reviewSummary[:len(m.reviewSummary)-1]
+			}
+		case tea.KeyRunes:
+			m.reviewSummary += string(msg.Runes)
+		}
+		return m, nil
+	}
+	switch msg.String() {
+	case "up", "k":
+		m.reviewCursor = max(0, m.reviewCursor-1)
+	case "down", "j":
+		if len(drafts) == 0 || m.reviewCursor >= len(drafts)-1 {
+			m.reviewSummaryInput = true
+		} else {
+			m.reviewCursor++
+		}
+	case "enter":
+		if len(drafts) == 0 || m.reviewCursor >= len(drafts) {
+			m.reviewSummaryInput = true
+			return m, nil
+		}
+		m.openDraftInDiff(drafts[m.reviewCursor])
+	case "p":
+		if m.submitDrafts == nil {
+			return m, nil
+		}
+		submit := m.submitDrafts
+		post := m.postMRComment
+		summary := strings.TrimSpace(m.reviewSummary)
+		iid := item.IID
+		return m, func() tea.Msg {
+			err := submit(iid, drafts)
+			if err == nil && summary != "" && post != nil {
+				err = post(iid, summary)
+			}
+			return draftsSubmittedMsg{iid: iid, err: err}
+		}
+	case "D":
+		m.drafts[item.IID] = nil
+		if m.discardDrafts == nil {
+			return m, nil
+		}
+		discard := m.discardDrafts
+		iid := item.IID
+		return m, func() tea.Msg { return draftsDiscardedMsg{iid: iid, err: discard(iid)} }
+	}
+	return m, nil
+}
+
+func (m *Model) openDraftInDiff(draft mr.DraftComment) {
+	if draft.Position == nil {
+		return
+	}
+	files := m.currentFiles()
+	for fileIndex, file := range files {
+		if file.Path != draft.Position.NewPath {
+			continue
+		}
+		m.mode = ModeFileDiff
+		m.fileDiffReturnTab = TabReview
+		m.selectedFile = fileIndex
+		m.fileDiffTop = 0
+		m.diffCursor = 0
+		for rowIndex, row := range file.Diff {
+			if row.NewLine == draft.Position.NewLine {
+				m.diffCursor = rowIndex
+				break
+			}
+		}
+		return
+	}
 }
 
 func (m Model) updateLabelSelect(msg tea.KeyMsg) (Model, tea.Cmd) {
@@ -2852,14 +2951,17 @@ func (m Model) renderRight() string {
 	if m.mode == ModeDiff {
 		return style.Render(m.renderDiff(item))
 	}
-	tabs := "[Summary] [Discussions] [Files]"
+	reviewLabel := m.reviewTabLabel(item)
+	tabs := fmt.Sprintf("[Summary] [Discussions] [Files] [%s]", reviewLabel)
 	switch m.activeTab {
 	case TabDiscussions:
-		tabs = "[Summary] [>Discussions<] [Files]"
+		tabs = fmt.Sprintf("[Summary] [>Discussions<] [Files] [%s]", reviewLabel)
 	case TabFiles:
-		tabs = "[Summary] [Discussions] [>Files<]"
+		tabs = fmt.Sprintf("[Summary] [Discussions] [>Files<] [%s]", reviewLabel)
+	case TabReview:
+		tabs = fmt.Sprintf("[Summary] [Discussions] [Files] [>%s<]", reviewLabel)
 	default:
-		tabs = "[>Summary<] [Discussions] [Files]"
+		tabs = fmt.Sprintf("[>Summary<] [Discussions] [Files] [%s]", reviewLabel)
 	}
 	icons := m.emoji.Resolve()
 	header := fmt.Sprintf("%s\n%s", mrTitleLine(item, icons), tabs)
@@ -2869,6 +2971,8 @@ func (m Model) renderRight() string {
 		return style.Render(header + "\n\n" + m.renderDiscussions(item))
 	case TabFiles:
 		return style.Render(header + "\n\n" + m.renderFiles(item))
+	case TabReview:
+		return style.Render(header + "\n\n" + m.renderReview(item))
 	default:
 		authorPart := iconPrefix(icons.Author) + formatAuthor(item)
 		reviewerPart := ""
@@ -3057,6 +3161,57 @@ func (m Model) renderDiscussions(item mr.MergeRequest) string {
 		}
 	}
 	return strings.Join(lines, "\n")
+}
+
+func (m Model) reviewTabLabel(item mr.MergeRequest) string {
+	count := len(m.drafts[item.IID])
+	if count == 0 {
+		return "Review"
+	}
+	return fmt.Sprintf("Review (%d)", count)
+}
+
+func (m Model) renderReview(item mr.MergeRequest) string {
+	drafts := m.drafts[item.IID]
+	if len(drafts) == 0 {
+		return "No draft comments\n\nAdd inline comments from Files diff."
+	}
+	lines := []string{"Draft comments", ""}
+	for i, draft := range drafts {
+		prefix := "  "
+		if i == m.reviewCursor && !m.reviewSummaryInput {
+			prefix = "> "
+		}
+		path := "unknown"
+		line := 0
+		if draft.Position != nil {
+			path = draft.Position.NewPath
+			line = draft.Position.NewLine
+		}
+		lines = append(lines, fmt.Sprintf("%s%s:%d %s", prefix, path, line, oneLinePreview(draft.Body)))
+	}
+	lines = append(lines, "")
+	summaryPrefix := "  "
+	cursor := ""
+	if m.reviewSummaryInput {
+		summaryPrefix = "> "
+		cursor = "█"
+	}
+	lines = append(lines, summaryPrefix+"Summary: "+m.reviewSummary+cursor)
+	lines = append(lines, "", "Enter open draft  p publish  D discard")
+	return strings.Join(lines, "\n")
+}
+
+func oneLinePreview(text string) string {
+	fields := strings.Fields(text)
+	if len(fields) == 0 {
+		return ""
+	}
+	preview := strings.Join(fields, " ")
+	if len(preview) > 60 {
+		return preview[:57] + "..."
+	}
+	return preview
 }
 
 func (m Model) renderFiles(item mr.MergeRequest) string {
