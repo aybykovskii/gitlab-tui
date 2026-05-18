@@ -5,12 +5,60 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/charmbracelet/bubbles/key"
 	tea "github.com/charmbracelet/bubbletea"
 
 	"github.com/aybykovskii/gitlab-tui/internal/mr"
 )
 
 var errTestRefresh = errors.New("refresh failed")
+
+func TestAllNavigationKeyMapsHaveHelp(t *testing.T) {
+	keyMaps := map[string][]key.Binding{
+		"project list": newProjectListKeys().LocalKeys(),
+		"sections":     newSectionsKeys().LocalKeys(),
+		"entity list":  newEntityListKeys().LocalKeys(),
+		"mr detail":    newMRDetailKeys().LocalKeys(),
+		"diff view":    newDiffViewKeys().LocalKeys(),
+		"file diff":    newFileDiffKeys().LocalKeys(),
+	}
+	for name, bindings := range keyMaps {
+		if len(bindings) == 0 {
+			t.Fatalf("expected %s key map to have bindings", name)
+		}
+		for _, binding := range bindings {
+			if binding.Help().Key == "" || binding.Help().Desc == "" {
+				t.Fatalf("expected %s binding to have help, got %+v", name, binding.Help())
+			}
+		}
+	}
+}
+
+func TestCollapsedKeyBarTruncatesLocalKeys(t *testing.T) {
+	model := NewModelWithProject(nil, ProjectOptions{Recents: []string{"group/project"}})
+	model.width = 34
+
+	view := model.renderKeyBar()
+	if !strings.Contains(view, "…") {
+		t.Fatalf("expected truncated key bar with ellipsis, got %q", view)
+	}
+}
+
+func TestExpandedKeyBarShowsAllProjectListLocalKeys(t *testing.T) {
+	model := NewModelWithProject(nil, ProjectOptions{Recents: []string{"group/project"}})
+	model.width = 80
+	model.keyBarExpanded = true
+
+	view := model.renderKeyBar()
+	for _, want := range []string{"↑/k up", "↓/j down", "Enter open", "/ filter", "i manual", "r retry", "Global:"} {
+		if !strings.Contains(view, want) {
+			t.Fatalf("expected expanded key bar to contain %q, got %q", want, view)
+		}
+	}
+	if !strings.Contains(view, "─") {
+		t.Fatalf("expected expanded key bar separator, got %q", view)
+	}
+}
 
 func TestViewRendersPersistentKeyBar(t *testing.T) {
 	model := NewModelWithProject(nil, ProjectOptions{Recents: []string{"group/project"}})
@@ -303,8 +351,8 @@ func TestProjectLoadErrorCanReturnToSelection(t *testing.T) {
 	if !strings.Contains(view, "Error: refresh failed") {
 		t.Fatalf("expected load error in view, got %q", view)
 	}
-	if !strings.Contains(view, "Esc: choose project") {
-		t.Fatalf("expected recovery hint in view, got %q", view)
+	if !strings.Contains(view, "Esc back") {
+		t.Fatalf("expected recovery key in key bar, got %q", view)
 	}
 
 	updated, _ = model.Update(tea.KeyMsg{Type: tea.KeyEsc})
@@ -423,8 +471,8 @@ func TestEmptyProjectStateCanReturnToProjectSelection(t *testing.T) {
 	if !strings.Contains(view, "No opened MRs") {
 		t.Fatalf("expected empty MR state, got %q", view)
 	}
-	if !strings.Contains(view, "r refresh") || !strings.Contains(view, "Esc: choose project") {
-		t.Fatalf("expected empty state actions, got %q", view)
+	if !strings.Contains(view, "r refresh") || !strings.Contains(view, "Esc back") {
+		t.Fatalf("expected empty state actions in key bar, got %q", view)
 	}
 
 	updated, _ = model.Update(tea.KeyMsg{Type: tea.KeyEsc})

@@ -97,6 +97,46 @@ type ProjectListKeys struct {
 	Retry  key.Binding
 }
 
+type SectionsKeys struct {
+	Up   key.Binding
+	Down key.Binding
+	Open key.Binding
+}
+
+type EntityListKeys struct {
+	Up      key.Binding
+	Down    key.Binding
+	Open    key.Binding
+	Filter  key.Binding
+	Refresh key.Binding
+}
+
+type MRDetailKeys struct {
+	Approve key.Binding
+	Merge   key.Binding
+	Edit    key.Binding
+	OpenURL key.Binding
+	Comment key.Binding
+	NextTab key.Binding
+}
+
+type DiffViewKeys struct {
+	Up      key.Binding
+	Down    key.Binding
+	Comment key.Binding
+	Range   key.Binding
+	Publish key.Binding
+}
+
+type FileDiffKeys struct {
+	PrevFile key.Binding
+	NextFile key.Binding
+	Up       key.Binding
+	Down     key.Binding
+	Comment  key.Binding
+	Reply    key.Binding
+}
+
 func newGlobalKeys() GlobalKeys {
 	return GlobalKeys{
 		Quit:         key.NewBinding(key.WithKeys("q", "ctrl+c"), key.WithHelp("q", "quit")),
@@ -118,6 +158,74 @@ func newProjectListKeys() ProjectListKeys {
 
 func (k ProjectListKeys) LocalKeys() []key.Binding {
 	return []key.Binding{k.Up, k.Down, k.Open, k.Filter, k.Input, k.Retry}
+}
+
+func newSectionsKeys() SectionsKeys {
+	return SectionsKeys{
+		Up:   key.NewBinding(key.WithKeys("up", "k"), key.WithHelp("↑/k", "up")),
+		Down: key.NewBinding(key.WithKeys("down", "j"), key.WithHelp("↓/j", "down")),
+		Open: key.NewBinding(key.WithKeys("enter"), key.WithHelp("Enter", "open")),
+	}
+}
+
+func (k SectionsKeys) LocalKeys() []key.Binding { return []key.Binding{k.Up, k.Down, k.Open} }
+
+func newEntityListKeys() EntityListKeys {
+	return EntityListKeys{
+		Up:      key.NewBinding(key.WithKeys("up", "k"), key.WithHelp("↑/k", "up")),
+		Down:    key.NewBinding(key.WithKeys("down", "j"), key.WithHelp("↓/j", "down")),
+		Open:    key.NewBinding(key.WithKeys("enter"), key.WithHelp("Enter", "open")),
+		Filter:  key.NewBinding(key.WithKeys("/"), key.WithHelp("/", "filter")),
+		Refresh: key.NewBinding(key.WithKeys("r"), key.WithHelp("r", "refresh")),
+	}
+}
+
+func (k EntityListKeys) LocalKeys() []key.Binding {
+	return []key.Binding{k.Up, k.Down, k.Open, k.Filter, k.Refresh}
+}
+
+func newMRDetailKeys() MRDetailKeys {
+	return MRDetailKeys{
+		Approve: key.NewBinding(key.WithKeys("A"), key.WithHelp("A", "approve")),
+		Merge:   key.NewBinding(key.WithKeys("M"), key.WithHelp("M", "merge")),
+		Edit:    key.NewBinding(key.WithKeys("e"), key.WithHelp("e", "edit")),
+		OpenURL: key.NewBinding(key.WithKeys("o"), key.WithHelp("o", "open")),
+		Comment: key.NewBinding(key.WithKeys("m"), key.WithHelp("m", "comment")),
+		NextTab: key.NewBinding(key.WithKeys("tab"), key.WithHelp("Tab", "next tab")),
+	}
+}
+
+func (k MRDetailKeys) LocalKeys() []key.Binding {
+	return []key.Binding{k.Approve, k.Merge, k.Edit, k.OpenURL, k.Comment, k.NextTab}
+}
+
+func newDiffViewKeys() DiffViewKeys {
+	return DiffViewKeys{
+		Up:      key.NewBinding(key.WithKeys("up", "k"), key.WithHelp("↑/k", "up")),
+		Down:    key.NewBinding(key.WithKeys("down", "j"), key.WithHelp("↓/j", "down")),
+		Comment: key.NewBinding(key.WithKeys("i", "c"), key.WithHelp("i/c", "comment")),
+		Range:   key.NewBinding(key.WithKeys("v"), key.WithHelp("v", "range")),
+		Publish: key.NewBinding(key.WithKeys("p"), key.WithHelp("p", "publish")),
+	}
+}
+
+func (k DiffViewKeys) LocalKeys() []key.Binding {
+	return []key.Binding{k.Up, k.Down, k.Comment, k.Range, k.Publish}
+}
+
+func newFileDiffKeys() FileDiffKeys {
+	return FileDiffKeys{
+		PrevFile: key.NewBinding(key.WithKeys("left", "h"), key.WithHelp("←/h", "prev file")),
+		NextFile: key.NewBinding(key.WithKeys("right", "l"), key.WithHelp("→/l", "next file")),
+		Up:       key.NewBinding(key.WithKeys("up", "k"), key.WithHelp("↑/k", "up")),
+		Down:     key.NewBinding(key.WithKeys("down", "j"), key.WithHelp("↓/j", "down")),
+		Comment:  key.NewBinding(key.WithKeys("i", "c"), key.WithHelp("i/c", "comment")),
+		Reply:    key.NewBinding(key.WithKeys("r"), key.WithHelp("r", "reply")),
+	}
+}
+
+func (k FileDiffKeys) LocalKeys() []key.Binding {
+	return []key.Binding{k.PrevFile, k.NextFile, k.Up, k.Down, k.Comment, k.Reply}
 }
 
 type ProjectData struct {
@@ -1708,11 +1816,9 @@ func (m Model) renderSections() string {
 		}
 		lines = append(lines, prefix+label)
 	}
-	hint := "Enter: open  Esc: projects"
 	if !tuiSections[m.sectionCursor].available {
-		hint = "Not yet implemented  Esc: projects"
+		lines = append(lines, "", "Not yet implemented")
 	}
-	lines = append(lines, "", hint)
 	return style.Render(strings.Join(lines, "\n"))
 }
 
@@ -1727,7 +1833,6 @@ func (m Model) renderSectionsContext() string {
 		}
 		lines = append(lines, prefix+sec.label)
 	}
-	lines = append(lines, "", "Esc: back")
 	return style.Render(strings.Join(lines, "\n"))
 }
 
@@ -1743,16 +1848,10 @@ func (m Model) renderEntityListPane() string {
 	}
 	if m.errorMessage != "" {
 		lines = append(lines, "Error: "+m.errorMessage)
-		if m.projectError {
-			lines = append(lines, "Esc: choose project")
-		}
 	}
 	items := m.filtered()
 	if len(items) == 0 {
 		lines = append(lines, "No opened MRs")
-		if len(m.items) == 0 && m.projectPath != "" {
-			lines = append(lines, "r refresh  Esc: choose project")
-		}
 	} else {
 		visible := max(1, height-5)
 		end := min(len(items), m.listTop+visible)
@@ -1766,7 +1865,6 @@ func (m Model) renderEntityListPane() string {
 			lines = append(lines, fmt.Sprintf("  %s %s → %s", item.Author, item.SourceBranch, item.TargetBranch))
 		}
 	}
-	lines = append(lines, "", "↑/↓ select  / filter  r refresh  Enter open")
 	return style.Render(strings.Join(lines, "\n"))
 }
 
@@ -1809,7 +1907,20 @@ func (m Model) localKeys() []key.Binding {
 	if m.mode == ModeProjectSelect {
 		return m.projectListKeys.LocalKeys()
 	}
-	return []key.Binding{key.NewBinding(key.WithKeys("r"), key.WithHelp("r", "refresh")), key.NewBinding(key.WithKeys("/"), key.WithHelp("/", "filter")), key.NewBinding(key.WithKeys("Enter"), key.WithHelp("Enter", "open"))}
+	switch m.mode {
+	case ModeSections:
+		return newSectionsKeys().LocalKeys()
+	case ModeEntityList:
+		return newEntityListKeys().LocalKeys()
+	case ModeDetail:
+		return newMRDetailKeys().LocalKeys()
+	case ModeDiff:
+		return newDiffViewKeys().LocalKeys()
+	case ModeFileDiff:
+		return newFileDiffKeys().LocalKeys()
+	default:
+		return newEntityListKeys().LocalKeys()
+	}
 }
 
 func (m Model) globalKeys() []key.Binding {
@@ -1993,8 +2104,6 @@ func (m Model) renderProjectPicker() string {
 			"",
 			"Project path:",
 			m.projectInput,
-			"",
-			"Enter: open project",
 		}, "\n"))
 	}
 
@@ -2028,9 +2137,6 @@ func (m Model) renderList() string {
 	}
 	if m.errorMessage != "" {
 		lines = append(lines, "Error: "+m.errorMessage)
-		if m.projectError {
-			lines = append(lines, "Esc: choose project")
-		}
 	}
 	if m.diffLoading {
 		lines = append(lines, "Loading diff…")
@@ -2038,9 +2144,6 @@ func (m Model) renderList() string {
 	items := m.filtered()
 	if len(items) == 0 {
 		lines = append(lines, "No opened MRs")
-		if len(m.items) == 0 && m.projectPath != "" {
-			lines = append(lines, "r refresh  Esc: choose project")
-		}
 	} else {
 		visible := max(1, height-5)
 		end := min(len(items), m.listTop+visible)
@@ -2054,7 +2157,6 @@ func (m Model) renderList() string {
 			lines = append(lines, fmt.Sprintf("  %s %s → %s", item.Author, item.SourceBranch, item.TargetBranch))
 		}
 	}
-	lines = append(lines, "", "↑/↓ select  / filter  r refresh  Enter diff")
 	return style.Render(strings.Join(lines, "\n"))
 }
 
@@ -2109,11 +2211,11 @@ func (m Model) renderRight() string {
 			lines = append(lines, "", "Comment error: "+m.mrCommentError)
 		}
 		if m.editInput {
-			lines = append(lines, "", fmt.Sprintf("Edit %s: %s█", m.editField, m.editBuffer), "Tab: next field  Enter: save  Esc: cancel")
+			lines = append(lines, "", fmt.Sprintf("Edit %s: %s█", m.editField, m.editBuffer))
 		} else if m.mrCommentInput {
-			lines = append(lines, "", "MR comment: "+m.mrCommentBuffer+"█", "Enter: send  Esc: cancel")
+			lines = append(lines, "", "MR comment: "+m.mrCommentBuffer+"█")
 		} else {
-			lines = append(lines, "", item.Description, "", "A: approve  M: merge  e: edit  o: open  m: comment  Tab: next tab")
+			lines = append(lines, "", item.Description)
 		}
 		return style.Render(strings.Join(lines, "\n"))
 	}
@@ -2213,7 +2315,6 @@ func (m Model) renderChangedFilesPane() string {
 		}
 		lines = append(lines, prefix+f.Path)
 	}
-	lines = append(lines, "", "←/→ files  Esc: back")
 	return style.Render(strings.Join(lines, "\n"))
 }
 
@@ -2304,9 +2405,7 @@ func (m Model) renderFileDiffPane() string {
 		if m.commentInstant {
 			prompt = "Instant comment"
 		}
-		lines = append(lines, "", prompt+": "+m.commentBuffer+"█", "Enter: send  Esc: cancel")
-	} else {
-		lines = append(lines, "", "i: instant  c: draft  v: range  p: publish  D: discard  Esc: back")
+		lines = append(lines, "", prompt+": "+m.commentBuffer+"█")
 	}
 	if m.fileDiffTop >= len(lines) {
 		m.fileDiffTop = max(0, len(lines)-1)
