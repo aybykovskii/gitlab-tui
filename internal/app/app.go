@@ -24,6 +24,10 @@ type gitLabClient interface {
 	AddIssueComment(ctx context.Context, projectPath string, iid int, body string) error
 	CloseIssue(ctx context.Context, projectPath string, iid int) error
 	ReopenIssue(ctx context.Context, projectPath string, iid int) error
+	EditIssue(ctx context.Context, projectPath string, iid int, title, description string) error
+	UpdateIssueLabels(ctx context.Context, projectPath string, iid int, labels []string) error
+	AssignSelfIssue(ctx context.Context, projectPath string, iid int) error
+	UnassignSelfIssue(ctx context.Context, projectPath string, iid int) error
 	MergeRequestDiff(ctx context.Context, projectPath string, iid int) ([]mr.DiffRow, error)
 	MergeRequestDiscussions(ctx context.Context, projectPath string, iid int) ([]mr.Discussion, error)
 	MergeRequestChangedFiles(ctx context.Context, projectPath string, iid int) ([]mr.ChangedFile, error)
@@ -131,6 +135,15 @@ func buildProjectOptions(cfg *config.Config, configPath string, configLoaded boo
 		reopenIssue := func(iid int) error {
 			return client.ReopenIssue(context.Background(), projectPath, iid)
 		}
+		editIssue := func(iid int, title, description string) error {
+			return client.EditIssue(context.Background(), projectPath, iid, title, description)
+		}
+		assignSelfIssue := func(iid int) error {
+			return client.AssignSelfIssue(context.Background(), projectPath, iid)
+		}
+		unassignSelfIssue := func(iid int) error {
+			return client.UnassignSelfIssue(context.Background(), projectPath, iid)
+		}
 		loadDiff := func(iid int) ([]mr.DiffRow, error) {
 			return client.MergeRequestDiff(context.Background(), projectPath, iid)
 		}
@@ -160,7 +173,7 @@ func buildProjectOptions(cfg *config.Config, configPath string, configLoaded boo
 			}
 		}
 
-		return tui.ProjectData{Items: items, Issues: issues, Refresh: loadMRs, LoadIssues: loadIssues, PostIssueComment: postIssueComment, LoadIssueDiscussions: loadIssueDiscussions, LoadDiff: loadDiff, LoadDiscussions: loadDiscussions, LoadFiles: loadFiles, CloseIssue: closeIssue, ReopenIssue: reopenIssue}, nil
+		return tui.ProjectData{Items: items, Issues: issues, Refresh: loadMRs, LoadIssues: loadIssues, PostIssueComment: postIssueComment, LoadIssueDiscussions: loadIssueDiscussions, LoadDiff: loadDiff, LoadDiscussions: loadDiscussions, LoadFiles: loadFiles, CloseIssue: closeIssue, ReopenIssue: reopenIssue, EditIssue: editIssue, AssignSelfIssue: assignSelfIssue, UnassignSelfIssue: unassignSelfIssue}, nil
 	}
 
 	options := tui.ProjectOptions{Path: resolution.Path, Section: intent.Section, EntityID: intent.EntityID, LoadProject: loadProject}

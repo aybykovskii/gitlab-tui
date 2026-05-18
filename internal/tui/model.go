@@ -25,6 +25,7 @@ const (
 	ModeDetail
 	ModeDiff
 	ModeFileDiff
+	ModeLabelSelect
 )
 
 type DetailTab int
@@ -81,6 +82,7 @@ type PostInlineCommentFunc func(iid int, position mr.DiffPosition, body string) 
 type PostMRCommentFunc func(iid int, body string) error
 type PostIssueCommentFunc func(iid int, body string) error
 type IssueStateActionFunc func(iid int) error
+type EditIssueFunc func(iid int, title, description string) error
 type ApproveMRFunc func(iid int) error
 type MergeMRFunc func(iid int) error
 type EditMRFunc func(iid int, title, description string) error
@@ -255,6 +257,9 @@ type ProjectData struct {
 	LoadFiles            LoadFilesFunc
 	CloseIssue           IssueStateActionFunc
 	ReopenIssue          IssueStateActionFunc
+	EditIssue            EditIssueFunc
+	AssignSelfIssue      IssueStateActionFunc
+	UnassignSelfIssue    IssueStateActionFunc
 }
 
 type AccountProjectLoader struct {
@@ -295,6 +300,9 @@ type ProjectOptions struct {
 	LoadIssueDiscussions LoadIssueDiscussionsFunc
 	CloseIssue           IssueStateActionFunc
 	ReopenIssue          IssueStateActionFunc
+	EditIssue            EditIssueFunc
+	AssignSelfIssue      IssueStateActionFunc
+	UnassignSelfIssue    IssueStateActionFunc
 	ApproveMR            ApproveMRFunc
 	MergeMR              MergeMRFunc
 	EditMR               EditMRFunc
@@ -390,6 +398,19 @@ type issueStateFinishedMsg struct {
 	iid   int
 	state string
 	err   error
+}
+
+type editIssueFinishedMsg struct {
+	iid         int
+	title       string
+	description string
+	err         error
+}
+
+type issueAssigneeFinishedMsg struct {
+	iid       int
+	assignees []string
+	err       error
 }
 
 type approveMRFinishedMsg struct {
@@ -496,6 +517,9 @@ type Model struct {
 	loadIssueDiscussions LoadIssueDiscussionsFunc
 	closeIssue           IssueStateActionFunc
 	reopenIssue          IssueStateActionFunc
+	editIssue            EditIssueFunc
+	assignSelfIssue      IssueStateActionFunc
+	unassignSelfIssue    IssueStateActionFunc
 	approveMR            ApproveMRFunc
 	mergeMR              MergeMRFunc
 	editMR               EditMRFunc
@@ -589,6 +613,9 @@ func NewModelWithProject(items []mr.MergeRequest, options ProjectOptions) Model 
 		loadIssueDiscussions: options.LoadIssueDiscussions,
 		closeIssue:           options.CloseIssue,
 		reopenIssue:          options.ReopenIssue,
+		editIssue:            options.EditIssue,
+		assignSelfIssue:      options.AssignSelfIssue,
+		unassignSelfIssue:    options.UnassignSelfIssue,
 		approveMR:            options.ApproveMR,
 		mergeMR:              options.MergeMR,
 		editMR:               options.EditMR,
@@ -706,6 +733,9 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.loadFiles = msg.data.LoadFiles
 		m.closeIssue = msg.data.CloseIssue
 		m.reopenIssue = msg.data.ReopenIssue
+		m.editIssue = msg.data.EditIssue
+		m.assignSelfIssue = msg.data.AssignSelfIssue
+		m.unassignSelfIssue = msg.data.UnassignSelfIssue
 		m.selected = clampSelection(0, len(m.filtered()))
 		m.selectEntity()
 		m.listTop = 0
@@ -798,6 +828,31 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		for i := range m.issueItems {
 			if m.issueItems[i].IID == msg.iid {
 				m.issueItems[i].State = msg.state
+				break
+			}
+		}
+		return m, nil
+	case editIssueFinishedMsg:
+		if msg.err != nil {
+			m.actionError = msg.err.Error()
+			return m, nil
+		}
+		for i := range m.issueItems {
+			if m.issueItems[i].IID == msg.iid {
+				m.issueItems[i].Title = msg.title
+				m.issueItems[i].Description = msg.description
+				break
+			}
+		}
+		return m, nil
+	case issueAssigneeFinishedMsg:
+		if msg.err != nil {
+			m.actionError = msg.err.Error()
+			return m, nil
+		}
+		for i := range m.issueItems {
+			if m.issueItems[i].IID == msg.iid {
+				m.issueItems[i].Assignees = msg.assignees
 				break
 			}
 		}
@@ -1313,6 +1368,9 @@ func (m Model) updateKey(msg tea.KeyMsg) (Model, tea.Cmd) {
 	}
 
 	if m.mode == ModeDetail && m.editInput {
+		if m.section == SectionIssues {
+			return m.updateIssueEdit(msg)
+		}
 		return m.updateMREdit(msg)
 	}
 
@@ -1371,6 +1429,15 @@ func (m Model) updateKey(msg tea.KeyMsg) (Model, tea.Cmd) {
 		if m.mode == ModeDetail && m.section == SectionIssues {
 			return m.closeOrReopenIssueCommand()
 		}
+	case msg.String() == "a":
+		if m.mode == ModeDetail && m.section == SectionIssues {
+			return m.assignOrUnassignIssueCommand()
+		}
+	case msg.String() == "l":
+		if m.mode == ModeDetail && m.section == SectionIssues {
+			m.mode = ModeLabelSelect
+			return m, nil
+		}
 	case msg.String() == "A":
 		if m.mode == ModeDetail {
 			item, ok := m.selectedItem()
@@ -1402,24 +1469,43 @@ func (m Model) updateKey(msg tea.KeyMsg) (Model, tea.Cmd) {
 		}
 	case msg.String() == "o":
 		if m.mode == ModeDetail {
-			item, ok := m.selectedItem()
-			if ok && item.WebURL != "" && m.openURL != nil {
-				fn := m.openURL
-				url := item.WebURL
-				return m, func() tea.Msg {
-					err := fn(url)
-					return openURLMsg{url: url, err: err}
+			if m.section == SectionIssues {
+				item, ok := m.selectedIssue()
+				if ok && item.WebURL != "" && m.openURL != nil {
+					fn := m.openURL
+					url := item.WebURL
+					return m, func() tea.Msg { return openURLMsg{url: url, err: fn(url)} }
+				}
+			} else {
+				item, ok := m.selectedItem()
+				if ok && item.WebURL != "" && m.openURL != nil {
+					fn := m.openURL
+					url := item.WebURL
+					return m, func() tea.Msg {
+						err := fn(url)
+						return openURLMsg{url: url, err: err}
+					}
 				}
 			}
 		}
 	case msg.String() == "e":
 		if m.mode == ModeDetail {
-			item, ok := m.selectedItem()
-			if ok {
-				m.editInput = true
-				m.editField = "title"
-				m.editBuffer = item.Title
-				m.editTitle = ""
+			if m.section == SectionIssues {
+				item, ok := m.selectedIssue()
+				if ok {
+					m.editInput = true
+					m.editField = "title"
+					m.editBuffer = item.Title
+					m.editTitle = ""
+				}
+			} else {
+				item, ok := m.selectedItem()
+				if ok {
+					m.editInput = true
+					m.editField = "title"
+					m.editBuffer = item.Title
+					m.editTitle = ""
+				}
 			}
 		}
 	case msg.String() == "tab":
@@ -1501,6 +1587,85 @@ func (m Model) updateMREdit(msg tea.KeyMsg) (Model, tea.Cmd) {
 		}
 	}
 	return m, nil
+}
+
+func (m Model) updateIssueEdit(msg tea.KeyMsg) (Model, tea.Cmd) {
+	switch msg.Type {
+	case tea.KeyEsc:
+		m.editInput = false
+		m.editBuffer = ""
+		m.editTitle = ""
+	case tea.KeyBackspace:
+		if len(m.editBuffer) > 0 {
+			m.editBuffer = m.editBuffer[:len(m.editBuffer)-1]
+		}
+	case tea.KeyRunes:
+		m.editBuffer += msg.String()
+	case tea.KeyTab:
+		if m.editField == "title" {
+			m.editTitle = m.editBuffer
+			item, _ := m.selectedIssue()
+			m.editField = "description"
+			m.editBuffer = item.Description
+		}
+	case tea.KeyEnter:
+		title := m.editTitle
+		desc := m.editBuffer
+		if m.editField == "title" {
+			title = m.editBuffer
+			item, _ := m.selectedIssue()
+			desc = item.Description
+		}
+		m.editInput = false
+		m.editBuffer = ""
+		m.editTitle = ""
+		item, ok := m.selectedIssue()
+		if !ok || m.editIssue == nil {
+			return m, nil
+		}
+		fn := m.editIssue
+		iid := item.IID
+		return m, func() tea.Msg {
+			err := fn(iid, title, desc)
+			return editIssueFinishedMsg{iid: iid, title: title, description: desc, err: err}
+		}
+	}
+	return m, nil
+}
+
+func (m Model) assignOrUnassignIssueCommand() (Model, tea.Cmd) {
+	item, ok := m.selectedIssue()
+	if !ok {
+		return m, nil
+	}
+	assigned := false
+	for _, assignee := range item.Assignees {
+		if assignee == "me" {
+			assigned = true
+			break
+		}
+	}
+	fn := m.assignSelfIssue
+	assignees := append([]string(nil), item.Assignees...)
+	if assigned {
+		fn = m.unassignSelfIssue
+		assignees = nil
+		for _, assignee := range item.Assignees {
+			if assignee != "me" {
+				assignees = append(assignees, assignee)
+			}
+		}
+	} else {
+		assignees = append(assignees, "me")
+	}
+	if fn == nil {
+		return m, nil
+	}
+	iid := item.IID
+	return m, func() tea.Msg {
+		err := fn(iid)
+		return issueAssigneeFinishedMsg{iid: iid, assignees: assignees, err: err}
+	}
 }
 
 func (m Model) closeOrReopenIssueCommand() (Model, tea.Cmd) {
@@ -2569,7 +2734,9 @@ func (m Model) renderIssueDetail() string {
 	if item.Weight > 0 {
 		lines = append(lines, fmt.Sprintf("⚖️ Weight: %d", item.Weight))
 	}
-	if m.issueCommentInput {
+	if m.editInput {
+		lines = append(lines, "", fmt.Sprintf("Edit %s: %s█", m.editField, m.editBuffer))
+	} else if m.issueCommentInput {
 		lines = append(lines, "", "Issue comment: "+m.issueCommentBuffer+"█")
 	} else {
 		lines = append(lines, "", item.Description)

@@ -151,6 +151,74 @@ func TestIssueDetailKeyBarUsesIssueKeys(t *testing.T) {
 	}
 }
 
+func TestIssueEditOpenAssignAndLabelsActions(t *testing.T) {
+	edited := false
+	assigned := false
+	openedURL := ""
+	model := NewModelWithProject(nil, ProjectOptions{
+		Path:    "group/project",
+		Section: SectionIssues,
+		Issues:  []issue.Issue{{IID: 84, Title: "Old", Description: "Desc", State: "opened", WebURL: "https://gitlab.example/issue/84"}},
+		EditIssue: func(iid int, title, description string) error {
+			edited = iid == 84 && title == "New" && description == "Desc"
+			return nil
+		},
+		AssignSelfIssue: func(iid int) error {
+			assigned = iid == 84
+			return nil
+		},
+		OpenURL: func(url string) error {
+			openedURL = url
+			return nil
+		},
+	})
+	model.mode = ModeDetail
+
+	updated, _ := model.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune("e")})
+	model = updated.(Model)
+	if !model.editInput {
+		t.Fatal("expected e to open issue edit input")
+	}
+	model.editBuffer = "New"
+	updated, cmd := model.Update(tea.KeyMsg{Type: tea.KeyEnter})
+	model = updated.(Model)
+	if cmd == nil {
+		t.Fatal("expected edit command")
+	}
+	updated, _ = model.Update(cmd())
+	model = updated.(Model)
+	if !edited || model.issueItems[0].Title != "New" {
+		t.Fatalf("expected edit to update title, edited=%t issue=%+v", edited, model.issueItems[0])
+	}
+
+	updated, cmd = model.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune("a")})
+	model = updated.(Model)
+	if cmd == nil {
+		t.Fatal("expected assign command")
+	}
+	updated, _ = model.Update(cmd())
+	model = updated.(Model)
+	if !assigned || len(model.issueItems[0].Assignees) != 1 || model.issueItems[0].Assignees[0] != "me" {
+		t.Fatalf("expected assign self to update assignees, assigned=%t issue=%+v", assigned, model.issueItems[0])
+	}
+
+	updated, _ = model.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune("l")})
+	model = updated.(Model)
+	if model.mode != ModeLabelSelect {
+		t.Fatalf("expected label selector mode, got %v", model.mode)
+	}
+	model.mode = ModeDetail
+	updated, cmd = model.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune("o")})
+	model = updated.(Model)
+	if cmd == nil {
+		t.Fatal("expected open URL command")
+	}
+	cmd()
+	if openedURL != "https://gitlab.example/issue/84" {
+		t.Fatalf("expected issue URL opened, got %q", openedURL)
+	}
+}
+
 func TestIssueCloseReopenActionUsesStateAndUpdatesModel(t *testing.T) {
 	closed := false
 	reopened := false

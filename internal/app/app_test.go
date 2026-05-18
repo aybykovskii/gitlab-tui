@@ -50,6 +50,22 @@ func (f *fakeGitLabClient) ReopenIssue(ctx context.Context, projectPath string, 
 	return nil
 }
 
+func (f *fakeGitLabClient) EditIssue(ctx context.Context, projectPath string, iid int, title, description string) error {
+	return nil
+}
+
+func (f *fakeGitLabClient) UpdateIssueLabels(ctx context.Context, projectPath string, iid int, labels []string) error {
+	return nil
+}
+
+func (f *fakeGitLabClient) AssignSelfIssue(ctx context.Context, projectPath string, iid int) error {
+	return nil
+}
+
+func (f *fakeGitLabClient) UnassignSelfIssue(ctx context.Context, projectPath string, iid int) error {
+	return nil
+}
+
 func (f *fakeGitLabClient) MergeRequestDiff(ctx context.Context, projectPath string, iid int) ([]mr.DiffRow, error) {
 	return nil, nil
 }

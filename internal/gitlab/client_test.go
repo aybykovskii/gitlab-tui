@@ -3,6 +3,7 @@ package gitlab
 import (
 	"context"
 	"errors"
+	"strings"
 	"testing"
 
 	glab "gitlab.com/gitlab-org/api/client-go"
@@ -14,14 +15,18 @@ type fakeMergeRequests struct {
 }
 
 type fakeIssues struct {
-	calls      int
-	state      string
-	search     string
-	limit      int64
-	page       int64
-	updateIID  int64
-	stateEvent string
-	items      []*glab.Issue
+	calls       int
+	state       string
+	search      string
+	limit       int64
+	page        int64
+	updateIID   int64
+	stateEvent  string
+	title       string
+	description string
+	labels      string
+	assigneeID  int64
+	items       []*glab.Issue
 }
 
 type fakeDiscussions struct {
@@ -80,6 +85,18 @@ func (f *fakeIssues) UpdateIssue(pid any, issue int64, opt *glab.UpdateIssueOpti
 	f.updateIID = issue
 	if opt != nil && opt.StateEvent != nil {
 		f.stateEvent = *opt.StateEvent
+	}
+	if opt != nil && opt.Title != nil {
+		f.title = *opt.Title
+	}
+	if opt != nil && opt.Description != nil {
+		f.description = *opt.Description
+	}
+	if opt != nil && opt.Labels != nil {
+		f.labels = strings.Join(*opt.Labels, ",")
+	}
+	if opt != nil && opt.AssigneeID != nil {
+		f.assigneeID = *opt.AssigneeID
 	}
 	return &glab.Issue{}, &glab.Response{}, nil
 }
@@ -249,6 +266,36 @@ func TestListIssueDiscussionsMapsComments(t *testing.T) {
 	}
 	if len(items[0].Notes) != 1 || items[0].Notes[0].Author != "Alice" || items[0].Notes[0].Body != "Looks good" {
 		t.Fatalf("unexpected notes: %+v", items[0].Notes)
+	}
+}
+
+func TestIssueUpdateActionsMapOptions(t *testing.T) {
+	issues := &fakeIssues{}
+	client := NewClientWithIssues(issues)
+
+	if err := client.EditIssue(context.Background(), "group/project", 84, "New title", "New description"); err != nil {
+		t.Fatalf("expected no error, got %v", err)
+	}
+	if issues.updateIID != 84 || issues.title != "New title" || issues.description != "New description" {
+		t.Fatalf("unexpected edit update: %+v", issues)
+	}
+
+	if err := client.UpdateIssueLabels(context.Background(), "group/project", 84, []string{"bug", "tui"}); err != nil {
+		t.Fatalf("expected no error, got %v", err)
+	}
+	if issues.labels != "bug,tui" {
+		t.Fatalf("unexpected labels update: %q", issues.labels)
+	}
+
+	if err := client.AssignSelfIssue(context.Background(), "group/project", 84); err != nil {
+		t.Fatalf("expected no error, got %v", err)
+	}
+	if issues.assigneeID != 0 {
+		t.Fatalf("unexpected assign self id: %d", issues.assigneeID)
+	}
+
+	if err := client.UnassignSelfIssue(context.Background(), "group/project", 84); err != nil {
+		t.Fatalf("expected no error, got %v", err)
 	}
 }
 

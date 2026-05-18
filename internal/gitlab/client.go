@@ -146,6 +146,41 @@ func (c Client) OpenMergeRequests(ctx context.Context, projectPath string) ([]mr
 	return result, nil
 }
 
+func (c Client) EditIssue(ctx context.Context, projectPath string, iid int, title, description string) error {
+	if c.issues == nil {
+		return fmt.Errorf("issues client is not configured")
+	}
+	_, _, err := c.issues.UpdateIssue(projectPath, int64(iid), &glab.UpdateIssueOptions{Title: &title, Description: &description}, glab.WithContext(ctx))
+	return err
+}
+
+func (c Client) UpdateIssueLabels(ctx context.Context, projectPath string, iid int, labels []string) error {
+	if c.issues == nil {
+		return fmt.Errorf("issues client is not configured")
+	}
+	labelOptions := glab.LabelOptions(labels)
+	_, _, err := c.issues.UpdateIssue(projectPath, int64(iid), &glab.UpdateIssueOptions{Labels: &labelOptions}, glab.WithContext(ctx))
+	return err
+}
+
+func (c Client) AssignSelfIssue(ctx context.Context, projectPath string, iid int) error {
+	if c.issues == nil {
+		return fmt.Errorf("issues client is not configured")
+	}
+	self := int64(0)
+	_, _, err := c.issues.UpdateIssue(projectPath, int64(iid), &glab.UpdateIssueOptions{AssigneeID: &self}, glab.WithContext(ctx))
+	return err
+}
+
+func (c Client) UnassignSelfIssue(ctx context.Context, projectPath string, iid int) error {
+	if c.issues == nil {
+		return fmt.Errorf("issues client is not configured")
+	}
+	unassigned := int64(0)
+	_, _, err := c.issues.UpdateIssue(projectPath, int64(iid), &glab.UpdateIssueOptions{AssigneeID: &unassigned}, glab.WithContext(ctx))
+	return err
+}
+
 func (c Client) CloseIssue(ctx context.Context, projectPath string, iid int) error {
 	return c.updateIssueState(ctx, projectPath, iid, "close")
 }
