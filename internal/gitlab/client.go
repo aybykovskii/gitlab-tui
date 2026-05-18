@@ -9,6 +9,7 @@ import (
 
 	"github.com/aybykovskii/gitlab-tui/internal/config"
 	"github.com/aybykovskii/gitlab-tui/internal/diff"
+	"github.com/aybykovskii/gitlab-tui/internal/issue"
 	"github.com/aybykovskii/gitlab-tui/internal/mr"
 )
 
@@ -21,8 +22,15 @@ type MergeRequestApprovalsClient interface {
 	GetConfiguration(pid any, mr int64, options ...glab.RequestOptionFunc) (*glab.MergeRequestApprovals, *glab.Response, error)
 }
 
+type IssuesClient interface {
+	ListProjectIssues(pid any, opt *glab.ListProjectIssuesOptions, options ...glab.RequestOptionFunc) ([]*glab.Issue, *glab.Response, error)
+	UpdateIssue(pid any, issue int64, opt *glab.UpdateIssueOptions, options ...glab.RequestOptionFunc) (*glab.Issue, *glab.Response, error)
+}
+
 type DiscussionsClient interface {
 	ListMergeRequestDiscussions(pid any, mergeRequest int64, opt *glab.ListMergeRequestDiscussionsOptions, options ...glab.RequestOptionFunc) ([]*glab.Discussion, *glab.Response, error)
+	ListIssueDiscussions(pid any, issue int64, opt *glab.ListIssueDiscussionsOptions, options ...glab.RequestOptionFunc) ([]*glab.Discussion, *glab.Response, error)
+	CreateIssueDiscussion(pid any, issue int64, opt *glab.CreateIssueDiscussionOptions, options ...glab.RequestOptionFunc) (*glab.Discussion, *glab.Response, error)
 }
 
 type ProjectsClient interface {
@@ -44,6 +52,7 @@ type Client struct {
 	projects      ProjectsClient
 	labels        LabelsClient
 	mrEdit        MergeRequestEditClient
+	issues        IssuesClient
 }
 
 func NewClient(account config.Account, env []string) (Client, error) {
@@ -64,6 +73,7 @@ func NewClient(account config.Account, env []string) (Client, error) {
 		projects:      client.Projects,
 		labels:        client.Labels,
 		mrEdit:        client.MergeRequests,
+		issues:        client.Issues,
 	}, nil
 }
 
@@ -73,6 +83,14 @@ func NewClientWithMergeRequests(mergeRequests MergeRequestClient) Client {
 
 func NewClientWithProjects(projects ProjectsClient) Client {
 	return Client{projects: projects}
+}
+
+func NewClientWithIssues(issues IssuesClient) Client {
+	return Client{issues: issues}
+}
+
+func NewClientWithDiscussions(discussions DiscussionsClient) Client {
+	return Client{discussions: discussions}
 }
 
 func NewClientWithServices(mergeRequests MergeRequestClient, approvals MergeRequestApprovalsClient) Client {
@@ -151,6 +169,82 @@ func (c Client) OpenMergeRequests(ctx context.Context, projectPath string) ([]mr
 		options.Page = response.NextPage
 	}
 
+	return result, nil
+}
+
+func (c Client) EditIssue(ctx context.Context, projectPath string, iid int, title, description string) error {
+	if c.issues == nil {
+		return fmt.Errorf("issues client is not configured")
+	}
+	_, _, err := c.issues.UpdateIssue(projectPath, int64(iid), &glab.UpdateIssueOptions{Title: &title, Description: &description}, glab.WithContext(ctx))
+	return err
+}
+
+func (c Client) UpdateIssueLabels(ctx context.Context, projectPath string, iid int, labels []string) error {
+	if c.issues == nil {
+		return fmt.Errorf("issues client is not configured")
+	}
+	labelOptions := glab.LabelOptions(labels)
+	_, _, err := c.issues.UpdateIssue(projectPath, int64(iid), &glab.UpdateIssueOptions{Labels: &labelOptions}, glab.WithContext(ctx))
+	return err
+}
+
+func (c Client) AssignSelfIssue(ctx context.Context, projectPath string, iid int) error {
+	if c.issues == nil {
+		return fmt.Errorf("issues client is not configured")
+	}
+	self := int64(0)
+	_, _, err := c.issues.UpdateIssue(projectPath, int64(iid), &glab.UpdateIssueOptions{AssigneeID: &self}, glab.WithContext(ctx))
+	return err
+}
+
+func (c Client) UnassignSelfIssue(ctx context.Context, projectPath string, iid int) error {
+	if c.issues == nil {
+		return fmt.Errorf("issues client is not configured")
+	}
+	unassigned := int64(0)
+	_, _, err := c.issues.UpdateIssue(projectPath, int64(iid), &glab.UpdateIssueOptions{AssigneeID: &unassigned}, glab.WithContext(ctx))
+	return err
+}
+
+func (c Client) CloseIssue(ctx context.Context, projectPath string, iid int) error {
+	return c.updateIssueState(ctx, projectPath, iid, "close")
+}
+
+func (c Client) ReopenIssue(ctx context.Context, projectPath string, iid int) error {
+	return c.updateIssueState(ctx, projectPath, iid, "reopen")
+}
+
+func (c Client) updateIssueState(ctx context.Context, projectPath string, iid int, stateEvent string) error {
+	if c.issues == nil {
+		return fmt.Errorf("issues client is not configured")
+	}
+	_, _, err := c.issues.UpdateIssue(projectPath, int64(iid), &glab.UpdateIssueOptions{StateEvent: &stateEvent}, glab.WithContext(ctx))
+	return err
+}
+
+func (c Client) ListProjectIssues(ctx context.Context, projectPath string, state string, search string) ([]issue.Issue, error) {
+	if c.issues == nil {
+		return nil, fmt.Errorf("issues client is not configured")
+	}
+
+	options := &glab.ListProjectIssuesOptions{
+		State:  &state,
+		Search: &search,
+		ListOptions: glab.ListOptions{
+			PerPage: 50,
+			Page:    1,
+		},
+	}
+	items, _, err := c.issues.ListProjectIssues(projectPath, options, glab.WithContext(ctx))
+	if err != nil {
+		return nil, err
+	}
+
+	result := make([]issue.Issue, 0, len(items))
+	for _, item := range items {
+		result = append(result, MapIssue(item))
+	}
 	return result, nil
 }
 
@@ -280,6 +374,61 @@ func (c Client) ToggleDraftMR(ctx context.Context, projectPath string, iid int, 
 	return err
 }
 
+func MapIssue(item *glab.Issue) issue.Issue {
+	if item == nil {
+		return issue.Issue{}
+	}
+
+	author := ""
+	authorUsername := ""
+	if item.Author != nil {
+		author = item.Author.Name
+		authorUsername = item.Author.Username
+		if author == "" {
+			author = authorUsername
+		}
+	}
+
+	assignees := make([]string, 0, len(item.Assignees))
+	for _, assignee := range item.Assignees {
+		if assignee == nil {
+			continue
+		}
+		name := assignee.Name
+		if name == "" {
+			name = assignee.Username
+		}
+		assignees = append(assignees, name)
+	}
+
+	milestone := ""
+	if item.Milestone != nil {
+		milestone = item.Milestone.Title
+	}
+
+	dueDate := ""
+	if item.DueDate != nil {
+		dueDate = item.DueDate.String()
+	}
+
+	return issue.Issue{
+		IID:            int(item.IID),
+		Title:          item.Title,
+		Author:         author,
+		AuthorUsername: authorUsername,
+		State:          item.State,
+		Labels:         append([]string(nil), item.Labels...),
+		Assignees:      assignees,
+		Description:    item.Description,
+		WebURL:         item.WebURL,
+		CommentCount:   int(item.UserNotesCount),
+		Milestone:      milestone,
+		DueDate:        dueDate,
+		Weight:         int(item.Weight),
+		Confidential:   item.Confidential,
+	}
+}
+
 func formatApprovals(approval *glab.MergeRequestApprovals) string {
 	if approval == nil || approval.ApprovalsRequired == 0 {
 		return "—"
@@ -301,6 +450,41 @@ func (c Client) MergeRequestDiscussions(ctx context.Context, projectPath string,
 	var result []mr.Discussion
 	for {
 		items, response, err := c.discussions.ListMergeRequestDiscussions(projectPath, int64(iid), opt, glab.WithContext(ctx))
+		if err != nil {
+			return nil, err
+		}
+		for _, item := range items {
+			d := MapDiscussion(item)
+			if len(d.Notes) > 0 {
+				result = append(result, d)
+			}
+		}
+		if response == nil || response.NextPage == 0 {
+			break
+		}
+		opt.Page = response.NextPage
+	}
+	return result, nil
+}
+
+func (c Client) AddIssueComment(ctx context.Context, projectPath string, iid int, body string) error {
+	if c.discussions == nil {
+		return fmt.Errorf("discussions client is not configured")
+	}
+	_, _, err := c.discussions.CreateIssueDiscussion(projectPath, int64(iid), &glab.CreateIssueDiscussionOptions{Body: &body}, glab.WithContext(ctx))
+	return err
+}
+
+func (c Client) ListIssueDiscussions(ctx context.Context, projectPath string, iid int) ([]issue.Discussion, error) {
+	if c.discussions == nil {
+		return nil, fmt.Errorf("discussions client is not configured")
+	}
+	opt := &glab.ListIssueDiscussionsOptions{
+		ListOptions: glab.ListOptions{PerPage: 100, Page: 1},
+	}
+	var result []issue.Discussion
+	for {
+		items, response, err := c.discussions.ListIssueDiscussions(projectPath, int64(iid), opt, glab.WithContext(ctx))
 		if err != nil {
 			return nil, err
 		}

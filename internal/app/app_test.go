@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/aybykovskii/gitlab-tui/internal/config"
+	"github.com/aybykovskii/gitlab-tui/internal/issue"
 	"github.com/aybykovskii/gitlab-tui/internal/mr"
 )
 
@@ -27,6 +28,42 @@ func (f *fakeGitLabClient) ListProjects(ctx context.Context, limit int) ([]strin
 
 func (f *fakeGitLabClient) OpenMergeRequests(ctx context.Context, projectPath string) ([]mr.MergeRequest, error) {
 	return nil, nil
+}
+
+func (f *fakeGitLabClient) ListProjectIssues(ctx context.Context, projectPath string, state string, search string) ([]issue.Issue, error) {
+	return nil, nil
+}
+
+func (f *fakeGitLabClient) ListIssueDiscussions(ctx context.Context, projectPath string, iid int) ([]issue.Discussion, error) {
+	return nil, nil
+}
+
+func (f *fakeGitLabClient) AddIssueComment(ctx context.Context, projectPath string, iid int, body string) error {
+	return nil
+}
+
+func (f *fakeGitLabClient) CloseIssue(ctx context.Context, projectPath string, iid int) error {
+	return nil
+}
+
+func (f *fakeGitLabClient) ReopenIssue(ctx context.Context, projectPath string, iid int) error {
+	return nil
+}
+
+func (f *fakeGitLabClient) EditIssue(ctx context.Context, projectPath string, iid int, title, description string) error {
+	return nil
+}
+
+func (f *fakeGitLabClient) UpdateIssueLabels(ctx context.Context, projectPath string, iid int, labels []string) error {
+	return nil
+}
+
+func (f *fakeGitLabClient) AssignSelfIssue(ctx context.Context, projectPath string, iid int) error {
+	return nil
+}
+
+func (f *fakeGitLabClient) UnassignSelfIssue(ctx context.Context, projectPath string, iid int) error {
+	return nil
 }
 
 func (f *fakeGitLabClient) MergeRequestDiff(ctx context.Context, projectPath string, iid int) ([]mr.DiffRow, error) {

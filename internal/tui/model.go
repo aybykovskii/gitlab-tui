@@ -12,6 +12,7 @@ import (
 
 	"github.com/aybykovskii/gitlab-tui/internal/config"
 	"github.com/aybykovskii/gitlab-tui/internal/diff"
+	"github.com/aybykovskii/gitlab-tui/internal/issue"
 	"github.com/aybykovskii/gitlab-tui/internal/mr"
 )
 
@@ -52,7 +53,7 @@ type sectionDef struct {
 
 var tuiSections = []sectionDef{
 	{label: "Merge Requests", id: SectionMergeRequests, available: true},
-	{label: "Issues", id: SectionIssues, available: false},
+	{label: "Issues", id: SectionIssues, available: true},
 	{label: "Pipelines", id: SectionPipelines, available: false},
 }
 
@@ -65,6 +66,8 @@ const (
 )
 
 type RefreshFunc func() ([]mr.MergeRequest, error)
+type LoadIssuesFunc func(state string, search string) ([]issue.Issue, error)
+type LoadIssueDiscussionsFunc func(iid int) ([]issue.Discussion, error)
 type DiffFunc func(iid int) ([]mr.DiffRow, error)
 type ProjectLoadFunc func(path string) (ProjectData, error)
 type AccountProjectsLoadFunc func() ([]string, error)
@@ -78,6 +81,9 @@ type ResolveDiscussionFunc func(iid int, discussionID string) error
 type UnresolveDiscussionFunc func(iid int, discussionID string) error
 type PostInlineCommentFunc func(iid int, position mr.DiffPosition, body string) error
 type PostMRCommentFunc func(iid int, body string) error
+type PostIssueCommentFunc func(iid int, body string) error
+type IssueStateActionFunc func(iid int) error
+type EditIssueFunc func(iid int, title, description string) error
 type ApproveMRFunc func(iid int) error
 type MergeMRFunc func(iid int) error
 type EditMRFunc func(iid int, title, description string) error
@@ -124,6 +130,10 @@ type MRDetailKeys struct {
 	NextTab     key.Binding
 	ToggleDraft key.Binding
 	LabelSelect key.Binding
+}
+
+type IssueDetailKeys struct {
+	NextTab key.Binding
 }
 
 type DiffViewKeys struct {
@@ -207,6 +217,12 @@ func (k MRDetailKeys) LocalKeys() []key.Binding {
 	return []key.Binding{k.Approve, k.Merge, k.Edit, k.OpenURL, k.Comment, k.NextTab, k.ToggleDraft, k.LabelSelect}
 }
 
+func newIssueDetailKeys() IssueDetailKeys {
+	return IssueDetailKeys{NextTab: key.NewBinding(key.WithKeys("tab"), key.WithHelp("Tab", "next tab"))}
+}
+
+func (k IssueDetailKeys) LocalKeys() []key.Binding { return []key.Binding{k.NextTab} }
+
 func newDiffViewKeys() DiffViewKeys {
 	return DiffViewKeys{
 		Up:      key.NewBinding(key.WithKeys("up", "k"), key.WithHelp("↑/k", "up")),
@@ -237,13 +253,22 @@ func (k FileDiffKeys) LocalKeys() []key.Binding {
 }
 
 type ProjectData struct {
-	Items          []mr.MergeRequest
-	Labels         []mr.Label
-	Refresh        RefreshFunc
-	LoadDiff       DiffFunc
-	LoadDiscussions LoadDiscussionsFunc
-	LoadFiles      LoadFilesFunc
-	UpdateMRLabels UpdateMRLabelsFunc
+	Items                []mr.MergeRequest
+	Issues               []issue.Issue
+	Labels               []mr.Label
+	Refresh              RefreshFunc
+	LoadIssues           LoadIssuesFunc
+	PostIssueComment     PostIssueCommentFunc
+	LoadIssueDiscussions LoadIssueDiscussionsFunc
+	LoadDiff             DiffFunc
+	LoadDiscussions      LoadDiscussionsFunc
+	LoadFiles            LoadFilesFunc
+	CloseIssue           IssueStateActionFunc
+	ReopenIssue          IssueStateActionFunc
+	EditIssue            EditIssueFunc
+	AssignSelfIssue      IssueStateActionFunc
+	UnassignSelfIssue    IssueStateActionFunc
+	UpdateMRLabels       UpdateMRLabelsFunc
 }
 
 type AccountProjectLoader struct {
@@ -258,34 +283,43 @@ type RecentProjectOption struct {
 }
 
 type ProjectOptions struct {
-	Path                string
-	Recents             []string
-	RecentProjects      []RecentProjectOption
-	Projects            []string
-	LoadProjects        []AccountProjectLoader
-	Section             Section
-	EntityID            string
-	Refresh             RefreshFunc
-	LoadDiff            DiffFunc
-	LoadProject         ProjectLoadFunc
-	LoadDiscussions     LoadDiscussionsFunc
-	LoadFiles           LoadFilesFunc
-	SubmitDrafts        SubmitDraftsFunc
-	DiscardDrafts       DiscardDraftsFunc
-	ReplyToDiscussion   ReplyToDiscussionFunc
-	DraftReply          DraftReplyFunc
-	ResolveDiscussion   ResolveDiscussionFunc
-	UnresolveDiscussion UnresolveDiscussionFunc
-	PostInlineComment   PostInlineCommentFunc
-	PostMRComment       PostMRCommentFunc
-	ApproveMR           ApproveMRFunc
-	MergeMR             MergeMRFunc
-	EditMR              EditMRFunc
-	OpenURL             OpenURLFunc
-	OpenEditor          OpenEditorFunc
-	ToggleDraftMR       ToggleDraftMRFunc
-	UpdateMRLabels      UpdateMRLabelsFunc
-	Emoji               config.EmojiConfig
+	Path                 string
+	Recents              []string
+	RecentProjects       []RecentProjectOption
+	Projects             []string
+	LoadProjects         []AccountProjectLoader
+	Section              Section
+	EntityID             string
+	Issues               []issue.Issue
+	Refresh              RefreshFunc
+	LoadIssues           LoadIssuesFunc
+	LoadDiff             DiffFunc
+	LoadProject          ProjectLoadFunc
+	LoadDiscussions      LoadDiscussionsFunc
+	LoadFiles            LoadFilesFunc
+	SubmitDrafts         SubmitDraftsFunc
+	DiscardDrafts        DiscardDraftsFunc
+	ReplyToDiscussion    ReplyToDiscussionFunc
+	DraftReply           DraftReplyFunc
+	ResolveDiscussion    ResolveDiscussionFunc
+	UnresolveDiscussion  UnresolveDiscussionFunc
+	PostInlineComment    PostInlineCommentFunc
+	PostMRComment        PostMRCommentFunc
+	PostIssueComment     PostIssueCommentFunc
+	LoadIssueDiscussions LoadIssueDiscussionsFunc
+	CloseIssue           IssueStateActionFunc
+	ReopenIssue          IssueStateActionFunc
+	EditIssue            EditIssueFunc
+	AssignSelfIssue      IssueStateActionFunc
+	UnassignSelfIssue    IssueStateActionFunc
+	ApproveMR            ApproveMRFunc
+	MergeMR              MergeMRFunc
+	EditMR               EditMRFunc
+	OpenURL              OpenURLFunc
+	OpenEditor           OpenEditorFunc
+	ToggleDraftMR        ToggleDraftMRFunc
+	UpdateMRLabels       UpdateMRLabelsFunc
+	Emoji                config.EmojiConfig
 }
 
 type projectStartedMsg struct {
@@ -372,6 +406,25 @@ type mrCommentFinishedMsg struct {
 	err error
 }
 
+type issueStateFinishedMsg struct {
+	iid   int
+	state string
+	err   error
+}
+
+type editIssueFinishedMsg struct {
+	iid         int
+	title       string
+	description string
+	err         error
+}
+
+type issueAssigneeFinishedMsg struct {
+	iid       int
+	assignees []string
+	err       error
+}
+
 type approveMRFinishedMsg struct {
 	iid int
 	err error
@@ -418,6 +471,17 @@ type refreshFinishedMsg struct {
 	err   error
 }
 
+type issuesFinishedMsg struct {
+	items []issue.Issue
+	err   error
+}
+
+type issueDiscussionsFinishedMsg struct {
+	iid         int
+	discussions []issue.Discussion
+	err         error
+}
+
 type diffStartedMsg struct{}
 
 type diffFinishedMsg struct {
@@ -450,6 +514,7 @@ type Model struct {
 	projectLoaded        bool
 	activeTab            DetailTab
 	discussions          map[int][]mr.Discussion
+	issueDiscussions     map[int][]issue.Discussion
 	changedFiles         map[int][]mr.ChangedFile
 	selectedFile         int
 	fileDiffTop          int
@@ -462,6 +527,9 @@ type Model struct {
 	mrCommentInput       bool
 	mrCommentBuffer      string
 	mrCommentError       string
+	issueCommentInput    bool
+	issueCommentBuffer   string
+	issueCommentError    string
 	mergeConfirmPending  bool
 	editInput            bool
 	editField            string
@@ -470,6 +538,13 @@ type Model struct {
 	actionError          string
 	postInlineComment    PostInlineCommentFunc
 	postMRComment        PostMRCommentFunc
+	postIssueComment     PostIssueCommentFunc
+	loadIssueDiscussions LoadIssueDiscussionsFunc
+	closeIssue           IssueStateActionFunc
+	reopenIssue          IssueStateActionFunc
+	editIssue            EditIssueFunc
+	assignSelfIssue      IssueStateActionFunc
+	unassignSelfIssue    IssueStateActionFunc
 	approveMR            ApproveMRFunc
 	mergeMR              MergeMRFunc
 	editMR               EditMRFunc
@@ -502,6 +577,9 @@ type Model struct {
 	projectInput         string
 	projectFilterActive  bool
 	refresh              RefreshFunc
+	issueItems           []issue.Issue
+	issueState           string
+	loadIssues           LoadIssuesFunc
 	loadDiff             DiffFunc
 	loadProject          ProjectLoadFunc
 	loading              bool
@@ -542,11 +620,15 @@ func NewModelWithProject(items []mr.MergeRequest, options ProjectOptions) Model 
 		section:              options.Section,
 		entityID:             options.EntityID,
 		refresh:              options.Refresh,
+		issueItems:           options.Issues,
+		issueState:           "opened",
+		loadIssues:           options.LoadIssues,
 		loadDiff:             options.LoadDiff,
 		loadProject:          options.LoadProject,
 		loadDiscussions:      options.LoadDiscussions,
 		loadFiles:            options.LoadFiles,
 		discussions:          map[int][]mr.Discussion{},
+		issueDiscussions:     map[int][]issue.Discussion{},
 		changedFiles:         map[int][]mr.ChangedFile{},
 		drafts:               map[int][]mr.DraftComment{},
 		rangeStart:           -1,
@@ -558,6 +640,13 @@ func NewModelWithProject(items []mr.MergeRequest, options ProjectOptions) Model 
 		unresolveDiscussion:  options.UnresolveDiscussion,
 		postInlineComment:    options.PostInlineComment,
 		postMRComment:        options.PostMRComment,
+		postIssueComment:     options.PostIssueComment,
+		loadIssueDiscussions: options.LoadIssueDiscussions,
+		closeIssue:           options.CloseIssue,
+		reopenIssue:          options.ReopenIssue,
+		editIssue:            options.EditIssue,
+		assignSelfIssue:      options.AssignSelfIssue,
+		unassignSelfIssue:    options.UnassignSelfIssue,
 		approveMR:            options.ApproveMR,
 		mergeMR:              options.MergeMR,
 		editMR:               options.EditMR,
@@ -598,7 +687,7 @@ func RunWithProject(stdout io.Writer, options ProjectOptions) error {
 }
 
 func (m Model) Init() tea.Cmd {
-	if m.projectPath != "" && m.loadProject != nil && !m.projectLoaded && m.section == SectionMergeRequests {
+	if m.projectPath != "" && m.loadProject != nil && !m.projectLoaded && (m.section == SectionMergeRequests || m.section == SectionIssues) {
 		_, cmd := m.openProjectCommand(m.projectPath)
 		return cmd
 	}
@@ -672,10 +761,19 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		if msg.data.UpdateMRLabels != nil {
 			m.updateMRLabels = msg.data.UpdateMRLabels
 		}
+		m.issueItems = msg.data.Issues
 		m.refresh = msg.data.Refresh
+		m.loadIssues = msg.data.LoadIssues
+		m.postIssueComment = msg.data.PostIssueComment
+		m.loadIssueDiscussions = msg.data.LoadIssueDiscussions
 		m.loadDiff = msg.data.LoadDiff
 		m.loadDiscussions = msg.data.LoadDiscussions
 		m.loadFiles = msg.data.LoadFiles
+		m.closeIssue = msg.data.CloseIssue
+		m.reopenIssue = msg.data.ReopenIssue
+		m.editIssue = msg.data.EditIssue
+		m.assignSelfIssue = msg.data.AssignSelfIssue
+		m.unassignSelfIssue = msg.data.UnassignSelfIssue
 		m.selected = clampSelection(0, len(m.filtered()))
 		m.selectEntity()
 		m.listTop = 0
@@ -686,6 +784,8 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			} else {
 				m.mode = ModeEntityList
 			}
+		} else if m.section == SectionIssues {
+			m.mode = ModeEntityList
 		} else {
 			m.mode = ModeSections
 		}
@@ -780,6 +880,43 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			m.mrCommentError = ""
 		}
 		return m, nil
+	case issueStateFinishedMsg:
+		if msg.err != nil {
+			m.actionError = msg.err.Error()
+			return m, nil
+		}
+		for i := range m.issueItems {
+			if m.issueItems[i].IID == msg.iid {
+				m.issueItems[i].State = msg.state
+				break
+			}
+		}
+		return m, nil
+	case editIssueFinishedMsg:
+		if msg.err != nil {
+			m.actionError = msg.err.Error()
+			return m, nil
+		}
+		for i := range m.issueItems {
+			if m.issueItems[i].IID == msg.iid {
+				m.issueItems[i].Title = msg.title
+				m.issueItems[i].Description = msg.description
+				break
+			}
+		}
+		return m, nil
+	case issueAssigneeFinishedMsg:
+		if msg.err != nil {
+			m.actionError = msg.err.Error()
+			return m, nil
+		}
+		for i := range m.issueItems {
+			if m.issueItems[i].IID == msg.iid {
+				m.issueItems[i].Assignees = msg.assignees
+				break
+			}
+		}
+		return m, nil
 	case replyFinishedMsg:
 		if msg.err == nil && !msg.draft {
 			if ds, ok := m.discussions[msg.iid]; ok {
@@ -837,6 +974,23 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.items = msg.items
 		m.selected = clampSelection(m.selected, len(m.filtered()))
 		m.listTop = 0
+		return m, nil
+	case issuesFinishedMsg:
+		m.loading = false
+		if msg.err != nil {
+			m.errorMessage = msg.err.Error()
+			return m, nil
+		}
+		m.issueItems = msg.items
+		m.selected = clampSelection(m.selected, len(m.filteredIssues()))
+		m.listTop = 0
+		return m, nil
+	case issueDiscussionsFinishedMsg:
+		if msg.err != nil {
+			m.discussionsError = msg.err.Error()
+			return m, nil
+		}
+		m.issueDiscussions[msg.iid] = msg.discussions
 		return m, nil
 	case diffStartedMsg:
 		m.diffLoading = true
@@ -951,6 +1105,12 @@ func (m Model) updateKey(msg tea.KeyMsg) (Model, tea.Cmd) {
 				}
 				return m.openProjectCommand(m.projectPath)
 			}
+			if sec.available && sec.id == SectionIssues {
+				m.section = SectionIssues
+				m.mode = ModeEntityList
+				m.focus = FocusDetail
+				return m, m.loadIssuesCommand()
+			}
 		case "esc", "backspace":
 			m.returnToProjectPicker()
 		}
@@ -964,11 +1124,11 @@ func (m Model) updateKey(msg tea.KeyMsg) (Model, tea.Cmd) {
 		case tea.KeyBackspace:
 			if len(m.query) > 0 {
 				m.query = m.query[:len(m.query)-1]
-				m.selected = clampSelection(m.selected, len(m.filtered()))
+				m.selected = m.clampEntitySelection(m.selected)
 			}
 		case tea.KeyRunes:
 			m.query += msg.String()
-			m.selected = clampSelection(m.selected, len(m.filtered()))
+			m.selected = m.clampEntitySelection(m.selected)
 		}
 		return m, nil
 	}
@@ -982,6 +1142,7 @@ func (m Model) updateKey(msg tea.KeyMsg) (Model, tea.Cmd) {
 		case "enter":
 			m.mode = ModeDetail
 			m.focus = FocusDetail
+			m.activeTab = TabSummary
 		case "esc", "backspace":
 			if m.projectError || (m.projectPath != "" && len(m.items) == 0) {
 				m.errorMessage = ""
@@ -991,6 +1152,11 @@ func (m Model) updateKey(msg tea.KeyMsg) (Model, tea.Cmd) {
 			}
 		case "/":
 			m.focus = FocusFilter
+		case "s":
+			if m.section == SectionIssues {
+				m.cycleIssueState()
+				return m, m.loadIssuesCommand()
+			}
 		}
 		return m, nil
 	}
@@ -1265,9 +1431,15 @@ func (m Model) updateKey(msg tea.KeyMsg) (Model, tea.Cmd) {
 	}
 
 	if m.mode == ModeDetail && m.editInput {
+		if m.section == SectionIssues {
+			return m.updateIssueEdit(msg)
+		}
 		return m.updateMREdit(msg)
 	}
 
+	if m.mode == ModeDetail && m.issueCommentInput {
+		return m.updateIssueCommentInput(msg)
+	}
 	if m.mode == ModeDetail && m.mrCommentInput {
 		return m.updateMRCommentInput(msg)
 	}
@@ -1277,7 +1449,10 @@ func (m Model) updateKey(msg tea.KeyMsg) (Model, tea.Cmd) {
 		return m, nil
 	}
 
-	if m.mode == ModeDetail && m.activeTab == TabDiscussions {
+	if m.mode == ModeDetail && m.activeTab == TabDiscussions && msg.String() != "tab" {
+		if m.section == SectionIssues {
+			return m.updateIssueDiscussionsTab(msg)
+		}
 		return m.updateDiscussionsTab(msg)
 	}
 
@@ -1303,9 +1478,23 @@ func (m Model) updateKey(msg tea.KeyMsg) (Model, tea.Cmd) {
 		return m, m.refreshCommand()
 	case msg.String() == "m":
 		if m.mode == ModeDetail {
-			m.mrCommentInput = true
-			m.mrCommentBuffer = ""
-			m.mrCommentError = ""
+			if m.section == SectionIssues {
+				m.issueCommentInput = true
+				m.issueCommentBuffer = ""
+				m.issueCommentError = ""
+			} else {
+				m.mrCommentInput = true
+				m.mrCommentBuffer = ""
+				m.mrCommentError = ""
+			}
+		}
+	case msg.String() == "c":
+		if m.mode == ModeDetail && m.section == SectionIssues {
+			return m.closeOrReopenIssueCommand()
+		}
+	case msg.String() == "a":
+		if m.mode == ModeDetail && m.section == SectionIssues {
+			return m.assignOrUnassignIssueCommand()
 		}
 	case msg.String() == "A":
 		if m.mode == ModeDetail {
@@ -1338,35 +1527,65 @@ func (m Model) updateKey(msg tea.KeyMsg) (Model, tea.Cmd) {
 		}
 	case msg.String() == "o":
 		if m.mode == ModeDetail {
-			item, ok := m.selectedItem()
-			if ok && item.WebURL != "" && m.openURL != nil {
-				fn := m.openURL
-				url := item.WebURL
-				return m, func() tea.Msg {
-					err := fn(url)
-					return openURLMsg{url: url, err: err}
+			if m.section == SectionIssues {
+				item, ok := m.selectedIssue()
+				if ok && item.WebURL != "" && m.openURL != nil {
+					fn := m.openURL
+					url := item.WebURL
+					return m, func() tea.Msg { return openURLMsg{url: url, err: fn(url)} }
+				}
+			} else {
+				item, ok := m.selectedItem()
+				if ok && item.WebURL != "" && m.openURL != nil {
+					fn := m.openURL
+					url := item.WebURL
+					return m, func() tea.Msg {
+						err := fn(url)
+						return openURLMsg{url: url, err: err}
+					}
 				}
 			}
 		}
 	case msg.String() == "e":
 		if m.mode == ModeDetail {
-			item, ok := m.selectedItem()
-			if ok {
-				m.editInput = true
-				m.editField = "title"
-				m.editBuffer = item.Title
-				m.editTitle = ""
+			if m.section == SectionIssues {
+				item, ok := m.selectedIssue()
+				if ok {
+					m.editInput = true
+					m.editField = "title"
+					m.editBuffer = item.Title
+					m.editTitle = ""
+				}
+			} else {
+				item, ok := m.selectedItem()
+				if ok {
+					m.editInput = true
+					m.editField = "title"
+					m.editBuffer = item.Title
+					m.editTitle = ""
+				}
 			}
 		}
 	case msg.String() == "l":
-		if m.mode == ModeDetail && m.activeTab == TabSummary {
-			item, ok := m.selectedItem()
-			if ok {
-				m.mode = ModeLabelSelect
-				m.labelCursor = 0
-				pending := make([]string, len(item.Labels))
-				copy(pending, item.Labels)
-				m.labelPending = pending
+		if m.mode == ModeDetail {
+			if m.section == SectionIssues {
+				issueItem, ok := m.selectedIssue()
+				if ok {
+					m.mode = ModeLabelSelect
+					m.labelCursor = 0
+					pending := make([]string, len(issueItem.Labels))
+					copy(pending, issueItem.Labels)
+					m.labelPending = pending
+				}
+			} else if m.activeTab == TabSummary {
+				item, ok := m.selectedItem()
+				if ok {
+					m.mode = ModeLabelSelect
+					m.labelCursor = 0
+					pending := make([]string, len(item.Labels))
+					copy(pending, item.Labels)
+					m.labelPending = pending
+				}
 			}
 		}
 	case msg.String() == "d":
@@ -1394,6 +1613,10 @@ func (m Model) updateKey(msg tea.KeyMsg) (Model, tea.Cmd) {
 		}
 	case msg.String() == "tab":
 		if m.mode == ModeDetail {
+			if m.section == SectionIssues {
+				m.activeTab = (m.activeTab + 1) % (TabDiscussions + 1)
+				return m, m.loadIssueDiscussionsCommand()
+			}
 			m.activeTab = (m.activeTab + 1) % (TabFiles + 1)
 			return m.onTabEntered()
 		}
@@ -1546,6 +1769,135 @@ func (m Model) updateMREdit(msg tea.KeyMsg) (Model, tea.Cmd) {
 	return m, nil
 }
 
+func (m Model) updateIssueEdit(msg tea.KeyMsg) (Model, tea.Cmd) {
+	switch msg.Type {
+	case tea.KeyEsc:
+		m.editInput = false
+		m.editBuffer = ""
+		m.editTitle = ""
+	case tea.KeyBackspace:
+		if len(m.editBuffer) > 0 {
+			m.editBuffer = m.editBuffer[:len(m.editBuffer)-1]
+		}
+	case tea.KeyRunes:
+		m.editBuffer += msg.String()
+	case tea.KeyTab:
+		if m.editField == "title" {
+			m.editTitle = m.editBuffer
+			item, _ := m.selectedIssue()
+			m.editField = "description"
+			m.editBuffer = item.Description
+		}
+	case tea.KeyEnter:
+		title := m.editTitle
+		desc := m.editBuffer
+		if m.editField == "title" {
+			title = m.editBuffer
+			item, _ := m.selectedIssue()
+			desc = item.Description
+		}
+		m.editInput = false
+		m.editBuffer = ""
+		m.editTitle = ""
+		item, ok := m.selectedIssue()
+		if !ok || m.editIssue == nil {
+			return m, nil
+		}
+		fn := m.editIssue
+		iid := item.IID
+		return m, func() tea.Msg {
+			err := fn(iid, title, desc)
+			return editIssueFinishedMsg{iid: iid, title: title, description: desc, err: err}
+		}
+	}
+	return m, nil
+}
+
+func (m Model) assignOrUnassignIssueCommand() (Model, tea.Cmd) {
+	item, ok := m.selectedIssue()
+	if !ok {
+		return m, nil
+	}
+	assigned := false
+	for _, assignee := range item.Assignees {
+		if assignee == "me" {
+			assigned = true
+			break
+		}
+	}
+	fn := m.assignSelfIssue
+	assignees := append([]string(nil), item.Assignees...)
+	if assigned {
+		fn = m.unassignSelfIssue
+		assignees = nil
+		for _, assignee := range item.Assignees {
+			if assignee != "me" {
+				assignees = append(assignees, assignee)
+			}
+		}
+	} else {
+		assignees = append(assignees, "me")
+	}
+	if fn == nil {
+		return m, nil
+	}
+	iid := item.IID
+	return m, func() tea.Msg {
+		err := fn(iid)
+		return issueAssigneeFinishedMsg{iid: iid, assignees: assignees, err: err}
+	}
+}
+
+func (m Model) closeOrReopenIssueCommand() (Model, tea.Cmd) {
+	item, ok := m.selectedIssue()
+	if !ok {
+		return m, nil
+	}
+	state := "closed"
+	fn := m.closeIssue
+	if item.State == "closed" {
+		state = "opened"
+		fn = m.reopenIssue
+	}
+	if fn == nil {
+		return m, nil
+	}
+	iid := item.IID
+	return m, func() tea.Msg {
+		err := fn(iid)
+		return issueStateFinishedMsg{iid: iid, state: state, err: err}
+	}
+}
+
+func (m Model) updateIssueCommentInput(msg tea.KeyMsg) (Model, tea.Cmd) {
+	switch msg.Type {
+	case tea.KeyEsc:
+		m.issueCommentInput = false
+		m.issueCommentBuffer = ""
+	case tea.KeyBackspace:
+		if len(m.issueCommentBuffer) > 0 {
+			m.issueCommentBuffer = m.issueCommentBuffer[:len(m.issueCommentBuffer)-1]
+		}
+	case tea.KeyRunes:
+		m.issueCommentBuffer += msg.String()
+	case tea.KeyEnter:
+		body := m.issueCommentBuffer
+		m.issueCommentInput = false
+		m.issueCommentBuffer = ""
+		item, ok := m.selectedIssue()
+		if !ok || m.postIssueComment == nil {
+			return m, nil
+		}
+		fn := m.postIssueComment
+		iid := item.IID
+		return m, func() tea.Msg {
+			err := fn(iid, body)
+			return mrCommentFinishedMsg{iid: iid, err: err}
+		}
+	}
+	return m, nil
+}
+
 func (m Model) updateMRCommentInput(msg tea.KeyMsg) (Model, tea.Cmd) {
 	switch msg.Type {
 	case tea.KeyEsc:
@@ -1575,6 +1927,26 @@ func (m Model) updateMRCommentInput(msg tea.KeyMsg) (Model, tea.Cmd) {
 	return m, nil
 }
 
+func (m Model) selectedIssue() (issue.Issue, bool) {
+	items := m.filteredIssues()
+	if len(items) == 0 {
+		return issue.Issue{}, false
+	}
+	return items[clampSelection(m.selected, len(items))], true
+}
+
+func (m Model) focusedIssueDiscussion() (issue.Discussion, bool) {
+	item, ok := m.selectedIssue()
+	if !ok {
+		return issue.Discussion{}, false
+	}
+	ds := m.issueDiscussions[item.IID]
+	if m.discussionCursor < 0 || m.discussionCursor >= len(ds) {
+		return issue.Discussion{}, false
+	}
+	return ds[m.discussionCursor], true
+}
+
 func (m Model) focusedDiscussion() (mr.Discussion, bool) {
 	item, ok := m.selectedItem()
 	if !ok {
@@ -1585,6 +1957,46 @@ func (m Model) focusedDiscussion() (mr.Discussion, bool) {
 		return mr.Discussion{}, false
 	}
 	return ds[m.discussionCursor], true
+}
+
+func (m Model) updateIssueDiscussionsTab(msg tea.KeyMsg) (Model, tea.Cmd) {
+	if m.replyInput {
+		switch msg.Type {
+		case tea.KeyEsc:
+			m.replyInput = false
+			m.replyBuffer = ""
+			m.replyDiscussionID = ""
+		case tea.KeyBackspace:
+			if len(m.replyBuffer) > 0 {
+				m.replyBuffer = m.replyBuffer[:len(m.replyBuffer)-1]
+			}
+		case tea.KeyRunes:
+			m.replyBuffer += msg.String()
+		case tea.KeyEnter:
+			m.replyInput = false
+			m.replyBuffer = ""
+			m.replyDiscussionID = ""
+		}
+		return m, nil
+	}
+
+	switch {
+	case msg.String() == "j" || msg.String() == "down":
+		if item, ok := m.selectedIssue(); ok {
+			count := len(m.issueDiscussions[item.IID])
+			m.discussionCursor = clamp(m.discussionCursor+1, 0, max(0, count-1))
+		}
+	case msg.String() == "k" || msg.String() == "up":
+		m.discussionCursor = clamp(m.discussionCursor-1, 0, max(0, m.discussionCursor))
+	case msg.String() == "r":
+		if d, ok := m.focusedIssueDiscussion(); ok {
+			m.replyInput = true
+			m.replyDraft = false
+			m.replyDiscussionID = d.ID
+			m.replyBuffer = ""
+		}
+	}
+	return m, nil
 }
 
 func (m Model) updateDiscussionsTab(msg tea.KeyMsg) (Model, tea.Cmd) {
@@ -1803,6 +2215,9 @@ func (m Model) openDiffCommand(item mr.MergeRequest) (Model, tea.Cmd) {
 }
 
 func (m Model) refreshCommand() tea.Cmd {
+	if m.section == SectionIssues {
+		return m.loadIssuesCommand()
+	}
 	if m.refresh == nil || m.loading {
 		return nil
 	}
@@ -1814,6 +2229,37 @@ func (m Model) refreshCommand() tea.Cmd {
 			return refreshFinishedMsg{items: items, err: err}
 		},
 	)
+}
+
+func (m Model) loadIssuesCommand() tea.Cmd {
+	if m.loadIssues == nil || m.loading {
+		return nil
+	}
+	loadIssues := m.loadIssues
+	state := m.issueState
+	return tea.Sequence(
+		func() tea.Msg { return refreshStartedMsg{} },
+		func() tea.Msg {
+			items, err := loadIssues(state, "")
+			return issuesFinishedMsg{items: items, err: err}
+		},
+	)
+}
+
+func (m Model) loadIssueDiscussionsCommand() tea.Cmd {
+	if m.activeTab != TabDiscussions || m.loadIssueDiscussions == nil {
+		return nil
+	}
+	item, ok := m.selectedIssue()
+	if !ok {
+		return nil
+	}
+	load := m.loadIssueDiscussions
+	iid := item.IID
+	return func() tea.Msg {
+		discussions, err := load(iid)
+		return issueDiscussionsFinishedMsg{iid: iid, discussions: discussions, err: err}
+	}
 }
 
 func (m Model) updateMouse(msg tea.MouseMsg) (Model, tea.Cmd) {
@@ -1877,6 +2323,9 @@ func (m *Model) selectEntity() {
 
 func (m *Model) moveSelection(delta int) {
 	count := len(m.filtered())
+	if m.section == SectionIssues {
+		count = len(m.filteredIssues())
+	}
 	if count == 0 {
 		m.selected = 0
 		return
@@ -2019,6 +2468,9 @@ func (m Model) renderEntityListPane() string {
 	width := max(20, m.width-m.leftWidth())
 	height := m.paneHeight()
 	style := paneStyle(width, height, true)
+	if m.section == SectionIssues {
+		return style.Render(strings.Join(m.issueListLines(height), "\n"))
+	}
 	lines := []string{"Project: " + m.projectPath, "Merge Requests", "Filter: " + m.query}
 	if m.projectLoading {
 		lines = append(lines, "Loading project…")
@@ -2047,8 +2499,35 @@ func (m Model) renderEntityListPane() string {
 	return style.Render(strings.Join(lines, "\n"))
 }
 
+func (m Model) issueListLines(height int) []string {
+	lines := []string{"Project: " + m.projectPath, "Issues [" + m.issueStateLabel() + "]", "Filter: " + m.query}
+	if m.loading {
+		lines = append(lines, "Refreshing…")
+	}
+	if m.errorMessage != "" {
+		lines = append(lines, "Error: "+m.errorMessage)
+	}
+	items := m.filteredIssues()
+	if len(items) == 0 {
+		lines = append(lines, "No issues")
+		return lines
+	}
+	visible := max(1, (height-5)/2)
+	end := min(len(items), m.listTop+visible)
+	for i := m.listTop; i < end; i++ {
+		prefix := "  "
+		if i == m.selected {
+			prefix = "> "
+		}
+		item := items[i]
+		lines = append(lines, fmt.Sprintf("%s#%d %s", prefix, item.IID, item.Title))
+		lines = append(lines, "  "+formatIssueMeta(item))
+	}
+	return lines
+}
+
 func (m Model) inputActive() bool {
-	return m.projectFilterActive || m.mode == ModeProjectInput || m.commentInput || m.mrCommentInput || m.editInput || m.replyInput || m.focus == FocusFilter
+	return m.projectFilterActive || m.mode == ModeProjectInput || m.commentInput || m.mrCommentInput || m.issueCommentInput || m.editInput || m.replyInput || m.focus == FocusFilter
 }
 
 func (m *Model) syncGlobalKeys() {
@@ -2097,7 +2576,12 @@ func (m Model) localKeys() []key.Binding {
 		return newSectionsKeys().LocalKeys()
 	case ModeEntityList:
 		return newEntityListKeys().LocalKeys()
-	case ModeDetail, ModeLabelSelect:
+	case ModeDetail:
+		if m.section == SectionIssues {
+			return newIssueDetailKeys().LocalKeys()
+		}
+		return newMRDetailKeys().LocalKeys()
+	case ModeLabelSelect:
 		return newMRDetailKeys().LocalKeys()
 	case ModeDiff:
 		return newDiffViewKeys().LocalKeys()
@@ -2349,6 +2833,9 @@ func (m Model) renderRight() string {
 	width := max(20, m.width-m.leftWidth())
 	height := m.paneHeight()
 	style := paneStyle(width, height, m.focus == FocusDetail)
+	if m.section == SectionIssues {
+		return style.Render(m.renderIssueDetail())
+	}
 	items := m.filtered()
 	if len(items) == 0 {
 		return style.Render("No MR selected")
@@ -2435,6 +2922,89 @@ func (m Model) renderRight() string {
 		}
 		return style.Render(strings.Join(lines, "\n"))
 	}
+}
+
+func (m Model) renderIssueDetail() string {
+	items := m.filteredIssues()
+	if len(items) == 0 {
+		return "No issue selected"
+	}
+	item := items[clampSelection(m.selected, len(items))]
+	tabs := "[>Summary<] [Discussions]"
+	if m.activeTab == TabDiscussions {
+		tabs = "[Summary] [>Discussions<]"
+	}
+	header := fmt.Sprintf("#%d %s\n%s", item.IID, item.Title, tabs)
+	if m.activeTab == TabDiscussions {
+		return header + "\n\n" + m.renderIssueDiscussions(item)
+	}
+	lines := []string{
+		header,
+		"",
+		"👤 " + item.Author + " · assigned: " + strings.Join(item.Assignees, ", "),
+		issueStateIcon(item.State) + " " + item.State + fmt.Sprintf(" · 💬 %d", item.CommentCount),
+		"🏷️ " + formatIssueLabels(item.Labels),
+		"📅 Due: " + item.DueDate + " · 🏁 " + item.Milestone,
+	}
+	if item.Weight > 0 {
+		lines = append(lines, fmt.Sprintf("⚖️ Weight: %d", item.Weight))
+	}
+	if m.editInput {
+		lines = append(lines, "", fmt.Sprintf("Edit %s: %s█", m.editField, m.editBuffer))
+	} else if m.issueCommentInput {
+		lines = append(lines, "", "Issue comment: "+m.issueCommentBuffer+"█")
+	} else {
+		lines = append(lines, "", item.Description)
+	}
+	return strings.Join(lines, "\n")
+}
+
+func (m Model) renderIssueDiscussions(item issue.Issue) string {
+	discussions, loaded := m.issueDiscussions[item.IID]
+	if !loaded {
+		return "No discussions"
+	}
+	if len(discussions) == 0 {
+		return "No discussions"
+	}
+	lines := []string{}
+	for i, d := range discussions {
+		cursor := "  "
+		if i == m.discussionCursor {
+			cursor = "> "
+		}
+		firstAuthor := ""
+		if len(d.Notes) > 0 {
+			firstAuthor = d.Notes[0].Author
+		}
+		lines = append(lines, cursor+firstAuthor)
+		for j, note := range d.Notes {
+			if j == 0 {
+				lines = append(lines, "  "+note.Body)
+			} else {
+				lines = append(lines, "  ↳ "+note.Author+": "+note.Body)
+			}
+		}
+	}
+	if m.replyInput {
+		lines = append(lines, "", "Reply: "+m.replyBuffer+"█")
+	}
+	return strings.Join(lines, "\n")
+}
+
+func issueStateIcon(state string) string {
+	if state == "closed" {
+		return "🔴"
+	}
+	return "🟢"
+}
+
+func formatIssueLabels(labels []string) string {
+	parts := make([]string, 0, len(labels))
+	for _, label := range labels {
+		parts = append(parts, "["+label+"]")
+	}
+	return strings.Join(parts, " ")
 }
 
 func (m Model) renderDiscussions(item mr.MergeRequest) string {
@@ -2738,6 +3308,66 @@ func pipelineIcon(status string) string {
 
 func (m Model) filtered() []mr.MergeRequest {
 	return mr.Filter(m.items, m.query)
+}
+
+func (m Model) filteredIssues() []issue.Issue {
+	query := strings.ToLower(strings.TrimSpace(m.query))
+	if query == "" {
+		return m.issueItems
+	}
+	filtered := make([]issue.Issue, 0, len(m.issueItems))
+	for _, item := range m.issueItems {
+		text := strings.ToLower(item.Title + " " + item.Author)
+		if strings.Contains(text, query) {
+			filtered = append(filtered, item)
+		}
+	}
+	return filtered
+}
+
+func (m Model) issueStateLabel() string {
+	if m.issueState == "" {
+		return "all"
+	}
+	return m.issueState
+}
+
+func (m *Model) cycleIssueState() {
+	switch m.issueState {
+	case "opened":
+		m.issueState = "closed"
+	case "closed":
+		m.issueState = ""
+	default:
+		m.issueState = "opened"
+	}
+	m.query = ""
+}
+
+func formatIssueMeta(item issue.Issue) string {
+	parts := []string{item.Author}
+	labels := item.Labels
+	if len(labels) > 2 {
+		labels = labels[:2]
+	}
+	labelParts := make([]string, 0, len(labels))
+	for _, label := range labels {
+		labelParts = append(labelParts, "["+label+"]")
+	}
+	if len(labelParts) > 0 {
+		parts = append(parts, strings.Join(labelParts, " "))
+	}
+	if item.CommentCount > 0 {
+		parts = append(parts, fmt.Sprintf("💬 %d", item.CommentCount))
+	}
+	return strings.Join(parts, " · ")
+}
+
+func (m Model) clampEntitySelection(selected int) int {
+	if m.section == SectionIssues {
+		return clampSelection(selected, len(m.filteredIssues()))
+	}
+	return clampSelection(selected, len(m.filtered()))
 }
 
 func (m Model) selectedItem() (mr.MergeRequest, bool) {

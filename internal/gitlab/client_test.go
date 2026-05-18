@@ -3,6 +3,7 @@ package gitlab
 import (
 	"context"
 	"errors"
+	"strings"
 	"testing"
 
 	glab "gitlab.com/gitlab-org/api/client-go"
@@ -11,6 +12,28 @@ import (
 type fakeMergeRequests struct {
 	calls int
 	pages [][]*glab.BasicMergeRequest
+}
+
+type fakeIssues struct {
+	calls       int
+	state       string
+	search      string
+	limit       int64
+	page        int64
+	updateIID   int64
+	stateEvent  string
+	title       string
+	description string
+	labels      string
+	assigneeID  int64
+	items       []*glab.Issue
+}
+
+type fakeDiscussions struct {
+	issueIID    int64
+	commentIID  int64
+	commentBody string
+	items       []*glab.Discussion
 }
 
 type fakeApprovals struct {
@@ -41,6 +64,58 @@ func (f *fakeMergeRequests) ListProjectMergeRequests(pid any, opt *glab.ListProj
 
 func (f *fakeMergeRequests) ListMergeRequestDiffs(pid any, mergeRequest int64, opt *glab.ListMergeRequestDiffsOptions, options ...glab.RequestOptionFunc) ([]*glab.MergeRequestDiff, *glab.Response, error) {
 	return []*glab.MergeRequestDiff{{Diff: "@@ -1 +1 @@\n-old\n+new"}}, &glab.Response{}, nil
+}
+
+func (f *fakeIssues) ListProjectIssues(pid any, opt *glab.ListProjectIssuesOptions, options ...glab.RequestOptionFunc) ([]*glab.Issue, *glab.Response, error) {
+	f.calls++
+	if opt != nil {
+		if opt.State != nil {
+			f.state = *opt.State
+		}
+		if opt.Search != nil {
+			f.search = *opt.Search
+		}
+		f.limit = opt.PerPage
+		f.page = opt.Page
+	}
+	return f.items, &glab.Response{}, nil
+}
+
+func (f *fakeIssues) UpdateIssue(pid any, issue int64, opt *glab.UpdateIssueOptions, options ...glab.RequestOptionFunc) (*glab.Issue, *glab.Response, error) {
+	f.updateIID = issue
+	if opt != nil && opt.StateEvent != nil {
+		f.stateEvent = *opt.StateEvent
+	}
+	if opt != nil && opt.Title != nil {
+		f.title = *opt.Title
+	}
+	if opt != nil && opt.Description != nil {
+		f.description = *opt.Description
+	}
+	if opt != nil && opt.Labels != nil {
+		f.labels = strings.Join(*opt.Labels, ",")
+	}
+	if opt != nil && opt.AssigneeID != nil {
+		f.assigneeID = *opt.AssigneeID
+	}
+	return &glab.Issue{}, &glab.Response{}, nil
+}
+
+func (f *fakeDiscussions) ListMergeRequestDiscussions(pid any, mergeRequest int64, opt *glab.ListMergeRequestDiscussionsOptions, options ...glab.RequestOptionFunc) ([]*glab.Discussion, *glab.Response, error) {
+	return f.items, &glab.Response{}, nil
+}
+
+func (f *fakeDiscussions) ListIssueDiscussions(pid any, issue int64, opt *glab.ListIssueDiscussionsOptions, options ...glab.RequestOptionFunc) ([]*glab.Discussion, *glab.Response, error) {
+	f.issueIID = issue
+	return f.items, &glab.Response{}, nil
+}
+
+func (f *fakeDiscussions) CreateIssueDiscussion(pid any, issue int64, opt *glab.CreateIssueDiscussionOptions, options ...glab.RequestOptionFunc) (*glab.Discussion, *glab.Response, error) {
+	f.commentIID = issue
+	if opt != nil && opt.Body != nil {
+		f.commentBody = *opt.Body
+	}
+	return &glab.Discussion{}, &glab.Response{}, nil
 }
 
 func (f fakeApprovals) GetConfiguration(pid any, mergeRequest int64, options ...glab.RequestOptionFunc) (*glab.MergeRequestApprovals, *glab.Response, error) {
@@ -130,6 +205,128 @@ func TestOpenMergeRequestsMapsAllPages(t *testing.T) {
 	}
 	if fake.calls != 2 {
 		t.Fatalf("expected 2 calls, got %d", fake.calls)
+	}
+}
+
+func TestListProjectIssuesPassesStateAndMapsItems(t *testing.T) {
+	issues := &fakeIssues{items: []*glab.Issue{{
+		IID:            79,
+		Title:          "Issues API",
+		State:          "opened",
+		Author:         &glab.IssueAuthor{Name: "Alice", Username: "alice"},
+		UserNotesCount: 2,
+	}}}
+	client := NewClientWithIssues(issues)
+
+	items, err := client.ListProjectIssues(context.Background(), "group/project", "opened", "api")
+	if err != nil {
+		t.Fatalf("expected no error, got %v", err)
+	}
+
+	if issues.state != "opened" || issues.search != "api" || issues.limit != 50 || issues.page != 1 {
+		t.Fatalf("unexpected list options: state=%q search=%q limit=%d page=%d", issues.state, issues.search, issues.limit, issues.page)
+	}
+	if len(items) != 1 {
+		t.Fatalf("expected 1 item, got %d", len(items))
+	}
+	if items[0].IID != 79 || items[0].Title != "Issues API" || items[0].Author != "Alice" || items[0].CommentCount != 2 {
+		t.Fatalf("unexpected mapped issue: %+v", items[0])
+	}
+}
+
+func TestListProjectIssuesReturnsEmptyList(t *testing.T) {
+	client := NewClientWithIssues(&fakeIssues{})
+
+	items, err := client.ListProjectIssues(context.Background(), "group/project", "closed", "")
+	if err != nil {
+		t.Fatalf("expected no error, got %v", err)
+	}
+	if len(items) != 0 {
+		t.Fatalf("expected empty issues, got %+v", items)
+	}
+}
+
+func TestListIssueDiscussionsMapsComments(t *testing.T) {
+	discussions := &fakeDiscussions{items: []*glab.Discussion{{
+		ID:    "issue-discussion-1",
+		Notes: []*glab.Note{{Author: glab.NoteAuthor{Name: "Alice", Username: "alice"}, Body: "Looks good"}},
+	}}}
+	client := NewClientWithDiscussions(discussions)
+
+	items, err := client.ListIssueDiscussions(context.Background(), "group/project", 79)
+	if err != nil {
+		t.Fatalf("expected no error, got %v", err)
+	}
+
+	if discussions.issueIID != 79 {
+		t.Fatalf("expected issue iid 79, got %d", discussions.issueIID)
+	}
+	if len(items) != 1 || items[0].ID != "issue-discussion-1" {
+		t.Fatalf("unexpected discussions: %+v", items)
+	}
+	if len(items[0].Notes) != 1 || items[0].Notes[0].Author != "Alice" || items[0].Notes[0].Body != "Looks good" {
+		t.Fatalf("unexpected notes: %+v", items[0].Notes)
+	}
+}
+
+func TestIssueUpdateActionsMapOptions(t *testing.T) {
+	issues := &fakeIssues{}
+	client := NewClientWithIssues(issues)
+
+	if err := client.EditIssue(context.Background(), "group/project", 84, "New title", "New description"); err != nil {
+		t.Fatalf("expected no error, got %v", err)
+	}
+	if issues.updateIID != 84 || issues.title != "New title" || issues.description != "New description" {
+		t.Fatalf("unexpected edit update: %+v", issues)
+	}
+
+	if err := client.UpdateIssueLabels(context.Background(), "group/project", 84, []string{"bug", "tui"}); err != nil {
+		t.Fatalf("expected no error, got %v", err)
+	}
+	if issues.labels != "bug,tui" {
+		t.Fatalf("unexpected labels update: %q", issues.labels)
+	}
+
+	if err := client.AssignSelfIssue(context.Background(), "group/project", 84); err != nil {
+		t.Fatalf("expected no error, got %v", err)
+	}
+	if issues.assigneeID != 0 {
+		t.Fatalf("unexpected assign self id: %d", issues.assigneeID)
+	}
+
+	if err := client.UnassignSelfIssue(context.Background(), "group/project", 84); err != nil {
+		t.Fatalf("expected no error, got %v", err)
+	}
+}
+
+func TestCloseAndReopenIssueUpdateStateEvent(t *testing.T) {
+	issues := &fakeIssues{}
+	client := NewClientWithIssues(issues)
+
+	if err := client.CloseIssue(context.Background(), "group/project", 83); err != nil {
+		t.Fatalf("expected no error, got %v", err)
+	}
+	if issues.updateIID != 83 || issues.stateEvent != "close" {
+		t.Fatalf("unexpected close update: iid=%d state=%q", issues.updateIID, issues.stateEvent)
+	}
+
+	if err := client.ReopenIssue(context.Background(), "group/project", 83); err != nil {
+		t.Fatalf("expected no error, got %v", err)
+	}
+	if issues.updateIID != 83 || issues.stateEvent != "reopen" {
+		t.Fatalf("unexpected reopen update: iid=%d state=%q", issues.updateIID, issues.stateEvent)
+	}
+}
+
+func TestAddIssueCommentCreatesIssueDiscussion(t *testing.T) {
+	discussions := &fakeDiscussions{}
+	client := NewClientWithDiscussions(discussions)
+
+	if err := client.AddIssueComment(context.Background(), "group/project", 82, "General comment"); err != nil {
+		t.Fatalf("expected no error, got %v", err)
+	}
+	if discussions.commentIID != 82 || discussions.commentBody != "General comment" {
+		t.Fatalf("unexpected issue comment: iid=%d body=%q", discussions.commentIID, discussions.commentBody)
 	}
 }
 
