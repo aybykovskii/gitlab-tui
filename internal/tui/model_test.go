@@ -15,9 +15,9 @@ import (
 
 type quitModel struct{}
 
-func (quitModel) Init() tea.Cmd { return tea.Quit }
+func (quitModel) Init() tea.Cmd                       { return tea.Quit }
 func (quitModel) Update(tea.Msg) (tea.Model, tea.Cmd) { return quitModel{}, nil }
-func (quitModel) View() string { return "full screen" }
+func (quitModel) View() string                        { return "full screen" }
 
 func TestProgramUsesAltScreen(t *testing.T) {
 	var stdout bytes.Buffer
@@ -924,10 +924,11 @@ func TestFileDiffRightPaneShowsPerFileDiffRows(t *testing.T) {
 	}
 }
 
-func TestFileDiffShowsInlineDiscussionMarkerOnPositionedRow(t *testing.T) {
+func TestFileDiffShowsDiscussionGutterWithoutInlineBody(t *testing.T) {
 	model := NewModelWithProject(FakeMergeRequests(), ProjectOptions{
 		Path:    "group/project",
 		Section: SectionMergeRequests,
+		Emoji:   config.DefaultEmojiConfig(),
 		LoadFiles: func(iid int) ([]mr.ChangedFile, error) {
 			return []mr.ChangedFile{
 				{
@@ -972,8 +973,11 @@ func TestFileDiffShowsInlineDiscussionMarkerOnPositionedRow(t *testing.T) {
 	model = updated.(Model)
 
 	view := model.View()
-	if !strings.Contains(view, "💬") && !strings.Contains(view, "[D]") && !strings.Contains(view, "discussion") {
-		t.Fatalf("expected inline discussion marker on positioned row, got:\n%s", view)
+	if !strings.Contains(view, " 💬 ") {
+		t.Fatalf("expected discussion gutter marker on positioned row, got:\n%s", view)
+	}
+	if strings.Contains(view, "fix this") || strings.Contains(view, "alice") || strings.Contains(view, "↳") {
+		t.Fatalf("expected discussion body to stay out of diff rows, got:\n%s", view)
 	}
 }
 
@@ -1093,6 +1097,7 @@ func draftOpts() ProjectOptions {
 	return ProjectOptions{
 		Path:    "group/project",
 		Section: SectionMergeRequests,
+		Emoji:   config.DefaultEmojiConfig(),
 		LoadFiles: func(iid int) ([]mr.ChangedFile, error) {
 			return []mr.ChangedFile{
 				{Path: "main.go", Diff: []mr.DiffRow{
@@ -1144,7 +1149,7 @@ func TestModelStoresDraftCommentForCurrentMR(t *testing.T) {
 	}
 }
 
-func TestDraftMarkerAppearsOnDiffRow(t *testing.T) {
+func TestDraftMarkerAppearsInGutterWithoutInlineBody(t *testing.T) {
 	model := draftFileDiffModel(t)
 
 	updated, _ := model.Update(draftAddedMsg{iid: 42, draft: mr.DraftComment{
@@ -1155,8 +1160,11 @@ func TestDraftMarkerAppearsOnDiffRow(t *testing.T) {
 	model = updated.(Model)
 
 	view := model.View()
-	if !strings.Contains(view, "[DRAFT]") {
-		t.Fatalf("expected [DRAFT] marker in diff view, got:\n%s", view)
+	if !strings.Contains(view, "📝 ") {
+		t.Fatalf("expected draft gutter marker in diff view, got:\n%s", view)
+	}
+	if strings.Contains(view, "[DRAFT]") || strings.Contains(view, "Check this") {
+		t.Fatalf("expected draft body to stay out of diff rows, got:\n%s", view)
 	}
 }
 
@@ -1173,9 +1181,49 @@ func TestDraftRangeMarkerSpansMultipleRows(t *testing.T) {
 	model = updated.(Model)
 
 	view := model.View()
-	count := strings.Count(view, "[DRAFT]")
+	count := strings.Count(view, "📝 ")
 	if count < 2 {
-		t.Fatalf("expected [DRAFT] marker on both rows of range (got %d), view:\n%s", count, view)
+		t.Fatalf("expected draft gutter marker on both rows of range (got %d), view:\n%s", count, view)
+	}
+	if strings.Contains(view, "Range comment") {
+		t.Fatalf("expected range draft body to stay out of diff rows, got:\n%s", view)
+	}
+}
+
+func TestFileDiffGuttersUseTextSymbolsWhenEmojiDisabled(t *testing.T) {
+	model := draftFileDiffModel(t)
+	model.emoji = config.EmojiConfig{Enabled: false}
+	updated, _ := model.Update(draftAddedMsg{iid: 42, draft: mr.DraftComment{
+		LocalID:  "d1",
+		Body:     "Check this",
+		Position: &mr.DiffPosition{NewPath: "main.go", NewLine: 2},
+	}})
+	model = updated.(Model)
+	model.discussions[42] = []mr.Discussion{{
+		ID:       "disc-1",
+		Notes:    []mr.Note{{Author: "alice", Body: "fix this"}},
+		Position: &mr.DiffPosition{NewPath: "main.go", NewLine: 2},
+	}}
+
+	view := model.View()
+	if !strings.Contains(view, "●○ ") {
+		t.Fatalf("expected text draft/discussion gutter markers, got:\n%s", view)
+	}
+	if strings.Contains(view, "📝") || strings.Contains(view, "💬") {
+		t.Fatalf("expected no emoji markers when emoji disabled, got:\n%s", view)
+	}
+}
+
+func TestActiveDraftRangeUsesDotGutterMarker(t *testing.T) {
+	model := draftFileDiffModel(t)
+	updated, _ := model.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune("v")})
+	model = updated.(Model)
+	updated, _ = model.Update(tea.KeyMsg{Type: tea.KeyDown})
+	model = updated.(Model)
+
+	view := model.View()
+	if strings.Count(view, "· ") < 2 {
+		t.Fatalf("expected active draft range dot markers, got:\n%s", view)
 	}
 }
 
@@ -1189,8 +1237,8 @@ func TestVKeyStartsRangeSelection(t *testing.T) {
 		t.Fatalf("expected rangeStart == diffCursor (%d), got rangeStart=%d", model.diffCursor, model.rangeStart)
 	}
 	view := model.View()
-	if !strings.Contains(view, "▌") {
-		t.Fatalf("expected range selection marker ▌ in view, got:\n%s", view)
+	if !strings.Contains(view, "· ") {
+		t.Fatalf("expected range selection gutter marker · in view, got:\n%s", view)
 	}
 }
 

@@ -3137,6 +3137,11 @@ func (m Model) renderFileDiffPane() string {
 		if i == m.diffCursor {
 			cursor = "> "
 		}
+		draftMarker := m.draftGutterMarker(file.Path, arow.NewLine, draftsForMR)
+		if draftMarker == " " && m.isActiveDraftRangeRow(i) {
+			draftMarker = "·"
+		}
+		discussionMarker := m.discussionGutterMarker(arow.Discussions)
 		var oldNum, newNum, oldContent, newContent string
 		var rowStyle lipgloss.Style
 		switch {
@@ -3160,36 +3165,8 @@ func (m Model) renderFileDiffPane() string {
 			rowStyle = ctxStyle
 		}
 		lineContent := fmt.Sprintf(rowFmt, oldNum, oldContent, newNum, newContent)
-		line := cursor + rowStyle.Render(lineContent)
-		if len(arow.Discussions) > 0 {
-			line += " 💬"
-		}
-		if m.rangeStart >= 0 && i >= m.rangeStart && i <= m.diffCursor {
-			line += " ▌"
-		}
+		line := cursor + draftMarker + discussionMarker + " " + rowStyle.Render(lineContent)
 		lines = append(lines, line)
-		for _, d := range arow.Discussions {
-			author := ""
-			body := ""
-			if len(d.Notes) > 0 {
-				author = d.Notes[0].Author
-				body = d.Notes[0].Body
-			}
-			lines = append(lines, fmt.Sprintf("  ↳ [%s] %s", author, body))
-		}
-		for _, dr := range draftsForMR {
-			if dr.Position == nil || dr.Position.NewPath != file.Path || arow.NewLine == 0 {
-				continue
-			}
-			startLine := dr.Position.NewLine
-			endLine := dr.EndLine
-			if endLine == 0 {
-				endLine = startLine
-			}
-			if arow.NewLine >= startLine && arow.NewLine <= endLine {
-				lines = append(lines, fmt.Sprintf("  [DRAFT] %s", dr.Body))
-			}
-		}
 	}
 	if m.commentError != "" {
 		lines = append(lines, "", "Error: "+m.commentError)
@@ -3207,6 +3184,53 @@ func (m Model) renderFileDiffPane() string {
 	visible := max(1, height-2)
 	end := min(len(lines), m.fileDiffTop+visible)
 	return style.Render(strings.Join(lines[m.fileDiffTop:end], "\n"))
+}
+
+func (m Model) draftGutterMarker(path string, newLine int, drafts []mr.DraftComment) string {
+	if newLine == 0 {
+		return " "
+	}
+	for _, dr := range drafts {
+		if dr.Position == nil || dr.Position.NewPath != path {
+			continue
+		}
+		startLine := dr.Position.NewLine
+		endLine := dr.EndLine
+		if endLine == 0 {
+			endLine = startLine
+		}
+		if newLine >= startLine && newLine <= endLine {
+			if m.emoji.Enabled {
+				icon := m.emoji.Resolve().Draft
+				if icon != "" {
+					return icon
+				}
+			}
+			return "●"
+		}
+	}
+	return " "
+}
+
+func (m Model) discussionGutterMarker(discussions []mr.Discussion) string {
+	if len(discussions) == 0 {
+		return " "
+	}
+	if m.emoji.Enabled {
+		return "💬"
+	}
+	return "○"
+}
+
+func (m Model) isActiveDraftRangeRow(index int) bool {
+	if m.rangeStart < 0 {
+		return false
+	}
+	start, end := m.rangeStart, m.diffCursor
+	if start > end {
+		start, end = end, start
+	}
+	return index >= start && index <= end
 }
 
 func (m Model) renderDiff(item mr.MergeRequest) string {
