@@ -803,8 +803,8 @@ func TestFileDiffShowsInlineDiscussionMarkerOnPositionedRow(t *testing.T) {
 		LoadDiscussions: func(iid int) ([]mr.Discussion, error) {
 			return []mr.Discussion{
 				{
-					ID:    "d1",
-					Notes: []mr.Note{{Author: "alice", Body: "fix this"}},
+					ID:       "d1",
+					Notes:    []mr.Note{{Author: "alice", Body: "fix this"}},
 					Position: &mr.DiffPosition{NewPath: "main.go", NewLine: 2},
 				},
 			}, nil
@@ -1499,7 +1499,7 @@ func diffViewWithInlineDiscussion(t *testing.T, replyFn ReplyToDiscussionFunc) M
 				}},
 			}, nil
 		},
-		LoadDiscussions: func(iid int) ([]mr.Discussion, error) { return nil, nil },
+		LoadDiscussions:   func(iid int) ([]mr.Discussion, error) { return nil, nil },
 		ReplyToDiscussion: replyFn,
 	}
 
@@ -2038,9 +2038,9 @@ func TestEKeyInDiffViewOpensFileInEditor(t *testing.T) {
 	openedPath := ""
 	openedLine := 0
 	model := NewModelWithProject(FakeMergeRequests(), ProjectOptions{
-		Path:    "group/project",
-		Section: SectionMergeRequests,
-		LoadFiles: func(iid int) ([]mr.ChangedFile, error) { return nil, nil },
+		Path:            "group/project",
+		Section:         SectionMergeRequests,
+		LoadFiles:       func(iid int) ([]mr.ChangedFile, error) { return nil, nil },
 		LoadDiscussions: func(iid int) ([]mr.Discussion, error) { return nil, nil },
 		OpenEditor: func(path string, line int) error {
 			openedPath = path
@@ -2382,5 +2382,92 @@ func TestTabKeyCyclesDetailTabs(t *testing.T) {
 	model = updated.(Model)
 	if model.activeTab != TabSummary {
 		t.Fatalf("expected TabSummary after third Tab, got %v", model.activeTab)
+	}
+}
+
+func TestProjectSelectStartsAccountProjectLoads(t *testing.T) {
+	model := NewModelWithProject(nil, ProjectOptions{LoadProjects: []AccountProjectLoader{
+		{ID: "default", Host: "https://gitlab.com", Load: func() ([]string, error) { return []string{"group/project"}, nil }},
+		{ID: "work", Host: "https://gitlab.example.com", Load: func() ([]string, error) { return []string{"work/project"}, nil }},
+	}})
+
+	cmd := model.Init()
+
+	if model.mode != ModeProjectSelect {
+		t.Fatalf("expected project select mode, got %v", model.mode)
+	}
+	if cmd == nil {
+		t.Fatal("expected account project load batch")
+	}
+	view := model.View()
+	for _, want := range []string{"[default]  https://gitlab.com", "[work]  https://gitlab.example.com", "Loading…"} {
+		if !strings.Contains(view, want) {
+			t.Fatalf("expected view to contain %q, got %q", want, view)
+		}
+	}
+}
+
+func TestProjectSelectShowsLoadedAccountProjectsAndSkipsHeaders(t *testing.T) {
+	model := NewModelWithProject(nil, ProjectOptions{LoadProjects: []AccountProjectLoader{
+		{ID: "default", Host: "https://gitlab.com", Load: func() ([]string, error) { return nil, nil }},
+	}})
+	projects := []string{"group/one", "group/two"}
+	updated, _ := model.Update(accountProjectsFinishedMsg{accountID: "default", projects: projects})
+	model = updated.(Model)
+
+	if model.projectRows[0].selectable {
+		t.Fatalf("expected account header to be non-selectable: %+v", model.projectRows[0])
+	}
+	if model.selected != 1 {
+		t.Fatalf("expected first project row selected, got %d rows %+v", model.selected, model.projectRows)
+	}
+	updated, _ = model.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'j'}})
+	model = updated.(Model)
+	if got, ok := model.selectedProject(); !ok || got != "group/two" {
+		t.Fatalf("expected second project selected, got %q ok=%t", got, ok)
+	}
+}
+
+func TestProjectSelectShowsErrorAndRetriesOnlyFailedAccounts(t *testing.T) {
+	failedCalls := 0
+	successCalls := 0
+	model := NewModelWithProject(nil, ProjectOptions{LoadProjects: []AccountProjectLoader{
+		{ID: "failed", Host: "https://gitlab.com", Load: func() ([]string, error) { failedCalls++; return []string{"retry/project"}, nil }},
+		{ID: "ok", Host: "https://gitlab.example.com", Load: func() ([]string, error) { successCalls++; return []string{"ok/project"}, nil }},
+	}})
+	updated, _ := model.Update(accountProjectsFinishedMsg{accountID: "failed", err: errTestRefresh})
+	model = updated.(Model)
+	updated, _ = model.Update(accountProjectsFinishedMsg{accountID: "ok", projects: []string{"ok/project"}})
+	model = updated.(Model)
+
+	if !strings.Contains(model.View(), "Error: refresh failed  r: retry") {
+		t.Fatalf("expected error row, got %q", model.View())
+	}
+	_, cmd := model.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'r'}})
+	if cmd == nil {
+		t.Fatal("expected retry command")
+	}
+	_ = cmd()
+	if failedCalls != 1 || successCalls != 0 {
+		t.Fatalf("expected only failed loader to run, failed=%d success=%d", failedCalls, successCalls)
+	}
+}
+
+func TestProjectSelectEnterOpensSelectedLoadedProjectSections(t *testing.T) {
+	model := NewModelWithProject(nil, ProjectOptions{
+		LoadProjects: []AccountProjectLoader{{ID: "default", Host: "https://gitlab.com", Load: func() ([]string, error) { return nil, nil }}},
+	})
+	updated, _ := model.Update(accountProjectsFinishedMsg{accountID: "default", projects: []string{"group/project"}})
+	model = updated.(Model)
+	model.selected = 1
+
+	updated, cmd := model.Update(tea.KeyMsg{Type: tea.KeyEnter})
+	model = updated.(Model)
+
+	if cmd != nil {
+		t.Fatal("expected section transition without loading command")
+	}
+	if model.projectPath != "group/project" || model.mode != ModeSections {
+		t.Fatalf("expected selected project sections to open, path=%q mode=%v", model.projectPath, model.mode)
 	}
 }

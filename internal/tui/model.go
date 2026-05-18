@@ -64,21 +64,22 @@ const (
 type RefreshFunc func() ([]mr.MergeRequest, error)
 type DiffFunc func(iid int) ([]mr.DiffRow, error)
 type ProjectLoadFunc func(path string) (ProjectData, error)
+type AccountProjectsLoadFunc func() ([]string, error)
 type LoadDiscussionsFunc func(iid int) ([]mr.Discussion, error)
 type LoadFilesFunc func(iid int) ([]mr.ChangedFile, error)
-type SubmitDraftsFunc       func(iid int, drafts []mr.DraftComment) error
-type DiscardDraftsFunc      func(iid int) error
-type ReplyToDiscussionFunc   func(iid int, discussionID string, body string) error
-type DraftReplyFunc          func(iid int, discussionID string, body string) error
-type ResolveDiscussionFunc   func(iid int, discussionID string) error
+type SubmitDraftsFunc func(iid int, drafts []mr.DraftComment) error
+type DiscardDraftsFunc func(iid int) error
+type ReplyToDiscussionFunc func(iid int, discussionID string, body string) error
+type DraftReplyFunc func(iid int, discussionID string, body string) error
+type ResolveDiscussionFunc func(iid int, discussionID string) error
 type UnresolveDiscussionFunc func(iid int, discussionID string) error
-type PostInlineCommentFunc   func(iid int, position mr.DiffPosition, body string) error
-type PostMRCommentFunc       func(iid int, body string) error
-type ApproveMRFunc           func(iid int) error
-type MergeMRFunc             func(iid int) error
-type EditMRFunc              func(iid int, title, description string) error
-type OpenURLFunc             func(url string) error
-type OpenEditorFunc          func(path string, line int) error
+type PostInlineCommentFunc func(iid int, position mr.DiffPosition, body string) error
+type PostMRCommentFunc func(iid int, body string) error
+type ApproveMRFunc func(iid int) error
+type MergeMRFunc func(iid int) error
+type EditMRFunc func(iid int, title, description string) error
+type OpenURLFunc func(url string) error
+type OpenEditorFunc func(path string, line int) error
 
 type ProjectData struct {
 	Items           []mr.MergeRequest
@@ -88,10 +89,17 @@ type ProjectData struct {
 	LoadFiles       LoadFilesFunc
 }
 
+type AccountProjectLoader struct {
+	ID   string
+	Host string
+	Load AccountProjectsLoadFunc
+}
+
 type ProjectOptions struct {
 	Path                string
 	Recents             []string
 	Projects            []string
+	LoadProjects        []AccountProjectLoader
 	Section             Section
 	EntityID            string
 	Refresh             RefreshFunc
@@ -122,6 +130,25 @@ type projectFinishedMsg struct {
 	path string
 	data ProjectData
 	err  error
+}
+
+type accountProjectsStartedMsg struct{ accountID string }
+type accountProjectsFinishedMsg struct {
+	accountID string
+	projects  []string
+	err       error
+}
+
+type accountProjectState struct {
+	host     string
+	loading  bool
+	err      string
+	projects []string
+}
+
+type projectListRow struct {
+	project    string
+	selectable bool
 }
 
 type discussionsStartedMsg struct{ iid int }
@@ -220,77 +247,80 @@ type diffFinishedMsg struct {
 }
 
 type Model struct {
-	items          []mr.MergeRequest
-	query          string
-	selected       int
-	mode           Mode
-	focus          Focus
-	width          int
-	height         int
-	listTop        int
-	rightTop       int
-	projectPath    string
-	recentProjects []string
-	gitlabProjects []string
-	projectList    []string
-	section        Section
-	sectionCursor  int
-	entityID       string
-	projectLoaded  bool
-	activeTab           DetailTab
-	discussions         map[int][]mr.Discussion
-	changedFiles        map[int][]mr.ChangedFile
-	selectedFile        int
-	fileDiffTop         int
-	diffCursor          int
-	rangeStart          int
-	commentInput        bool
-	commentInstant      bool
-	commentBuffer       string
-	commentError        string
-	mrCommentInput      bool
-	mrCommentBuffer     string
-	mrCommentError      string
-	mergeConfirmPending bool
-	editInput           bool
-	editField           string
-	editBuffer          string
-	editTitle           string
-	actionError         string
-	postInlineComment   PostInlineCommentFunc
-	postMRComment       PostMRCommentFunc
-	approveMR           ApproveMRFunc
-	mergeMR             MergeMRFunc
-	editMR              EditMRFunc
-	openURL             OpenURLFunc
-	openEditor          OpenEditorFunc
-	drafts              map[int][]mr.DraftComment
-	submitDrafts        SubmitDraftsFunc
-	discardDrafts       DiscardDraftsFunc
-	discussionCursor    int
-	replyInput          bool
-	replyDraft          bool
-	replyDiscussionID   string
-	replyBuffer         string
-	replyToDiscussion   ReplyToDiscussionFunc
-	draftReply          DraftReplyFunc
-	resolveDiscussion   ResolveDiscussionFunc
-	unresolveDiscussion UnresolveDiscussionFunc
-	discussionsLoading  bool
-	filesLoading        bool
-	discussionsError    string
-	filesError          string
-	loadDiscussions     LoadDiscussionsFunc
-	loadFiles           LoadFilesFunc
-	projectInput   string
-	refresh        RefreshFunc
-	loadDiff       DiffFunc
-	loadProject    ProjectLoadFunc
-	loading        bool
-	projectLoading bool
-	projectError   bool
-	diffLoading    bool
-	errorMessage   string
+	items                []mr.MergeRequest
+	query                string
+	selected             int
+	mode                 Mode
+	focus                Focus
+	width                int
+	height               int
+	listTop              int
+	rightTop             int
+	projectPath          string
+	recentProjects       []string
+	gitlabProjects       []string
+	projectList          []string
+	projectRows          []projectListRow
+	loadProjects         []AccountProjectLoader
+	accountProjectStates map[string]accountProjectState
+	section              Section
+	sectionCursor        int
+	entityID             string
+	projectLoaded        bool
+	activeTab            DetailTab
+	discussions          map[int][]mr.Discussion
+	changedFiles         map[int][]mr.ChangedFile
+	selectedFile         int
+	fileDiffTop          int
+	diffCursor           int
+	rangeStart           int
+	commentInput         bool
+	commentInstant       bool
+	commentBuffer        string
+	commentError         string
+	mrCommentInput       bool
+	mrCommentBuffer      string
+	mrCommentError       string
+	mergeConfirmPending  bool
+	editInput            bool
+	editField            string
+	editBuffer           string
+	editTitle            string
+	actionError          string
+	postInlineComment    PostInlineCommentFunc
+	postMRComment        PostMRCommentFunc
+	approveMR            ApproveMRFunc
+	mergeMR              MergeMRFunc
+	editMR               EditMRFunc
+	openURL              OpenURLFunc
+	openEditor           OpenEditorFunc
+	drafts               map[int][]mr.DraftComment
+	submitDrafts         SubmitDraftsFunc
+	discardDrafts        DiscardDraftsFunc
+	discussionCursor     int
+	replyInput           bool
+	replyDraft           bool
+	replyDiscussionID    string
+	replyBuffer          string
+	replyToDiscussion    ReplyToDiscussionFunc
+	draftReply           DraftReplyFunc
+	resolveDiscussion    ResolveDiscussionFunc
+	unresolveDiscussion  UnresolveDiscussionFunc
+	discussionsLoading   bool
+	filesLoading         bool
+	discussionsError     string
+	filesError           string
+	loadDiscussions      LoadDiscussionsFunc
+	loadFiles            LoadFilesFunc
+	projectInput         string
+	refresh              RefreshFunc
+	loadDiff             DiffFunc
+	loadProject          ProjectLoadFunc
+	loading              bool
+	projectLoading       bool
+	projectError         bool
+	diffLoading          bool
+	errorMessage         string
 }
 
 func NewFakeModel() Model {
@@ -303,42 +333,46 @@ func NewModel(items []mr.MergeRequest) Model {
 
 func NewModelWithProject(items []mr.MergeRequest, options ProjectOptions) Model {
 	model := Model{
-		items:          items,
-		focus:          FocusDetail,
-		width:          100,
-		height:         30,
-		projectPath:    options.Path,
-		recentProjects: options.Recents,
-		gitlabProjects: options.Projects,
-		projectList:    buildProjectList(options.Path, options.Recents, options.Projects),
-		section:         options.Section,
-		entityID:        options.EntityID,
-		refresh:         options.Refresh,
-		loadDiff:        options.LoadDiff,
-		loadProject:     options.LoadProject,
-		loadDiscussions: options.LoadDiscussions,
-		loadFiles:       options.LoadFiles,
-		discussions:     map[int][]mr.Discussion{},
-		changedFiles:    map[int][]mr.ChangedFile{},
-		drafts:          map[int][]mr.DraftComment{},
-		rangeStart:      -1,
-		submitDrafts:        options.SubmitDrafts,
-		discardDrafts:       options.DiscardDrafts,
-		replyToDiscussion:   options.ReplyToDiscussion,
-		draftReply:          options.DraftReply,
-		resolveDiscussion:   options.ResolveDiscussion,
-		unresolveDiscussion: options.UnresolveDiscussion,
-		postInlineComment:   options.PostInlineComment,
-		postMRComment:       options.PostMRComment,
-		approveMR:           options.ApproveMR,
-		mergeMR:             options.MergeMR,
-		editMR:              options.EditMR,
-		openURL:             options.OpenURL,
-		openEditor:          options.OpenEditor,
+		items:                items,
+		focus:                FocusDetail,
+		width:                100,
+		height:               30,
+		projectPath:          options.Path,
+		recentProjects:       options.Recents,
+		gitlabProjects:       options.Projects,
+		projectList:          buildProjectList(options.Path, options.Recents, options.Projects),
+		loadProjects:         options.LoadProjects,
+		accountProjectStates: initialAccountProjectStates(options.LoadProjects),
+		section:              options.Section,
+		entityID:             options.EntityID,
+		refresh:              options.Refresh,
+		loadDiff:             options.LoadDiff,
+		loadProject:          options.LoadProject,
+		loadDiscussions:      options.LoadDiscussions,
+		loadFiles:            options.LoadFiles,
+		discussions:          map[int][]mr.Discussion{},
+		changedFiles:         map[int][]mr.ChangedFile{},
+		drafts:               map[int][]mr.DraftComment{},
+		rangeStart:           -1,
+		submitDrafts:         options.SubmitDrafts,
+		discardDrafts:        options.DiscardDrafts,
+		replyToDiscussion:    options.ReplyToDiscussion,
+		draftReply:           options.DraftReply,
+		resolveDiscussion:    options.ResolveDiscussion,
+		unresolveDiscussion:  options.UnresolveDiscussion,
+		postInlineComment:    options.PostInlineComment,
+		postMRComment:        options.PostMRComment,
+		approveMR:            options.ApproveMR,
+		mergeMR:              options.MergeMR,
+		editMR:               options.EditMR,
+		openURL:              options.OpenURL,
+		openEditor:           options.OpenEditor,
 	}
+	model.rebuildProjectRows()
 	if model.projectPath == "" {
-		if len(model.projectList) > 0 {
+		if len(model.projectList) > 0 || len(model.loadProjects) > 0 {
 			model.mode = ModeProjectSelect
+			model.selected = model.nextSelectable(-1, 1)
 		} else {
 			model.mode = ModeProjectInput
 			model.focus = FocusFilter
@@ -367,6 +401,13 @@ func (m Model) Init() tea.Cmd {
 		_, cmd := m.openProjectCommand(m.projectPath)
 		return cmd
 	}
+	if m.mode == ModeProjectSelect && len(m.loadProjects) > 0 {
+		cmds := make([]tea.Cmd, 0, len(m.loadProjects))
+		for _, loader := range m.loadProjects {
+			cmds = append(cmds, loadAccountProjectsCommand(loader))
+		}
+		return tea.Batch(cmds...)
+	}
 	return nil
 }
 
@@ -389,6 +430,26 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.projectError = false
 		m.items = nil
 		m.errorMessage = ""
+		return m, nil
+	case accountProjectsStartedMsg:
+		state := m.accountProjectStates[msg.accountID]
+		state.loading = true
+		state.err = ""
+		m.accountProjectStates[msg.accountID] = state
+		m.rebuildProjectRows()
+		return m, nil
+	case accountProjectsFinishedMsg:
+		state := m.accountProjectStates[msg.accountID]
+		state.loading = false
+		state.projects = msg.projects
+		state.err = ""
+		if msg.err != nil {
+			state.err = msg.err.Error()
+			state.projects = nil
+		}
+		m.accountProjectStates[msg.accountID] = state
+		m.rebuildProjectRows()
+		m.selected = m.nearestSelectable(m.selected)
 		return m, nil
 	case projectFinishedMsg:
 		m.loading = false
@@ -572,13 +633,15 @@ func (m Model) updateKey(msg tea.KeyMsg) (Model, tea.Cmd) {
 	if m.mode == ModeProjectSelect {
 		switch msg.String() {
 		case "up", "k":
-			m.selected = clamp(m.selected-1, 0, len(m.projectList)-1)
+			m.selected = m.nextSelectable(m.selected, -1)
 		case "down", "j":
-			m.selected = clamp(m.selected+1, 0, len(m.projectList)-1)
+			m.selected = m.nextSelectable(m.selected, 1)
 		case "enter":
-			if len(m.projectList) > 0 {
-				return m.selectProject(m.projectList[m.selected])
+			if project, ok := m.selectedProject(); ok {
+				return m.selectProject(project)
 			}
+		case "r":
+			return m, m.retryFailedProjectLoads()
 		case "i":
 			m.mode = ModeProjectInput
 			m.focus = FocusFilter
@@ -1378,16 +1441,16 @@ func (m Model) updateMouse(msg tea.MouseMsg) (Model, tea.Cmd) {
 	if m.mode == ModeProjectSelect {
 		if msg.Button == tea.MouseButtonLeft && msg.Y >= 2 {
 			idx := msg.Y - 2
-			if idx >= 0 && idx < len(m.projectList) {
+			if idx >= 0 && idx < len(m.projectRows) && m.projectRows[idx].selectable {
 				m.selected = idx
-				return m.selectProject(m.projectList[idx])
+				return m.selectProject(m.projectRows[idx].project)
 			}
 		}
 		if msg.Button == tea.MouseButtonWheelUp {
-			m.selected = clamp(m.selected-1, 0, len(m.projectList)-1)
+			m.selected = m.nextSelectable(m.selected, -1)
 		}
 		if msg.Button == tea.MouseButtonWheelDown {
-			m.selected = clamp(m.selected+1, 0, len(m.projectList)-1)
+			m.selected = m.nextSelectable(m.selected, 1)
 		}
 		return m, nil
 	}
@@ -1475,6 +1538,21 @@ func (m Model) View() string {
 	left := m.renderList()
 	right := m.renderRight()
 	return lipgloss.JoinHorizontal(lipgloss.Top, left, right)
+}
+
+func initialAccountProjectStates(loaders []AccountProjectLoader) map[string]accountProjectState {
+	states := map[string]accountProjectState{}
+	for _, loader := range loaders {
+		states[loader.ID] = accountProjectState{host: loader.Host, loading: true}
+	}
+	return states
+}
+
+func loadAccountProjectsCommand(loader AccountProjectLoader) tea.Cmd {
+	return func() tea.Msg {
+		projects, err := loader.Load()
+		return accountProjectsFinishedMsg{accountID: loader.ID, projects: projects, err: err}
+	}
 }
 
 func buildProjectList(opened string, recents []string, projects []string) []string {
@@ -1596,6 +1674,77 @@ func (m Model) renderAppContextPane() string {
 	return style.Render("gitlab-tui")
 }
 
+func (m *Model) rebuildProjectRows() {
+	m.projectRows = nil
+	for _, project := range m.projectList {
+		m.projectRows = append(m.projectRows, projectListRow{project: project, selectable: true})
+	}
+	for _, loader := range m.loadProjects {
+		state := m.accountProjectStates[loader.ID]
+		header := fmt.Sprintf("[%s]  %s", loader.ID, state.host)
+		m.projectRows = append(m.projectRows, projectListRow{project: header})
+		if state.loading {
+			m.projectRows = append(m.projectRows, projectListRow{project: "Loading…"})
+			continue
+		}
+		if state.err != "" {
+			m.projectRows = append(m.projectRows, projectListRow{project: "Error: " + state.err + "  r: retry"})
+			continue
+		}
+		for _, project := range state.projects[:min(len(state.projects), 15)] {
+			m.projectRows = append(m.projectRows, projectListRow{project: project, selectable: true})
+		}
+	}
+}
+
+func (m Model) nextSelectable(from int, delta int) int {
+	if len(m.projectRows) == 0 {
+		return 0
+	}
+	for i := clamp(from+delta, 0, len(m.projectRows)-1); i >= 0 && i < len(m.projectRows); i += delta {
+		if m.projectRows[i].selectable {
+			return i
+		}
+		if i == 0 && delta < 0 || i == len(m.projectRows)-1 && delta > 0 {
+			break
+		}
+	}
+	return from
+}
+
+func (m Model) nearestSelectable(index int) int {
+	if len(m.projectRows) == 0 {
+		return 0
+	}
+	if index >= 0 && index < len(m.projectRows) && m.projectRows[index].selectable {
+		return index
+	}
+	if next := m.nextSelectable(index, 1); next != index {
+		return next
+	}
+	return m.nextSelectable(index, -1)
+}
+
+func (m Model) selectedProject() (string, bool) {
+	if m.selected < 0 || m.selected >= len(m.projectRows) || !m.projectRows[m.selected].selectable {
+		return "", false
+	}
+	return m.projectRows[m.selected].project, true
+}
+
+func (m Model) retryFailedProjectLoads() tea.Cmd {
+	cmds := []tea.Cmd{}
+	for _, loader := range m.loadProjects {
+		if state := m.accountProjectStates[loader.ID]; state.err != "" {
+			cmds = append(cmds, loadAccountProjectsCommand(loader))
+		}
+	}
+	if len(cmds) == 1 {
+		return cmds[0]
+	}
+	return tea.Batch(cmds...)
+}
+
 func (m Model) renderProjectPicker() string {
 	width := max(20, m.width-m.leftWidth())
 	style := paneStyle(width, max(8, m.height), true)
@@ -1611,14 +1760,14 @@ func (m Model) renderProjectPicker() string {
 	}
 
 	lines := []string{"Projects", ""}
-	for i, project := range m.projectList {
+	for i, row := range m.projectRows {
 		prefix := "  "
-		if i == m.selected {
+		if i == m.selected && row.selectable {
 			prefix = "> "
 		}
-		lines = append(lines, prefix+project)
+		lines = append(lines, prefix+row.project)
 	}
-	lines = append(lines, "", "Enter/click: open  i: manual input")
+	lines = append(lines, "", "Enter/click: open  i: manual input  r: retry")
 	return style.Render(strings.Join(lines, "\n"))
 }
 
