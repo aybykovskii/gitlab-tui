@@ -74,12 +74,12 @@ func (m Model) renderChangedFilesPane() string {
 	style := paneStyle(width, height, false)
 	files := m.currentFiles()
 	lines := []string{"Changed Files", ""}
-	for i, f := range files {
+	for i, file := range files {
 		prefix := "  "
 		if i == m.selectedFile {
 			prefix = "> "
 		}
-		lines = append(lines, prefix+f.Path)
+		lines = append(lines, prefix+file.Path)
 	}
 	return style.Render(strings.Join(lines, "\n"))
 }
@@ -240,20 +240,20 @@ func (m Model) discussionsAtCursor() []mr.Discussion {
 		return nil
 	}
 	var result []mr.Discussion
-	for _, d := range m.discussions[item.IID] {
-		if d.Position != nil && d.Position.NewPath == file.Path && d.Position.NewLine == row.NewLine {
-			result = append(result, d)
+	for _, discussion := range m.discussions[item.IID] {
+		if discussion.Position != nil && discussion.Position.NewPath == file.Path && discussion.Position.NewLine == row.NewLine {
+			result = append(result, discussion)
 		}
 	}
 	return result
 }
 
 func (m Model) threadAtCursor() (*mr.Discussion, *mr.DraftComment) {
-	ds := m.discussionsAtCursor()
-	if len(ds) > 0 {
-		idx := clamp(m.threadPanelCursor, 0, len(ds)-1)
-		d := ds[idx]
-		return &d, nil
+	discussions := m.discussionsAtCursor()
+	if len(discussions) > 0 {
+		idx := clamp(m.threadPanelCursor, 0, len(discussions)-1)
+		discussion := discussions[idx]
+		return &discussion, nil
 	}
 	file, row, ok := m.cursorRow()
 	if !ok || row.NewLine == 0 {
@@ -264,9 +264,9 @@ func (m Model) threadAtCursor() (*mr.Discussion, *mr.DraftComment) {
 		return nil, nil
 	}
 	for i := range m.drafts[item.IID] {
-		dr := &m.drafts[item.IID][i]
-		if dr.Position != nil && dr.Position.NewPath == file.Path && dr.Position.NewLine == row.NewLine {
-			return nil, dr
+		draft := &m.drafts[item.IID][i]
+		if draft.Position != nil && draft.Position.NewPath == file.Path && draft.Position.NewLine == row.NewLine {
+			return nil, draft
 		}
 	}
 	return nil, nil
@@ -293,9 +293,9 @@ func (m Model) renderThreadPanelLines(discussion *mr.Discussion, draft *mr.Draft
 	return lines
 }
 
-func renderDiscussionBlock(d mr.Discussion, header string, cursor string, dimResolved bool, authorInFirstNote bool) []string {
+func renderDiscussionBlock(discussion mr.Discussion, header string, cursor string, dimResolved bool, authorInFirstNote bool) []string {
 	dimStyle := lipgloss.NewStyle().Foreground(lipgloss.Color("240"))
-	dim := dimResolved && d.Resolved
+	dim := dimResolved && discussion.Resolved
 	apply := func(s string) string {
 		if dim {
 			return dimStyle.Render(s)
@@ -303,7 +303,7 @@ func renderDiscussionBlock(d mr.Discussion, header string, cursor string, dimRes
 		return s
 	}
 	lines := []string{apply(cursor + header)}
-	for j, note := range d.Notes {
+	for j, note := range discussion.Notes {
 		var entry string
 		if j == 0 {
 			if authorInFirstNote {

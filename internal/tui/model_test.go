@@ -2797,8 +2797,8 @@ func TestProjectSelectFilterHidesSectionsWithoutMatchesAndEscResets(t *testing.T
 
 	updated, _ = model.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'/'}})
 	model = updated.(Model)
-	for _, r := range "only" {
-		updated, _ = model.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{r}})
+	for _, runeValue := range "only" {
+		updated, _ = model.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{runeValue}})
 		model = updated.(Model)
 	}
 
@@ -3459,8 +3459,8 @@ func TestLabelSelectorSpaceTogglesSelection(t *testing.T) {
 	updated, _ = model.Update(tea.KeyMsg{Type: tea.KeySpace})
 	model = updated.(Model)
 
-	for _, s := range model.labelPending {
-		if s == "bug" {
+	for _, label := range model.labelPending {
+		if label == "bug" {
 			t.Fatal("expected 'bug' to be deselected after Space")
 		}
 	}
@@ -3472,8 +3472,8 @@ func TestLabelSelectorSpaceTogglesSelection(t *testing.T) {
 	model = updated.(Model)
 
 	found := false
-	for _, s := range model.labelPending {
-		if s == "feature" {
+	for _, label := range model.labelPending {
+		if label == "feature" {
 			found = true
 		}
 	}
@@ -3612,8 +3612,8 @@ func TestLabelSelectorReopensWithSavedSelection(t *testing.T) {
 	model = updated.(Model)
 
 	featureSelected := false
-	for _, s := range model.labelPending {
-		if s == "feature" {
+	for _, label := range model.labelPending {
+		if label == "feature" {
 			featureSelected = true
 		}
 	}

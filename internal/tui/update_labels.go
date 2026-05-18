@@ -30,10 +30,10 @@ func (m Model) updateLabelSelect(msg tea.KeyMsg) (Model, tea.Cmd) {
 		if m.updateMRLabels == nil {
 			return m, nil
 		}
-		fn := m.updateMRLabels
+		callback := m.updateMRLabels
 		iid := item.IID
 		return m, func() tea.Msg {
-			err := fn(iid, selected)
+			err := callback(iid, selected)
 			return updateMRLabelsFinishedMsg{iid: iid, labels: selected, prev: prev, err: err}
 		}
 	case tea.KeyRunes:
@@ -62,9 +62,9 @@ func (m Model) updateLabelSelect(msg tea.KeyMsg) (Model, tea.Cmd) {
 }
 
 func (m Model) labelColor(name string) string {
-	for _, l := range m.projectLabels {
-		if l.Name == name {
-			return l.Color
+	for _, label := range m.projectLabels {
+		if label.Name == name {
+			return label.Color
 		}
 	}
 	return ""

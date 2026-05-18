@@ -51,11 +51,11 @@ func bindingHelp(binding key.Binding) string {
 	if !binding.Enabled() {
 		return ""
 	}
-	k, d := binding.Help().Key, binding.Help().Desc
-	if k == "" || d == "" {
+	keyText, description := binding.Help().Key, binding.Help().Desc
+	if keyText == "" || description == "" {
 		return ""
 	}
-	return k + " " + d
+	return keyText + " " + description
 }
 
 func joinBindingHelp(bindings []key.Binding) string {

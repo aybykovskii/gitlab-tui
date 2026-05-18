@@ -25,11 +25,11 @@ func (m Model) updateMREdit(msg tea.KeyMsg) (Model, tea.Cmd) {
 		}
 	case tea.KeyEnter:
 		title := m.editTitle
-		desc := m.editBuffer
+		description := m.editBuffer
 		if m.editField == "title" {
 			title = m.editBuffer
 			item, _ := m.selectedItem()
-			desc = item.Description
+			description = item.Description
 		}
 		m.editInput = false
 		m.editBuffer = ""
@@ -38,11 +38,11 @@ func (m Model) updateMREdit(msg tea.KeyMsg) (Model, tea.Cmd) {
 		if !ok || m.editMR == nil {
 			return m, nil
 		}
-		fn := m.editMR
+		callback := m.editMR
 		iid := item.IID
 		return m, func() tea.Msg {
-			err := fn(iid, title, desc)
-			return editMRFinishedMsg{iid: iid, title: title, description: desc, err: err}
+			err := callback(iid, title, description)
+			return editMRFinishedMsg{iid: iid, title: title, description: description, err: err}
 		}
 	}
 	return m, nil
@@ -69,11 +69,11 @@ func (m Model) updateIssueEdit(msg tea.KeyMsg) (Model, tea.Cmd) {
 		}
 	case tea.KeyEnter:
 		title := m.editTitle
-		desc := m.editBuffer
+		description := m.editBuffer
 		if m.editField == "title" {
 			title = m.editBuffer
 			item, _ := m.selectedIssue()
-			desc = item.Description
+			description = item.Description
 		}
 		m.editInput = false
 		m.editBuffer = ""
@@ -82,11 +82,11 @@ func (m Model) updateIssueEdit(msg tea.KeyMsg) (Model, tea.Cmd) {
 		if !ok || m.editIssue == nil {
 			return m, nil
 		}
-		fn := m.editIssue
+		callback := m.editIssue
 		iid := item.IID
 		return m, func() tea.Msg {
-			err := fn(iid, title, desc)
-			return editIssueFinishedMsg{iid: iid, title: title, description: desc, err: err}
+			err := callback(iid, title, description)
+			return editIssueFinishedMsg{iid: iid, title: title, description: description, err: err}
 		}
 	}
 	return m, nil
@@ -104,10 +104,10 @@ func (m Model) assignOrUnassignIssueCommand() (Model, tea.Cmd) {
 			break
 		}
 	}
-	fn := m.assignSelfIssue
+	callback := m.assignSelfIssue
 	assignees := append([]string(nil), item.Assignees...)
 	if assigned {
-		fn = m.unassignSelfIssue
+		callback = m.unassignSelfIssue
 		assignees = nil
 		for _, assignee := range item.Assignees {
 			if assignee != "me" {
@@ -117,12 +117,12 @@ func (m Model) assignOrUnassignIssueCommand() (Model, tea.Cmd) {
 	} else {
 		assignees = append(assignees, "me")
 	}
-	if fn == nil {
+	if callback == nil {
 		return m, nil
 	}
 	iid := item.IID
 	return m, func() tea.Msg {
-		err := fn(iid)
+		err := callback(iid)
 		return issueAssigneeFinishedMsg{iid: iid, assignees: assignees, err: err}
 	}
 }
@@ -133,17 +133,17 @@ func (m Model) closeOrReopenIssueCommand() (Model, tea.Cmd) {
 		return m, nil
 	}
 	state := "closed"
-	fn := m.closeIssue
+	callback := m.closeIssue
 	if item.State == "closed" {
 		state = "opened"
-		fn = m.reopenIssue
+		callback = m.reopenIssue
 	}
-	if fn == nil {
+	if callback == nil {
 		return m, nil
 	}
 	iid := item.IID
 	return m, func() tea.Msg {
-		err := fn(iid)
+		err := callback(iid)
 		return issueStateFinishedMsg{iid: iid, state: state, err: err}
 	}
 }
@@ -167,10 +167,10 @@ func (m Model) updateIssueCommentInput(msg tea.KeyMsg) (Model, tea.Cmd) {
 		if !ok || m.postIssueComment == nil {
 			return m, nil
 		}
-		fn := m.postIssueComment
+		callback := m.postIssueComment
 		iid := item.IID
 		return m, func() tea.Msg {
-			err := fn(iid, body)
+			err := callback(iid, body)
 			return mrCommentFinishedMsg{iid: iid, err: err}
 		}
 	}
@@ -196,10 +196,10 @@ func (m Model) updateMRCommentInput(msg tea.KeyMsg) (Model, tea.Cmd) {
 		if !ok || m.postMRComment == nil {
 			return m, nil
 		}
-		fn := m.postMRComment
+		callback := m.postMRComment
 		iid := item.IID
 		return m, func() tea.Msg {
-			err := fn(iid, body)
+			err := callback(iid, body)
 			return mrCommentFinishedMsg{iid: iid, err: err}
 		}
 	}

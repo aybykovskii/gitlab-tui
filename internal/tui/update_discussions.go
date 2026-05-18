@@ -21,11 +21,11 @@ func (m Model) focusedIssueDiscussion() (issue.Discussion, bool) {
 	if !ok {
 		return issue.Discussion{}, false
 	}
-	ds := m.issueDiscussions[item.IID]
-	if m.discussionCursor < 0 || m.discussionCursor >= len(ds) {
+	discussions := m.issueDiscussions[item.IID]
+	if m.discussionCursor < 0 || m.discussionCursor >= len(discussions) {
 		return issue.Discussion{}, false
 	}
-	return ds[m.discussionCursor], true
+	return discussions[m.discussionCursor], true
 }
 
 func (m Model) focusedDiscussion() (mr.Discussion, bool) {
@@ -33,11 +33,11 @@ func (m Model) focusedDiscussion() (mr.Discussion, bool) {
 	if !ok {
 		return mr.Discussion{}, false
 	}
-	ds := m.discussions[item.IID]
-	if m.discussionCursor < 0 || m.discussionCursor >= len(ds) {
+	discussions := m.discussions[item.IID]
+	if m.discussionCursor < 0 || m.discussionCursor >= len(discussions) {
 		return mr.Discussion{}, false
 	}
-	return ds[m.discussionCursor], true
+	return discussions[m.discussionCursor], true
 }
 
 func (m Model) updateIssueDiscussionsTab(msg tea.KeyMsg) (Model, tea.Cmd) {
@@ -70,10 +70,10 @@ func (m Model) updateIssueDiscussionsTab(msg tea.KeyMsg) (Model, tea.Cmd) {
 	case msg.String() == "k" || msg.String() == "up":
 		m.discussionCursor = clamp(m.discussionCursor-1, 0, max(0, m.discussionCursor))
 	case msg.String() == "r":
-		if d, ok := m.focusedIssueDiscussion(); ok {
+		if discussion, ok := m.focusedIssueDiscussion(); ok {
 			m.replyInput = true
 			m.replyDraft = false
-			m.replyDiscussionID = d.ID
+			m.replyDiscussionID = discussion.ID
 			m.replyBuffer = ""
 		}
 	}
@@ -107,21 +107,21 @@ func (m Model) updateDiscussionsTab(msg tea.KeyMsg) (Model, tea.Cmd) {
 			}
 			iid := item.IID
 			if isDraft {
-				fn := m.draftReply
-				if fn == nil {
+				callback := m.draftReply
+				if callback == nil {
 					return m, nil
 				}
 				return m, func() tea.Msg {
-					err := fn(iid, discussionID, body)
+					err := callback(iid, discussionID, body)
 					return replyFinishedMsg{iid: iid, discussionID: discussionID, body: body, draft: true, err: err}
 				}
 			}
-			fn := m.replyToDiscussion
-			if fn == nil {
+			callback := m.replyToDiscussion
+			if callback == nil {
 				return m, nil
 			}
 			return m, func() tea.Msg {
-				err := fn(iid, discussionID, body)
+				err := callback(iid, discussionID, body)
 				return replyFinishedMsg{iid: iid, discussionID: discussionID, body: body, draft: false, err: err}
 			}
 		}
@@ -132,8 +132,8 @@ func (m Model) updateDiscussionsTab(msg tea.KeyMsg) (Model, tea.Cmd) {
 	if !ok {
 		return m, nil
 	}
-	ds := m.discussions[item.IID]
-	count := len(ds)
+	discussions := m.discussions[item.IID]
+	count := len(discussions)
 
 	switch {
 	case msg.String() == "j" || msg.String() == "down":
@@ -141,43 +141,43 @@ func (m Model) updateDiscussionsTab(msg tea.KeyMsg) (Model, tea.Cmd) {
 	case msg.String() == "k" || msg.String() == "up":
 		m.discussionCursor = clamp(m.discussionCursor-1, 0, max(0, count-1))
 	case msg.String() == "r":
-		if d, ok := m.focusedDiscussion(); ok {
+		if discussion, ok := m.focusedDiscussion(); ok {
 			m.replyInput = true
 			m.replyDraft = false
-			m.replyDiscussionID = d.ID
+			m.replyDiscussionID = discussion.ID
 			m.replyBuffer = ""
 		}
 	case msg.String() == "d":
-		if d, ok := m.focusedDiscussion(); ok {
+		if discussion, ok := m.focusedDiscussion(); ok {
 			m.replyInput = true
 			m.replyDraft = true
-			m.replyDiscussionID = d.ID
+			m.replyDiscussionID = discussion.ID
 			m.replyBuffer = ""
 		}
 	case msg.String() == "x":
-		if d, ok := m.focusedDiscussion(); ok {
+		if discussion, ok := m.focusedDiscussion(); ok {
 			iid := item.IID
-			dID := d.ID
-			resolved := !d.Resolved
+			discussionID := discussion.ID
+			resolved := !discussion.Resolved
 			if resolved {
-				fn := m.resolveDiscussion
-				if fn == nil {
+				callback := m.resolveDiscussion
+				if callback == nil {
 					m.discussions[iid][m.discussionCursor].Resolved = true
 					return m, nil
 				}
 				return m, func() tea.Msg {
-					err := fn(iid, dID)
-					return resolveFinishedMsg{iid: iid, discussionID: dID, resolved: true, err: err}
+					err := callback(iid, discussionID)
+					return resolveFinishedMsg{iid: iid, discussionID: discussionID, resolved: true, err: err}
 				}
 			}
-			fn := m.unresolveDiscussion
-			if fn == nil {
+			callback := m.unresolveDiscussion
+			if callback == nil {
 				m.discussions[iid][m.discussionCursor].Resolved = false
 				return m, nil
 			}
 			return m, func() tea.Msg {
-				err := fn(iid, dID)
-				return resolveFinishedMsg{iid: iid, discussionID: dID, resolved: false, err: err}
+				err := callback(iid, discussionID)
+				return resolveFinishedMsg{iid: iid, discussionID: discussionID, resolved: false, err: err}
 			}
 		}
 	case msg.String() == "tab":

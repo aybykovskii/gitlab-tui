@@ -30,8 +30,8 @@ func (m Model) selectProject(path string) (Model, tea.Cmd) {
 	m.projectLoaded = false
 	m.items = nil
 	found := false
-	for _, p := range m.projectList {
-		if p == path {
+	for _, project := range m.projectList {
+		if project == path {
 			found = true
 			break
 		}

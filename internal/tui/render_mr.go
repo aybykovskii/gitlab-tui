@@ -157,16 +157,16 @@ func (m Model) renderFiles(item mr.MergeRequest) string {
 		return "No changed files"
 	}
 	lines := []string{}
-	for _, f := range files {
+	for _, file := range files {
 		marker := " "
-		if f.IsNew {
+		if file.IsNew {
 			marker = "A"
-		} else if f.IsDeleted {
+		} else if file.IsDeleted {
 			marker = "D"
-		} else if f.IsRenamed {
+		} else if file.IsRenamed {
 			marker = "R"
 		}
-		lines = append(lines, fmt.Sprintf("%s %s  +%d -%d", marker, f.Path, f.AddedLines, f.RemovedLines))
+		lines = append(lines, fmt.Sprintf("%s %s  +%d -%d", marker, file.Path, file.AddedLines, file.RemovedLines))
 	}
 	return strings.Join(lines, "\n")
 }
@@ -215,10 +215,10 @@ func (m Model) renderLabelSelector() string {
 	height := m.paneHeight()
 	style := paneStyle(width, height, true)
 	lines := []string{"Labels  Space toggle  Enter save  Esc cancel", ""}
-	for i, l := range m.projectLabels {
+	for i, label := range m.projectLabels {
 		marker := "○"
-		for _, sel := range m.labelPending {
-			if sel == l.Name {
+		for _, selected := range m.labelPending {
+			if selected == label.Name {
 				marker = "●"
 				break
 			}
@@ -227,7 +227,7 @@ func (m Model) renderLabelSelector() string {
 		if i == m.labelCursor {
 			cursor = "> "
 		}
-		lines = append(lines, fmt.Sprintf("%s%s %s", cursor, marker, renderLabelPill(l.Name, l.Color)))
+		lines = append(lines, fmt.Sprintf("%s%s %s", cursor, marker, renderLabelPill(label.Name, label.Color)))
 	}
 	if len(m.projectLabels) == 0 {
 		lines = append(lines, "No project labels")

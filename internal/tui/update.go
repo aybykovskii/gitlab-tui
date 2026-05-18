@@ -229,9 +229,9 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m, nil
 	case replyFinishedMsg:
 		if msg.err == nil && !msg.draft {
-			if ds, ok := m.discussions[msg.iid]; ok {
-				for i, d := range ds {
-					if d.ID == msg.discussionID {
+			if discussions, ok := m.discussions[msg.iid]; ok {
+				for i, discussion := range discussions {
+					if discussion.ID == msg.discussionID {
 						m.discussions[msg.iid][i].Notes = append(m.discussions[msg.iid][i].Notes, mr.Note{
 							Author: "me",
 							Body:   msg.body,
@@ -243,9 +243,9 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m, nil
 	case resolveFinishedMsg:
 		if msg.err == nil {
-			if ds, ok := m.discussions[msg.iid]; ok {
-				for i, d := range ds {
-					if d.ID == msg.discussionID {
+			if discussions, ok := m.discussions[msg.iid]; ok {
+				for i, discussion := range discussions {
+					if discussion.ID == msg.discussionID {
 						m.discussions[msg.iid][i].Resolved = msg.resolved
 					}
 				}
@@ -503,21 +503,21 @@ func (m Model) updateKey(msg tea.KeyMsg) (Model, tea.Cmd) {
 				}
 				iid := item.IID
 				if isDraft {
-					fn := m.draftReply
-					if fn == nil {
+					callback := m.draftReply
+					if callback == nil {
 						return m, nil
 					}
 					return m, func() tea.Msg {
-						err := fn(iid, discussionID, body)
+						err := callback(iid, discussionID, body)
 						return replyFinishedMsg{iid: iid, discussionID: discussionID, body: body, draft: true, err: err}
 					}
 				}
-				fn := m.replyToDiscussion
-				if fn == nil {
+				callback := m.replyToDiscussion
+				if callback == nil {
 					return m, nil
 				}
 				return m, func() tea.Msg {
-					err := fn(iid, discussionID, body)
+					err := callback(iid, discussionID, body)
 					return replyFinishedMsg{iid: iid, discussionID: discussionID, body: body, draft: false, err: err}
 				}
 			}
@@ -555,12 +555,12 @@ func (m Model) updateKey(msg tea.KeyMsg) (Model, tea.Cmd) {
 					}
 					m.rangeStart = -1
 					if instant {
-						fn := m.postInlineComment
-						if fn != nil {
+						callback := m.postInlineComment
+						if callback != nil {
 							pos := mr.DiffPosition{NewPath: filePath, NewLine: newLine}
 							iid := item.IID
 							return m, func() tea.Msg {
-								err := fn(iid, pos, body)
+								err := callback(iid, pos, body)
 								return inlineCommentFinishedMsg{iid: iid, err: err}
 							}
 						}
@@ -630,12 +630,12 @@ func (m Model) updateKey(msg tea.KeyMsg) (Model, tea.Cmd) {
 			m.commentError = ""
 		case "r", "d":
 			isDraft := msg.String() == "d"
-			ds := m.discussionsAtCursor()
-			if len(ds) > 0 {
-				idx := clamp(m.threadPanelCursor, 0, len(ds)-1)
+			discussions := m.discussionsAtCursor()
+			if len(discussions) > 0 {
+				idx := clamp(m.threadPanelCursor, 0, len(discussions)-1)
 				m.replyInput = true
 				m.replyDraft = isDraft
-				m.replyDiscussionID = ds[idx].ID
+				m.replyDiscussionID = discussions[idx].ID
 				m.replyBuffer = ""
 			}
 		case "x":
@@ -643,36 +643,36 @@ func (m Model) updateKey(msg tea.KeyMsg) (Model, tea.Cmd) {
 			if !ok {
 				break
 			}
-			ds := m.discussionsAtCursor()
-			if len(ds) == 0 {
+			discussions := m.discussionsAtCursor()
+			if len(discussions) == 0 {
 				break
 			}
-			idx := clamp(m.threadPanelCursor, 0, len(ds)-1)
-			activeID := ds[idx].ID
+			idx := clamp(m.threadPanelCursor, 0, len(discussions)-1)
+			activeID := discussions[idx].ID
 			iid := item.IID
-			for i, d := range m.discussions[iid] {
-				if d.ID != activeID {
+			for i, discussion := range m.discussions[iid] {
+				if discussion.ID != activeID {
 					continue
 				}
-				resolved := !d.Resolved
+				resolved := !discussion.Resolved
 				if resolved {
-					fn := m.resolveDiscussion
-					if fn == nil {
+					callback := m.resolveDiscussion
+					if callback == nil {
 						m.discussions[iid][i].Resolved = true
 						return m, nil
 					}
 					return m, func() tea.Msg {
-						err := fn(iid, activeID)
+						err := callback(iid, activeID)
 						return resolveFinishedMsg{iid: iid, discussionID: activeID, resolved: true, err: err}
 					}
 				}
-				fn := m.unresolveDiscussion
-				if fn == nil {
+				callback := m.unresolveDiscussion
+				if callback == nil {
 					m.discussions[iid][i].Resolved = false
 					return m, nil
 				}
 				return m, func() tea.Msg {
-					err := fn(iid, activeID)
+					err := callback(iid, activeID)
 					return resolveFinishedMsg{iid: iid, discussionID: activeID, resolved: false, err: err}
 				}
 			}
@@ -700,10 +700,10 @@ func (m Model) updateKey(msg tea.KeyMsg) (Model, tea.Cmd) {
 				if m.diffCursor < len(file.Diff) {
 					line = file.Diff[m.diffCursor].NewLine
 				}
-				fn := m.openEditor
+				callback := m.openEditor
 				path := file.Path
 				return m, func() tea.Msg {
-					err := fn(path, line)
+					err := callback(path, line)
 					return openEditorMsg{err: err}
 				}
 			}
@@ -726,8 +726,8 @@ func (m Model) updateKey(msg tea.KeyMsg) (Model, tea.Cmd) {
 				m.threadPanelCursor--
 			}
 		case "]":
-			ds := m.discussionsAtCursor()
-			if m.threadPanelCursor < len(ds)-1 {
+			discussions := m.discussionsAtCursor()
+			if m.threadPanelCursor < len(discussions)-1 {
 				m.threadPanelCursor++
 			}
 		case "esc", "backspace":
@@ -819,10 +819,10 @@ func (m Model) updateKey(msg tea.KeyMsg) (Model, tea.Cmd) {
 		if m.mode == ModeDetail {
 			item, ok := m.selectedItem()
 			if ok && m.approveMR != nil {
-				fn := m.approveMR
+				callback := m.approveMR
 				iid := item.IID
 				return m, func() tea.Msg {
-					err := fn(iid)
+					err := callback(iid)
 					return approveMRFinishedMsg{iid: iid, err: err}
 				}
 			}
@@ -832,10 +832,10 @@ func (m Model) updateKey(msg tea.KeyMsg) (Model, tea.Cmd) {
 			if m.mergeConfirmPending {
 				item, ok := m.selectedItem()
 				if ok && m.mergeMR != nil {
-					fn := m.mergeMR
+					callback := m.mergeMR
 					iid := item.IID
 					return m, func() tea.Msg {
-						err := fn(iid)
+						err := callback(iid)
 						return mergeMRFinishedMsg{iid: iid, err: err}
 					}
 				}
@@ -849,17 +849,17 @@ func (m Model) updateKey(msg tea.KeyMsg) (Model, tea.Cmd) {
 			if m.section == SectionIssues {
 				item, ok := m.selectedIssue()
 				if ok && item.WebURL != "" && m.openURL != nil {
-					fn := m.openURL
+					callback := m.openURL
 					url := item.WebURL
-					return m, func() tea.Msg { return openURLMsg{url: url, err: fn(url)} }
+					return m, func() tea.Msg { return openURLMsg{url: url, err: callback(url)} }
 				}
 			} else {
 				item, ok := m.selectedItem()
 				if ok && item.WebURL != "" && m.openURL != nil {
-					fn := m.openURL
+					callback := m.openURL
 					url := item.WebURL
 					return m, func() tea.Msg {
-						err := fn(url)
+						err := callback(url)
 						return openURLMsg{url: url, err: err}
 					}
 				}
@@ -923,10 +923,10 @@ func (m Model) updateKey(msg tea.KeyMsg) (Model, tea.Cmd) {
 			if m.toggleDraftMR == nil {
 				return m, nil
 			}
-			fn := m.toggleDraftMR
+			callback := m.toggleDraftMR
 			iid := item.IID
 			return m, func() tea.Msg {
-				err := fn(iid)
+				err := callback(iid)
 				return toggleDraftFinishedMsg{iid: iid, prev: prev, err: err}
 			}
 		}

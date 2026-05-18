@@ -28,11 +28,11 @@ var threeDiscussions = []mr.Discussion{
 // Cycle 1 — `]` advances threadPanelCursor on a line with multiple discussions.
 func TestThreadPanelCursorAdvancesWithCloseBracket(t *testing.T) {
 	items := []mr.MergeRequest{{IID: 42, Title: "Test MR"}}
-	m := makeFileDiffModel(items, testFile, threeDiscussions, nil)
-	m.diffCursor = 2
+	model := makeFileDiffModel(items, testFile, threeDiscussions, nil)
+	model.diffCursor = 2
 
-	m2, _ := m.Update(keyMsg("]"))
-	model := m2.(Model)
+	updated, _ := model.Update(keyMsg("]"))
+	model = updated.(Model)
 
 	if model.threadPanelCursor != 1 {
 		t.Fatalf("expected threadPanelCursor=1 after ']', got %d", model.threadPanelCursor)
@@ -46,12 +46,12 @@ func TestThreadPanelCursorAdvancesWithCloseBracket(t *testing.T) {
 // Cycle 2 — `[` decreases threadPanelCursor.
 func TestThreadPanelCursorDecreasesWithOpenBracket(t *testing.T) {
 	items := []mr.MergeRequest{{IID: 42, Title: "Test MR"}}
-	m := makeFileDiffModel(items, testFile, threeDiscussions, nil)
-	m.diffCursor = 2
-	m.threadPanelCursor = 2
+	model := makeFileDiffModel(items, testFile, threeDiscussions, nil)
+	model.diffCursor = 2
+	model.threadPanelCursor = 2
 
-	m2, _ := m.Update(keyMsg("["))
-	model := m2.(Model)
+	updated, _ := model.Update(keyMsg("["))
+	model = updated.(Model)
 
 	if model.threadPanelCursor != 1 {
 		t.Fatalf("expected threadPanelCursor=1 after '[', got %d", model.threadPanelCursor)
@@ -61,12 +61,12 @@ func TestThreadPanelCursorDecreasesWithOpenBracket(t *testing.T) {
 // Cycle 3 — `[` clamps at 0, does not go negative.
 func TestThreadPanelCursorClampsAtMin(t *testing.T) {
 	items := []mr.MergeRequest{{IID: 42, Title: "Test MR"}}
-	m := makeFileDiffModel(items, testFile, threeDiscussions, nil)
-	m.diffCursor = 2
-	m.threadPanelCursor = 0
+	model := makeFileDiffModel(items, testFile, threeDiscussions, nil)
+	model.diffCursor = 2
+	model.threadPanelCursor = 0
 
-	m2, _ := m.Update(keyMsg("["))
-	model := m2.(Model)
+	updated, _ := model.Update(keyMsg("["))
+	model = updated.(Model)
 
 	if model.threadPanelCursor != 0 {
 		t.Fatalf("expected threadPanelCursor to stay at 0, got %d", model.threadPanelCursor)
@@ -76,12 +76,12 @@ func TestThreadPanelCursorClampsAtMin(t *testing.T) {
 // Cycle 4 — `]` clamps at max (len-1).
 func TestThreadPanelCursorClampsAtMax(t *testing.T) {
 	items := []mr.MergeRequest{{IID: 42, Title: "Test MR"}}
-	m := makeFileDiffModel(items, testFile, threeDiscussions, nil)
-	m.diffCursor = 2
-	m.threadPanelCursor = 2
+	model := makeFileDiffModel(items, testFile, threeDiscussions, nil)
+	model.diffCursor = 2
+	model.threadPanelCursor = 2
 
-	m2, _ := m.Update(keyMsg("]"))
-	model := m2.(Model)
+	updated, _ := model.Update(keyMsg("]"))
+	model = updated.(Model)
 
 	if model.threadPanelCursor != 2 {
 		t.Fatalf("expected threadPanelCursor to stay at 2, got %d", model.threadPanelCursor)
@@ -91,12 +91,12 @@ func TestThreadPanelCursorClampsAtMax(t *testing.T) {
 // Cycle 5 — threadPanelCursor resets to 0 when diff cursor moves to another row.
 func TestThreadPanelCursorResetsOnDiffCursorMove(t *testing.T) {
 	items := []mr.MergeRequest{{IID: 42, Title: "Test MR"}}
-	m := makeFileDiffModel(items, testFile, threeDiscussions, nil)
-	m.diffCursor = 2
-	m.threadPanelCursor = 2
+	model := makeFileDiffModel(items, testFile, threeDiscussions, nil)
+	model.diffCursor = 2
+	model.threadPanelCursor = 2
 
-	m2, _ := m.Update(keyMsg("k")) // move up
-	model := m2.(Model)
+	updated, _ := model.Update(keyMsg("k")) // move up
+	model = updated.(Model)
 
 	if model.threadPanelCursor != 0 {
 		t.Fatalf("expected threadPanelCursor reset to 0 after moving cursor, got %d", model.threadPanelCursor)
@@ -106,10 +106,10 @@ func TestThreadPanelCursorResetsOnDiffCursorMove(t *testing.T) {
 // Cycle 6 — Thread Panel header shows [N/M  [/]: switch] when there are >1 discussions.
 func TestThreadPanelHeaderShowsCounterForMultipleDiscussions(t *testing.T) {
 	items := []mr.MergeRequest{{IID: 42, Title: "Test MR"}}
-	m := makeFileDiffModel(items, testFile, threeDiscussions, nil)
-	m.diffCursor = 2
+	model := makeFileDiffModel(items, testFile, threeDiscussions, nil)
+	model.diffCursor = 2
 
-	view := m.renderFileDiffPane()
+	view := model.renderFileDiffPane()
 
 	if !strings.Contains(view, "[1/3") {
 		t.Fatalf("expected counter [1/3 in Thread Panel header, got:\n%s", view)
@@ -119,10 +119,10 @@ func TestThreadPanelHeaderShowsCounterForMultipleDiscussions(t *testing.T) {
 // Cycle 7 — Single thread: no counter shown in header.
 func TestThreadPanelHeaderHidesCounterForSingleDiscussion(t *testing.T) {
 	items := []mr.MergeRequest{{IID: 42, Title: "Test MR"}}
-	m := makeFileDiffModel(items, testFile, []mr.Discussion{testDiscussion}, nil)
-	m.diffCursor = 2
+	model := makeFileDiffModel(items, testFile, []mr.Discussion{testDiscussion}, nil)
+	model.diffCursor = 2
 
-	view := m.renderFileDiffPane()
+	view := model.renderFileDiffPane()
 
 	if strings.Contains(view, "[1/1") {
 		t.Fatalf("expected no counter for single discussion, got:\n%s", view)
@@ -132,12 +132,12 @@ func TestThreadPanelHeaderHidesCounterForSingleDiscussion(t *testing.T) {
 // Cycle 8 — `r` uses threadPanelCursor to select the active discussion.
 func TestFileDiffRKeyUsesThreadPanelCursorDiscussion(t *testing.T) {
 	items := []mr.MergeRequest{{IID: 42, Title: "Test MR"}}
-	m := makeFileDiffModel(items, testFile, threeDiscussions, nil)
-	m.diffCursor = 2
-	m.threadPanelCursor = 1 // second discussion = d2
+	model := makeFileDiffModel(items, testFile, threeDiscussions, nil)
+	model.diffCursor = 2
+	model.threadPanelCursor = 1 // second discussion = d2
 
-	m2, _ := m.Update(keyMsg("r"))
-	model := m2.(Model)
+	updated, _ := model.Update(keyMsg("r"))
+	model = updated.(Model)
 
 	if !model.replyInput {
 		t.Fatal("expected replyInput true after 'r'")

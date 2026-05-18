@@ -10,8 +10,8 @@ import (
 )
 
 func toggleStringSlice(slice []string, val string) []string {
-	for i, s := range slice {
-		if s == val {
+	for i, value := range slice {
+		if value == val {
 			result := make([]string, 0, len(slice)-1)
 			result = append(result, slice[:i]...)
 			result = append(result, slice[i+1:]...)
