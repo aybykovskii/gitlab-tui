@@ -246,6 +246,175 @@ func TestMapChangedFileMarksNewAndDeletedFiles(t *testing.T) {
 	}
 }
 
+// --- #67: Labels, Draft, Reviewers, Assignees ---
+
+type fakeLabels struct {
+	labels []*glab.Label
+	err    error
+}
+
+func (f *fakeLabels) ListLabels(pid any, opt *glab.ListLabelsOptions, options ...glab.RequestOptionFunc) ([]*glab.Label, *glab.Response, error) {
+	return f.labels, &glab.Response{}, f.err
+}
+
+type fakeMergeRequestEdit struct {
+	lastIID  int64
+	lastOpts *glab.UpdateMergeRequestOptions
+	err      error
+}
+
+func (f *fakeMergeRequestEdit) UpdateMergeRequest(pid any, mergeRequest int64, opt *glab.UpdateMergeRequestOptions, options ...glab.RequestOptionFunc) (*glab.MergeRequest, *glab.Response, error) {
+	f.lastIID = mergeRequest
+	f.lastOpts = opt
+	return &glab.MergeRequest{}, &glab.Response{}, f.err
+}
+
+func TestMapMergeRequestFillsLabelsAndDraft(t *testing.T) {
+	item := MapMergeRequest(&glab.BasicMergeRequest{
+		IID:   10,
+		Title: "Draft: My MR",
+		Draft: true,
+		Labels: glab.Labels{"backend", "performance"},
+		Assignees: []*glab.BasicUser{
+			{Name: "Alice", Username: "alice"},
+			{Name: "", Username: "bob"},
+		},
+		Reviewers: []*glab.BasicUser{
+			{Name: "Carol", Username: "carol"},
+		},
+	})
+
+	if !item.Draft {
+		t.Fatal("expected Draft=true")
+	}
+	if len(item.Labels) != 2 || item.Labels[0] != "backend" || item.Labels[1] != "performance" {
+		t.Fatalf("expected labels [backend performance], got %v", item.Labels)
+	}
+	if len(item.Assignees) != 2 || item.Assignees[0] != "Alice" || item.Assignees[1] != "bob" {
+		t.Fatalf("expected assignees [Alice bob], got %v", item.Assignees)
+	}
+	if len(item.Reviewers) != 1 || item.Reviewers[0] != "Carol" {
+		t.Fatalf("expected reviewers [Carol], got %v", item.Reviewers)
+	}
+}
+
+func TestListProjectLabelsReturnsMappedLabels(t *testing.T) {
+	fake := &fakeLabels{labels: []*glab.Label{
+		{Name: "backend", Color: "#e11d48"},
+		{Name: "bug", Color: "#dc2626"},
+	}}
+	client := NewClientWithLabels(fake)
+
+	labels, err := client.ListProjectLabels(context.Background(), "group/project")
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if len(labels) != 2 {
+		t.Fatalf("expected 2 labels, got %d", len(labels))
+	}
+	if labels[0].Name != "backend" || labels[0].Color != "#e11d48" {
+		t.Fatalf("unexpected first label: %+v", labels[0])
+	}
+	if labels[1].Name != "bug" || labels[1].Color != "#dc2626" {
+		t.Fatalf("unexpected second label: %+v", labels[1])
+	}
+}
+
+func TestListProjectLabelsReturnsAPIError(t *testing.T) {
+	apiErr := errors.New("labels api failed")
+	client := NewClientWithLabels(&fakeLabels{err: apiErr})
+
+	_, err := client.ListProjectLabels(context.Background(), "group/project")
+	if !errors.Is(err, apiErr) {
+		t.Fatalf("expected API error, got %v", err)
+	}
+}
+
+func TestUpdateMRLabelsSetsLabelsOnMR(t *testing.T) {
+	fake := &fakeMergeRequestEdit{}
+	client := NewClientWithMergeRequestEdit(fake)
+
+	err := client.UpdateMRLabels(context.Background(), "group/project", 42, []string{"backend", "bug"})
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if fake.lastIID != 42 {
+		t.Fatalf("expected iid=42, got %d", fake.lastIID)
+	}
+	if fake.lastOpts == nil || fake.lastOpts.Labels == nil {
+		t.Fatal("expected UpdateMergeRequest to be called with labels")
+	}
+	got := []string(*fake.lastOpts.Labels)
+	if len(got) != 2 || got[0] != "backend" || got[1] != "bug" {
+		t.Fatalf("unexpected labels: %v", got)
+	}
+}
+
+func TestUpdateMRLabelsReturnsAPIError(t *testing.T) {
+	apiErr := errors.New("update failed")
+	client := NewClientWithMergeRequestEdit(&fakeMergeRequestEdit{err: apiErr})
+
+	err := client.UpdateMRLabels(context.Background(), "group/project", 42, []string{"backend"})
+	if !errors.Is(err, apiErr) {
+		t.Fatalf("expected API error, got %v", err)
+	}
+}
+
+func TestToggleDraftMRAddsDraftPrefix(t *testing.T) {
+	fake := &fakeMergeRequestEdit{}
+	client := NewClientWithMergeRequestEdit(fake)
+
+	err := client.ToggleDraftMR(context.Background(), "group/project", 42, "My MR", true)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if fake.lastOpts == nil || fake.lastOpts.Title == nil {
+		t.Fatal("expected UpdateMergeRequest to be called with title")
+	}
+	if *fake.lastOpts.Title != "Draft: My MR" {
+		t.Fatalf("expected title 'Draft: My MR', got %q", *fake.lastOpts.Title)
+	}
+}
+
+func TestToggleDraftMRRemovesDraftPrefix(t *testing.T) {
+	fake := &fakeMergeRequestEdit{}
+	client := NewClientWithMergeRequestEdit(fake)
+
+	err := client.ToggleDraftMR(context.Background(), "group/project", 42, "Draft: My MR", false)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if fake.lastOpts == nil || fake.lastOpts.Title == nil {
+		t.Fatal("expected UpdateMergeRequest to be called with title")
+	}
+	if *fake.lastOpts.Title != "My MR" {
+		t.Fatalf("expected title 'My MR' after removing draft prefix, got %q", *fake.lastOpts.Title)
+	}
+}
+
+func TestToggleDraftMRDoesNotDoublePrefixAlreadyDraft(t *testing.T) {
+	fake := &fakeMergeRequestEdit{}
+	client := NewClientWithMergeRequestEdit(fake)
+
+	err := client.ToggleDraftMR(context.Background(), "group/project", 42, "Draft: My MR", true)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if *fake.lastOpts.Title != "Draft: My MR" {
+		t.Fatalf("expected no double prefix, got %q", *fake.lastOpts.Title)
+	}
+}
+
+func TestToggleDraftMRReturnsAPIError(t *testing.T) {
+	apiErr := errors.New("edit failed")
+	client := NewClientWithMergeRequestEdit(&fakeMergeRequestEdit{err: apiErr})
+
+	err := client.ToggleDraftMR(context.Background(), "group/project", 42, "My MR", true)
+	if !errors.Is(err, apiErr) {
+		t.Fatalf("expected API error, got %v", err)
+	}
+}
+
 func TestMapMergeRequestKeepsPreviousMRInfo(t *testing.T) {
 	item := MapMergeRequest(&glab.BasicMergeRequest{
 		IID:                 3,

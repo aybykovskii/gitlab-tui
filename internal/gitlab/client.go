@@ -29,11 +29,21 @@ type ProjectsClient interface {
 	ListProjects(opt *glab.ListProjectsOptions, options ...glab.RequestOptionFunc) ([]*glab.Project, *glab.Response, error)
 }
 
+type LabelsClient interface {
+	ListLabels(pid any, opt *glab.ListLabelsOptions, options ...glab.RequestOptionFunc) ([]*glab.Label, *glab.Response, error)
+}
+
+type MergeRequestEditClient interface {
+	UpdateMergeRequest(pid any, mergeRequest int64, opt *glab.UpdateMergeRequestOptions, options ...glab.RequestOptionFunc) (*glab.MergeRequest, *glab.Response, error)
+}
+
 type Client struct {
 	mergeRequests MergeRequestClient
 	approvals     MergeRequestApprovalsClient
 	discussions   DiscussionsClient
 	projects      ProjectsClient
+	labels        LabelsClient
+	mrEdit        MergeRequestEditClient
 }
 
 func NewClient(account config.Account, env []string) (Client, error) {
@@ -47,7 +57,14 @@ func NewClient(account config.Account, env []string) (Client, error) {
 		return Client{}, err
 	}
 
-	return Client{mergeRequests: client.MergeRequests, approvals: client.MergeRequestApprovals, discussions: client.Discussions, projects: client.Projects}, nil
+	return Client{
+		mergeRequests: client.MergeRequests,
+		approvals:     client.MergeRequestApprovals,
+		discussions:   client.Discussions,
+		projects:      client.Projects,
+		labels:        client.Labels,
+		mrEdit:        client.MergeRequests,
+	}, nil
 }
 
 func NewClientWithMergeRequests(mergeRequests MergeRequestClient) Client {
@@ -60,6 +77,14 @@ func NewClientWithProjects(projects ProjectsClient) Client {
 
 func NewClientWithServices(mergeRequests MergeRequestClient, approvals MergeRequestApprovalsClient) Client {
 	return Client{mergeRequests: mergeRequests, approvals: approvals}
+}
+
+func NewClientWithLabels(labels LabelsClient) Client {
+	return Client{labels: labels}
+}
+
+func NewClientWithMergeRequestEdit(mrEdit MergeRequestEditClient) Client {
+	return Client{mrEdit: mrEdit}
 }
 
 func (c Client) ListProjects(ctx context.Context, limit int) ([]string, error) {
@@ -189,7 +214,70 @@ func MapMergeRequest(item *glab.BasicMergeRequest) mr.MergeRequest {
 		Approvals:      "—",
 		Description:    item.Description,
 		WebURL:         item.WebURL,
+		Labels:         []string(item.Labels),
+		Draft:          item.Draft,
+		Reviewers:      userNames(item.Reviewers),
+		Assignees:      userNames(item.Assignees),
 	}
+}
+
+func userNames(users []*glab.BasicUser) []string {
+	names := make([]string, 0, len(users))
+	for _, u := range users {
+		if u == nil {
+			continue
+		}
+		name := u.Name
+		if name == "" {
+			name = u.Username
+		}
+		names = append(names, name)
+	}
+	return names
+}
+
+func (c Client) ListProjectLabels(ctx context.Context, projectPath string) ([]mr.Label, error) {
+	if c.labels == nil {
+		return nil, fmt.Errorf("labels client is not configured")
+	}
+	items, _, err := c.labels.ListLabels(projectPath, &glab.ListLabelsOptions{
+		ListOptions: glab.ListOptions{PerPage: 100, Page: 1},
+	}, glab.WithContext(ctx))
+	if err != nil {
+		return nil, err
+	}
+	result := make([]mr.Label, 0, len(items))
+	for _, item := range items {
+		if item != nil {
+			result = append(result, mr.Label{Name: item.Name, Color: item.Color})
+		}
+	}
+	return result, nil
+}
+
+func (c Client) UpdateMRLabels(ctx context.Context, projectPath string, iid int, labels []string) error {
+	if c.mrEdit == nil {
+		return fmt.Errorf("merge request edit client is not configured")
+	}
+	opts := glab.LabelOptions(labels)
+	_, _, err := c.mrEdit.UpdateMergeRequest(projectPath, int64(iid), &glab.UpdateMergeRequestOptions{
+		Labels: &opts,
+	}, glab.WithContext(ctx))
+	return err
+}
+
+func (c Client) ToggleDraftMR(ctx context.Context, projectPath string, iid int, title string, draft bool) error {
+	if c.mrEdit == nil {
+		return fmt.Errorf("merge request edit client is not configured")
+	}
+	newTitle := strings.TrimPrefix(title, "Draft: ")
+	if draft {
+		newTitle = "Draft: " + newTitle
+	}
+	_, _, err := c.mrEdit.UpdateMergeRequest(projectPath, int64(iid), &glab.UpdateMergeRequestOptions{
+		Title: &newTitle,
+	}, glab.WithContext(ctx))
+	return err
 }
 
 func formatApprovals(approval *glab.MergeRequestApprovals) string {

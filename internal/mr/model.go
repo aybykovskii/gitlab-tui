@@ -15,6 +15,15 @@ type MergeRequest struct {
 	Description    string
 	WebURL         string
 	Diff           []DiffRow
+	Labels         []string
+	Draft          bool
+	Reviewers      []string
+	Assignees      []string
+}
+
+type Label struct {
+	Name  string
+	Color string
 }
 
 type DiffRow struct {
