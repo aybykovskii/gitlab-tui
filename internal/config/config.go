@@ -17,9 +17,10 @@ const (
 )
 
 type Config struct {
-	DefaultAccount string          `yaml:"default_account"`
-	Accounts       []Account       `yaml:"accounts"`
-	RecentProjects []RecentProject `yaml:"recent_projects,omitempty"`
+	DefaultAccount       string          `yaml:"default_account"`
+	Accounts             []Account       `yaml:"accounts"`
+	RecentProjectsLimit  int             `yaml:"recent_projects_limit"`
+	RecentProjectHistory []RecentProject `yaml:"recent_projects,omitempty"`
 }
 
 type Account struct {
@@ -40,7 +41,8 @@ type Paths struct {
 
 func Default() Config {
 	return Config{
-		DefaultAccount: "default",
+		DefaultAccount:      "default",
+		RecentProjectsLimit: 10,
 		Accounts: []Account{{
 			ID:       "default",
 			Host:     "https://gitlab.com",
@@ -76,7 +78,7 @@ func Load(path string) (Config, error) {
 		return Config{}, err
 	}
 
-	var cfg Config
+	cfg := Config{RecentProjectsLimit: 10}
 	if err := yaml.Unmarshal(data, &cfg); err != nil {
 		return Config{}, err
 	}
@@ -149,30 +151,48 @@ func (c Config) Validate() error {
 	return nil
 }
 
+func (c Config) RecentProjects() []RecentProject {
+	if c.RecentProjectsLimit == 0 {
+		return nil
+	}
+
+	projects := append([]RecentProject(nil), c.RecentProjectHistory...)
+	sortRecentProjects(projects)
+	if c.RecentProjectsLimit < len(projects) {
+		projects = projects[:c.RecentProjectsLimit]
+	}
+
+	return projects
+}
+
 func (c Config) RecentProjectsForAccount(accountID string) []RecentProject {
-	projects := make([]RecentProject, 0, len(c.RecentProjects))
-	for _, project := range c.RecentProjects {
+	projects := make([]RecentProject, 0, len(c.RecentProjectHistory))
+	for _, project := range c.RecentProjectHistory {
 		if project.Account == accountID {
 			projects = append(projects, project)
 		}
 	}
 
-	sort.SliceStable(projects, func(i int, j int) bool {
-		return projects[i].LastUsedAt.After(projects[j].LastUsedAt)
-	})
+	sortRecentProjects(projects)
 
 	return projects
 }
 
 func (c *Config) RememberProject(project RecentProject) {
-	for i, existing := range c.RecentProjects {
+	for i, existing := range c.RecentProjectHistory {
 		if existing.Account == project.Account && existing.Path == project.Path {
-			c.RecentProjects[i].LastUsedAt = project.LastUsedAt
+			c.RecentProjectHistory[i].LastUsedAt = project.LastUsedAt
 			return
 		}
 	}
 
-	c.RecentProjects = append(c.RecentProjects, project)
+	c.RecentProjectHistory = append(c.RecentProjectHistory, project)
+}
+
+func sortRecentProjects(projects []RecentProject) {
+	sort.SliceStable(projects, func(i int, j int) bool {
+		return projects[i].LastUsedAt.After(projects[j].LastUsedAt)
+	})
 }
 
 func (c Config) Account(id string) (Account, bool) {

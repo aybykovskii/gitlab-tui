@@ -62,6 +62,49 @@ func TestSaveAndLoad(t *testing.T) {
 	if account.Host != "https://gitlab.com" || account.TokenEnv != DefaultTokenEnv {
 		t.Fatalf("unexpected account: %+v", account)
 	}
+	if loaded.RecentProjectsLimit != 10 {
+		t.Fatalf("expected default recent projects limit 10, got %d", loaded.RecentProjectsLimit)
+	}
+}
+
+func TestLoadDefaultsRecentProjectsLimitWhenMissing(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "config.yaml")
+	data := []byte(`default_account: default
+accounts:
+  - id: default
+    host: https://gitlab.com
+    token_env: GITLAB_TOKEN
+`)
+	if err := os.WriteFile(path, data, 0o600); err != nil {
+		t.Fatalf("write config: %v", err)
+	}
+
+	cfg, err := Load(path)
+	if err != nil {
+		t.Fatalf("load config: %v", err)
+	}
+
+	if cfg.RecentProjectsLimit != 10 {
+		t.Fatalf("expected default recent projects limit 10, got %d", cfg.RecentProjectsLimit)
+	}
+}
+
+func TestSavePersistsRecentProjectsLimit(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "config.yaml")
+	cfg := Default()
+	cfg.RecentProjectsLimit = 0
+
+	if err := Save(path, cfg); err != nil {
+		t.Fatalf("save config: %v", err)
+	}
+
+	loaded, err := Load(path)
+	if err != nil {
+		t.Fatalf("load config: %v", err)
+	}
+	if loaded.RecentProjectsLimit != 0 {
+		t.Fatalf("expected recent projects limit 0, got %d", loaded.RecentProjectsLimit)
+	}
 }
 
 func TestInitDoesNotOverwriteExistingConfig(t *testing.T) {
@@ -88,11 +131,60 @@ func TestValidateRequiresDefaultAccountToExist(t *testing.T) {
 	}
 }
 
+func TestRecentProjectsReturnsMixedAccountsSortedAndLimited(t *testing.T) {
+	cfg := Default()
+	oldest := time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC)
+	middle := oldest.Add(time.Hour)
+	newest := middle.Add(time.Hour)
+	cfg.RecentProjectsLimit = 2
+	cfg.RecentProjectHistory = []RecentProject{
+		{Account: "default", Path: "group/oldest", LastUsedAt: oldest},
+		{Account: "work", Path: "group/newest", LastUsedAt: newest},
+		{Account: "default", Path: "group/middle", LastUsedAt: middle},
+	}
+
+	projects := cfg.RecentProjects()
+
+	if len(projects) != 2 {
+		t.Fatalf("expected 2 projects, got %d", len(projects))
+	}
+	if projects[0].Path != "group/newest" || projects[1].Path != "group/middle" {
+		t.Fatalf("unexpected recent projects: %+v", projects)
+	}
+}
+
+func TestRecentProjectsReturnsEmptyWhenLimitIsZero(t *testing.T) {
+	cfg := Default()
+	cfg.RecentProjectsLimit = 0
+	cfg.RecentProjectHistory = []RecentProject{{Account: "default", Path: "group/project", LastUsedAt: time.Now()}}
+
+	projects := cfg.RecentProjects()
+
+	if len(projects) != 0 {
+		t.Fatalf("expected no recent projects, got %+v", projects)
+	}
+}
+
+func TestRecentProjectsReturnsAllWhenLimitExceedsList(t *testing.T) {
+	cfg := Default()
+	cfg.RecentProjectsLimit = 10
+	cfg.RecentProjectHistory = []RecentProject{
+		{Account: "default", Path: "group/one", LastUsedAt: time.Now()},
+		{Account: "work", Path: "group/two", LastUsedAt: time.Now().Add(time.Hour)},
+	}
+
+	projects := cfg.RecentProjects()
+
+	if len(projects) != 2 {
+		t.Fatalf("expected all projects, got %+v", projects)
+	}
+}
+
 func TestRecentProjectsForAccountSortsByLastUsed(t *testing.T) {
 	cfg := Default()
 	older := time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC)
 	newer := older.Add(time.Hour)
-	cfg.RecentProjects = []RecentProject{
+	cfg.RecentProjectHistory = []RecentProject{
 		{Account: "default", Path: "group/old", LastUsedAt: older},
 		{Account: "other", Path: "group/other", LastUsedAt: newer},
 		{Account: "default", Path: "group/new", LastUsedAt: newer},
@@ -115,11 +207,11 @@ func TestRememberProjectUpdatesExistingEntry(t *testing.T) {
 	cfg.RememberProject(RecentProject{Account: "default", Path: "group/project", LastUsedAt: older})
 	cfg.RememberProject(RecentProject{Account: "default", Path: "group/project", LastUsedAt: newer})
 
-	if len(cfg.RecentProjects) != 1 {
-		t.Fatalf("expected 1 recent project, got %d", len(cfg.RecentProjects))
+	if len(cfg.RecentProjectHistory) != 1 {
+		t.Fatalf("expected 1 recent project, got %d", len(cfg.RecentProjectHistory))
 	}
-	if !cfg.RecentProjects[0].LastUsedAt.Equal(newer) {
-		t.Fatalf("expected newer timestamp, got %s", cfg.RecentProjects[0].LastUsedAt)
+	if !cfg.RecentProjectHistory[0].LastUsedAt.Equal(newer) {
+		t.Fatalf("expected newer timestamp, got %s", cfg.RecentProjectHistory[0].LastUsedAt)
 	}
 }
 

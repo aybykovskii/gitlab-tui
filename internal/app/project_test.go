@@ -34,7 +34,7 @@ func TestProjectResolverUsesProjectOverrideFirst(t *testing.T) {
 
 func TestProjectResolverUsesGitRemoteFirst(t *testing.T) {
 	cfg := config.Default()
-	cfg.RecentProjects = []config.RecentProject{{Account: "default", Path: "recent/project", LastUsedAt: time.Now()}}
+	cfg.RecentProjectHistory = []config.RecentProject{{Account: "default", Path: "recent/project", LastUsedAt: time.Now()}}
 	resolution := ProjectResolver{
 		Config:  cfg,
 		Remotes: fakeRemotes{urls: []string{"git@gitlab.com:group/project.git"}},
@@ -51,7 +51,7 @@ func TestProjectResolverUsesGitRemoteFirst(t *testing.T) {
 func TestProjectResolverFallsBackToRecentProjects(t *testing.T) {
 	cfg := config.Default()
 	now := time.Now()
-	cfg.RecentProjects = []config.RecentProject{{Account: "default", Path: "recent/project", LastUsedAt: now}}
+	cfg.RecentProjectHistory = []config.RecentProject{{Account: "default", Path: "recent/project", LastUsedAt: now}}
 	resolution := ProjectResolver{
 		Config:  cfg,
 		Remotes: fakeRemotes{urls: []string{"git@gitlab.example.com:group/project.git"}},
@@ -78,10 +78,10 @@ func TestRememberResolvedProject(t *testing.T) {
 	now := time.Now()
 	RememberResolvedProject(&cfg, "default", "group/project", now)
 
-	if len(cfg.RecentProjects) != 1 {
-		t.Fatalf("expected 1 recent project, got %d", len(cfg.RecentProjects))
+	if len(cfg.RecentProjectHistory) != 1 {
+		t.Fatalf("expected 1 recent project, got %d", len(cfg.RecentProjectHistory))
 	}
-	if cfg.RecentProjects[0].Account != "default" || cfg.RecentProjects[0].Path != "group/project" {
-		t.Fatalf("unexpected recent project: %+v", cfg.RecentProjects[0])
+	if cfg.RecentProjectHistory[0].Account != "default" || cfg.RecentProjectHistory[0].Path != "group/project" {
+		t.Fatalf("unexpected recent project: %+v", cfg.RecentProjectHistory[0])
 	}
 }
