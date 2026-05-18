@@ -9,6 +9,7 @@ import (
 
 	"github.com/aybykovskii/gitlab-tui/internal/config"
 	"github.com/aybykovskii/gitlab-tui/internal/diff"
+	"github.com/aybykovskii/gitlab-tui/internal/issue"
 	"github.com/aybykovskii/gitlab-tui/internal/mr"
 )
 
@@ -189,6 +190,61 @@ func MapMergeRequest(item *glab.BasicMergeRequest) mr.MergeRequest {
 		Approvals:      "—",
 		Description:    item.Description,
 		WebURL:         item.WebURL,
+	}
+}
+
+func MapIssue(item *glab.Issue) issue.Issue {
+	if item == nil {
+		return issue.Issue{}
+	}
+
+	author := ""
+	authorUsername := ""
+	if item.Author != nil {
+		author = item.Author.Name
+		authorUsername = item.Author.Username
+		if author == "" {
+			author = authorUsername
+		}
+	}
+
+	assignees := make([]string, 0, len(item.Assignees))
+	for _, assignee := range item.Assignees {
+		if assignee == nil {
+			continue
+		}
+		name := assignee.Name
+		if name == "" {
+			name = assignee.Username
+		}
+		assignees = append(assignees, name)
+	}
+
+	milestone := ""
+	if item.Milestone != nil {
+		milestone = item.Milestone.Title
+	}
+
+	dueDate := ""
+	if item.DueDate != nil {
+		dueDate = item.DueDate.String()
+	}
+
+	return issue.Issue{
+		IID:            int(item.IID),
+		Title:          item.Title,
+		Author:         author,
+		AuthorUsername: authorUsername,
+		State:          item.State,
+		Labels:         append([]string(nil), item.Labels...),
+		Assignees:      assignees,
+		Description:    item.Description,
+		WebURL:         item.WebURL,
+		CommentCount:   int(item.UserNotesCount),
+		Milestone:      milestone,
+		DueDate:        dueDate,
+		Weight:         int(item.Weight),
+		Confidential:   item.Confidential,
 	}
 }
 
