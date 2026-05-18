@@ -736,7 +736,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m.updateMouse(msg)
 	case projectStartedMsg:
 		m.projectPath = msg.path
-		m.mode = ModeDetail
+		m.mode = ModeEntityList
 		m.focus = FocusDetail
 		m.loading = true
 		m.projectLoading = true
@@ -1174,6 +1174,11 @@ func (m Model) updateKey(msg tea.KeyMsg) (Model, tea.Cmd) {
 			}
 		case "/":
 			m.focus = FocusFilter
+		case "r":
+			if m.projectError && m.projectPath != "" {
+				return m.openProjectCommand(m.projectPath)
+			}
+			return m, m.refreshCommand()
 		case "s":
 			if m.section == SectionIssues {
 				m.cycleIssueState()
@@ -1194,7 +1199,7 @@ func (m Model) updateKey(msg tea.KeyMsg) (Model, tea.Cmd) {
 				if len(m.replyBuffer) > 0 {
 					m.replyBuffer = m.replyBuffer[:len(m.replyBuffer)-1]
 				}
-			case tea.KeyRunes:
+			case tea.KeyRunes, tea.KeySpace:
 				m.replyBuffer += msg.String()
 			case tea.KeyEnter:
 				body := m.replyBuffer
@@ -1285,7 +1290,7 @@ func (m Model) updateKey(msg tea.KeyMsg) (Model, tea.Cmd) {
 				if len(m.commentBuffer) > 0 {
 					m.commentBuffer = m.commentBuffer[:len(m.commentBuffer)-1]
 				}
-			case tea.KeyRunes:
+			case tea.KeyRunes, tea.KeySpace:
 				m.commentBuffer += msg.String()
 			}
 			return m, nil
@@ -1490,6 +1495,10 @@ func (m Model) updateKey(msg tea.KeyMsg) (Model, tea.Cmd) {
 		if m.mode == ModeDiff {
 			m.mode = ModeDetail
 			m.rightTop = 0
+		} else if m.mode == ModeDetail {
+			m.mode = ModeEntityList
+			m.focus = FocusDetail
+			m.rightTop = 0
 		}
 	case msg.String() == "/":
 		m.focus = FocusFilter
@@ -1643,13 +1652,13 @@ func (m Model) updateKey(msg tea.KeyMsg) (Model, tea.Cmd) {
 			return m.onTabEntered()
 		}
 	case msg.String() == "up" || msg.String() == "k":
-		if m.mode == ModeDetail {
+		if m.mode == ModeDetail || m.mode == ModeDiff {
 			m.rightTop = max(0, m.rightTop-1)
 		} else {
 			m.moveSelection(-1)
 		}
 	case msg.String() == "down" || msg.String() == "j":
-		if m.mode == ModeDetail {
+		if m.mode == ModeDetail || m.mode == ModeDiff {
 			m.rightTop = max(0, m.rightTop+1)
 		} else {
 			m.moveSelection(1)
@@ -1662,12 +1671,11 @@ func (m Model) updateKey(msg tea.KeyMsg) (Model, tea.Cmd) {
 					m.fileDiffReturnTab = TabFiles
 					m.selectedFile = 0
 					m.fileDiffTop = 0
-					return m, nil
+					m.diffCursor = 0
+					m.threadPanelCursor = 0
+					return m, m.ensureDiscussionsLoaded(item.IID)
 				}
 			}
-		}
-		if item, ok := m.selectedItem(); ok {
-			return m.openDiffCommand(item)
 		}
 	case msg.String() == "backspace":
 		if m.mode == ModeDiff {
@@ -1695,8 +1703,8 @@ func (m Model) updateReviewTab(msg tea.KeyMsg) (Model, tea.Cmd) {
 			if len(m.reviewSummary) > 0 {
 				m.reviewSummary = m.reviewSummary[:len(m.reviewSummary)-1]
 			}
-		case tea.KeyRunes:
-			m.reviewSummary += string(msg.Runes)
+		case tea.KeyRunes, tea.KeySpace:
+			m.reviewSummary += msg.String()
 		}
 		return m, nil
 	}
@@ -1845,7 +1853,7 @@ func (m Model) updateMREdit(msg tea.KeyMsg) (Model, tea.Cmd) {
 		if len(m.editBuffer) > 0 {
 			m.editBuffer = m.editBuffer[:len(m.editBuffer)-1]
 		}
-	case tea.KeyRunes:
+	case tea.KeyRunes, tea.KeySpace:
 		m.editBuffer += msg.String()
 	case tea.KeyTab:
 		if m.editField == "title" {
@@ -1889,7 +1897,7 @@ func (m Model) updateIssueEdit(msg tea.KeyMsg) (Model, tea.Cmd) {
 		if len(m.editBuffer) > 0 {
 			m.editBuffer = m.editBuffer[:len(m.editBuffer)-1]
 		}
-	case tea.KeyRunes:
+	case tea.KeyRunes, tea.KeySpace:
 		m.editBuffer += msg.String()
 	case tea.KeyTab:
 		if m.editField == "title" {
@@ -1988,7 +1996,7 @@ func (m Model) updateIssueCommentInput(msg tea.KeyMsg) (Model, tea.Cmd) {
 		if len(m.issueCommentBuffer) > 0 {
 			m.issueCommentBuffer = m.issueCommentBuffer[:len(m.issueCommentBuffer)-1]
 		}
-	case tea.KeyRunes:
+	case tea.KeyRunes, tea.KeySpace:
 		m.issueCommentBuffer += msg.String()
 	case tea.KeyEnter:
 		body := m.issueCommentBuffer
@@ -2017,7 +2025,7 @@ func (m Model) updateMRCommentInput(msg tea.KeyMsg) (Model, tea.Cmd) {
 		if len(m.mrCommentBuffer) > 0 {
 			m.mrCommentBuffer = m.mrCommentBuffer[:len(m.mrCommentBuffer)-1]
 		}
-	case tea.KeyRunes:
+	case tea.KeyRunes, tea.KeySpace:
 		m.mrCommentBuffer += msg.String()
 	case tea.KeyEnter:
 		body := m.mrCommentBuffer
@@ -2080,7 +2088,7 @@ func (m Model) updateIssueDiscussionsTab(msg tea.KeyMsg) (Model, tea.Cmd) {
 			if len(m.replyBuffer) > 0 {
 				m.replyBuffer = m.replyBuffer[:len(m.replyBuffer)-1]
 			}
-		case tea.KeyRunes:
+		case tea.KeyRunes, tea.KeySpace:
 			m.replyBuffer += msg.String()
 		case tea.KeyEnter:
 			m.replyInput = false
@@ -2120,7 +2128,7 @@ func (m Model) updateDiscussionsTab(msg tea.KeyMsg) (Model, tea.Cmd) {
 			if len(m.replyBuffer) > 0 {
 				m.replyBuffer = m.replyBuffer[:len(m.replyBuffer)-1]
 			}
-		case tea.KeyRunes:
+		case tea.KeyRunes, tea.KeySpace:
 			m.replyBuffer += msg.String()
 		case tea.KeyEnter:
 			body := m.replyBuffer
@@ -2238,6 +2246,16 @@ func (m Model) selectProject(path string) (Model, tea.Cmd) {
 	m.rightTop = 0
 	m.projectLoaded = false
 	m.items = nil
+	found := false
+	for _, p := range m.projectList {
+		if p == path {
+			found = true
+			break
+		}
+	}
+	if !found {
+		m.projectList = append([]string{path}, m.projectList...)
+	}
 	return m, nil
 }
 
@@ -2305,6 +2323,23 @@ func (m Model) onTabEntered() (Model, tea.Cmd) {
 		)
 	}
 	return m, nil
+}
+
+func (m Model) ensureDiscussionsLoaded(iid int) tea.Cmd {
+	if _, loaded := m.discussions[iid]; loaded {
+		return nil
+	}
+	if m.loadDiscussions == nil {
+		return nil
+	}
+	load := m.loadDiscussions
+	return tea.Sequence(
+		func() tea.Msg { return discussionsStartedMsg{iid: iid} },
+		func() tea.Msg {
+			items, err := load(iid)
+			return discussionsFinishedMsg{iid: iid, discussions: items, err: err}
+		},
+	)
 }
 
 func (m Model) openDiffCommand(item mr.MergeRequest) (Model, tea.Cmd) {
@@ -3092,14 +3127,7 @@ func (m Model) renderIssueDiscussions(item issue.Issue) string {
 		if len(d.Notes) > 0 {
 			firstAuthor = d.Notes[0].Author
 		}
-		lines = append(lines, cursor+firstAuthor)
-		for j, note := range d.Notes {
-			if j == 0 {
-				lines = append(lines, "  "+note.Body)
-			} else {
-				lines = append(lines, "  ↳ "+note.Author+": "+note.Body)
-			}
-		}
+		lines = append(lines, renderDiscussionBlock(d, firstAuthor, cursor, false, false)...)
 	}
 	if m.replyInput {
 		lines = append(lines, "", "Reply: "+m.replyBuffer+"█")
@@ -3154,14 +3182,8 @@ func (m Model) renderDiscussions(item mr.MergeRequest) string {
 		if len(d.Notes) > 0 {
 			firstAuthor = d.Notes[0].Author
 		}
-		lines = append(lines, fmt.Sprintf("%s[%s] %s", cursor, status, firstAuthor))
-		for j, note := range d.Notes {
-			if j == 0 {
-				lines = append(lines, "  "+note.Body)
-			} else {
-				lines = append(lines, "  ↳ "+note.Author+": "+note.Body)
-			}
-		}
+		header := fmt.Sprintf("[%s] %s", status, firstAuthor)
+		lines = append(lines, renderDiscussionBlock(d, header, cursor, false, false)...)
 	}
 	return strings.Join(lines, "\n")
 }
@@ -3469,19 +3491,44 @@ func (m Model) renderThreadPanelLines(discussion *mr.Discussion, draft *mr.Draft
 			header = fmt.Sprintf("Discussion [%d/%d  [/]: switch]", m.threadPanelCursor+1, total)
 		}
 		if discussion.Resolved {
-			lines = append(lines, dimStyle.Render("✅ "+header+" (resolved)"))
-			for _, n := range discussion.Notes {
-				lines = append(lines, dimStyle.Render(fmt.Sprintf("  %s: %s", n.Author, n.Body)))
-			}
-		} else {
-			lines = append(lines, header)
-			for _, n := range discussion.Notes {
-				lines = append(lines, fmt.Sprintf("  %s: %s", n.Author, n.Body))
-			}
+			header = "✅ " + header + " (resolved)"
 		}
+		lines = append(lines, renderDiscussionBlock(*discussion, header, "  ", true, true)...)
 	} else if draft != nil {
 		lines = append(lines, dimStyle.Render("📝 Draft"))
 		lines = append(lines, dimStyle.Render("  "+draft.Body))
+	}
+	return lines
+}
+
+// renderDiscussionBlock returns lines for a single discussion block.
+// header is the first line text (cursor will be prepended).
+// cursor is "  " or "> ".
+// dimResolved dims all lines when the discussion is resolved.
+// authorInFirstNote includes the author name in the first note line
+// (use when the header does not already identify the author, e.g. Thread Panel).
+func renderDiscussionBlock(d mr.Discussion, header string, cursor string, dimResolved bool, authorInFirstNote bool) []string {
+	dimStyle := lipgloss.NewStyle().Foreground(lipgloss.Color("240"))
+	dim := dimResolved && d.Resolved
+	apply := func(s string) string {
+		if dim {
+			return dimStyle.Render(s)
+		}
+		return s
+	}
+	lines := []string{apply(cursor + header)}
+	for j, note := range d.Notes {
+		var entry string
+		if j == 0 {
+			if authorInFirstNote {
+				entry = fmt.Sprintf("  [%s] %s", note.Author, note.Body)
+			} else {
+				entry = "  " + note.Body
+			}
+		} else {
+			entry = fmt.Sprintf("  ↳ %s: %s", note.Author, note.Body)
+		}
+		lines = append(lines, apply(entry))
 	}
 	return lines
 }

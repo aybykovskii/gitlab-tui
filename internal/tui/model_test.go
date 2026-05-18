@@ -212,16 +212,18 @@ func TestKeyboardSelectionAndDiffNavigation(t *testing.T) {
 		t.Fatalf("expected selected unchanged in ModeDetail, got %d", model.selected)
 	}
 
+	// Enter on Summary tab no longer opens diff — it is a no-op
 	updated, _ = model.Update(tea.KeyMsg{Type: tea.KeyEnter})
 	model = updated.(Model)
-	if model.mode != ModeDiff {
-		t.Fatalf("expected diff mode, got %v", model.mode)
+	if model.mode != ModeDetail {
+		t.Fatalf("expected to stay in ModeDetail after Enter on Summary, got %v", model.mode)
 	}
 
+	// Esc from ModeDetail returns to entity list
 	updated, _ = model.Update(tea.KeyMsg{Type: tea.KeyEsc})
 	model = updated.(Model)
-	if model.mode != ModeDetail {
-		t.Fatalf("expected detail mode, got %v", model.mode)
+	if model.mode != ModeEntityList {
+		t.Fatalf("expected ModeEntityList after Esc from ModeDetail, got %v", model.mode)
 	}
 }
 
@@ -464,7 +466,7 @@ func TestManualProjectInputGoesToSectionsImmediately(t *testing.T) {
 	}
 }
 
-func TestEnterLoadsDiffWhenNeeded(t *testing.T) {
+func TestEnterOnSummaryDoesNotTriggerDiff(t *testing.T) {
 	model := NewModelWithProject([]mr.MergeRequest{{IID: 1, Title: "Needs diff"}}, ProjectOptions{
 		Path:    "group/project",
 		Section: SectionMergeRequests,
@@ -473,9 +475,14 @@ func TestEnterLoadsDiffWhenNeeded(t *testing.T) {
 		},
 	})
 
-	_, cmd := model.Update(tea.KeyMsg{Type: tea.KeyEnter})
-	if cmd == nil {
-		t.Fatal("expected diff load command")
+	// Enter on Summary tab should be a no-op — diff is accessed via Files tab
+	updated, cmd := model.Update(tea.KeyMsg{Type: tea.KeyEnter})
+	model = updated.(Model)
+	if cmd != nil {
+		t.Fatal("expected no command from Enter on Summary tab")
+	}
+	if model.mode != ModeDetail {
+		t.Fatalf("expected to stay in ModeDetail, got %v", model.mode)
 	}
 }
 

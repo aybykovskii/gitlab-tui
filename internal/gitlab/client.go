@@ -549,6 +549,14 @@ func MapDiscussion(item *glab.Discussion) mr.Discussion {
 			Body:     note.Body,
 			Resolved: note.Resolved,
 		})
+		if d.Position == nil && note.Position != nil && note.Position.NewPath != "" {
+			d.Position = &mr.DiffPosition{
+				NewPath: note.Position.NewPath,
+				NewLine: int(note.Position.NewLine),
+				OldPath: note.Position.OldPath,
+				OldLine: int(note.Position.OldLine),
+			}
+		}
 	}
 	if len(d.Notes) == 0 {
 		d.Resolved = true
@@ -581,5 +589,6 @@ func MapChangedFile(item *glab.MergeRequestDiff) mr.ChangedFile {
 		IsRenamed:    item.RenamedFile,
 		AddedLines:   added,
 		RemovedLines: removed,
+		Diff:         rows,
 	}
 }
