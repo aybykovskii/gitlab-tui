@@ -21,6 +21,7 @@ type gitLabClient interface {
 	OpenMergeRequests(ctx context.Context, projectPath string) ([]mr.MergeRequest, error)
 	ListProjectIssues(ctx context.Context, projectPath string, state string, search string) ([]issue.Issue, error)
 	ListIssueDiscussions(ctx context.Context, projectPath string, iid int) ([]issue.Discussion, error)
+	AddIssueComment(ctx context.Context, projectPath string, iid int, body string) error
 	MergeRequestDiff(ctx context.Context, projectPath string, iid int) ([]mr.DiffRow, error)
 	MergeRequestDiscussions(ctx context.Context, projectPath string, iid int) ([]mr.Discussion, error)
 	MergeRequestChangedFiles(ctx context.Context, projectPath string, iid int) ([]mr.ChangedFile, error)
@@ -116,6 +117,12 @@ func buildProjectOptions(cfg *config.Config, configPath string, configLoaded boo
 		loadIssues := func(state string, search string) ([]issue.Issue, error) {
 			return client.ListProjectIssues(context.Background(), projectPath, state, search)
 		}
+		postIssueComment := func(iid int, body string) error {
+			return client.AddIssueComment(context.Background(), projectPath, iid, body)
+		}
+		loadIssueDiscussions := func(iid int) ([]issue.Discussion, error) {
+			return client.ListIssueDiscussions(context.Background(), projectPath, iid)
+		}
 		loadDiff := func(iid int) ([]mr.DiffRow, error) {
 			return client.MergeRequestDiff(context.Background(), projectPath, iid)
 		}
@@ -145,7 +152,7 @@ func buildProjectOptions(cfg *config.Config, configPath string, configLoaded boo
 			}
 		}
 
-		return tui.ProjectData{Items: items, Issues: issues, Refresh: loadMRs, LoadIssues: loadIssues, LoadDiff: loadDiff, LoadDiscussions: loadDiscussions, LoadFiles: loadFiles}, nil
+		return tui.ProjectData{Items: items, Issues: issues, Refresh: loadMRs, LoadIssues: loadIssues, PostIssueComment: postIssueComment, LoadIssueDiscussions: loadIssueDiscussions, LoadDiff: loadDiff, LoadDiscussions: loadDiscussions, LoadFiles: loadFiles}, nil
 	}
 
 	options := tui.ProjectOptions{Path: resolution.Path, Section: intent.Section, EntityID: intent.EntityID, LoadProject: loadProject}

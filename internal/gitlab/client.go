@@ -29,6 +29,7 @@ type IssuesClient interface {
 type DiscussionsClient interface {
 	ListMergeRequestDiscussions(pid any, mergeRequest int64, opt *glab.ListMergeRequestDiscussionsOptions, options ...glab.RequestOptionFunc) ([]*glab.Discussion, *glab.Response, error)
 	ListIssueDiscussions(pid any, issue int64, opt *glab.ListIssueDiscussionsOptions, options ...glab.RequestOptionFunc) ([]*glab.Discussion, *glab.Response, error)
+	CreateIssueDiscussion(pid any, issue int64, opt *glab.CreateIssueDiscussionOptions, options ...glab.RequestOptionFunc) (*glab.Discussion, *glab.Response, error)
 }
 
 type ProjectsClient interface {
@@ -323,6 +324,14 @@ func (c Client) MergeRequestDiscussions(ctx context.Context, projectPath string,
 		opt.Page = response.NextPage
 	}
 	return result, nil
+}
+
+func (c Client) AddIssueComment(ctx context.Context, projectPath string, iid int, body string) error {
+	if c.discussions == nil {
+		return fmt.Errorf("discussions client is not configured")
+	}
+	_, _, err := c.discussions.CreateIssueDiscussion(projectPath, int64(iid), &glab.CreateIssueDiscussionOptions{Body: &body}, glab.WithContext(ctx))
+	return err
 }
 
 func (c Client) ListIssueDiscussions(ctx context.Context, projectPath string, iid int) ([]issue.Discussion, error) {

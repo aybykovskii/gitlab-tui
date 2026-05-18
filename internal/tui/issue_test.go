@@ -7,6 +7,7 @@ import (
 	tea "github.com/charmbracelet/bubbletea"
 
 	"github.com/aybykovskii/gitlab-tui/internal/issue"
+	"github.com/aybykovskii/gitlab-tui/internal/mr"
 )
 
 func TestEnterOnIssuesSectionOpensIssueList(t *testing.T) {
@@ -147,6 +148,79 @@ func TestIssueDetailKeyBarUsesIssueKeys(t *testing.T) {
 	view := model.renderKeyBar()
 	if !strings.Contains(view, "Tab next tab") || strings.Contains(view, "approve") || strings.Contains(view, "merge") {
 		t.Fatalf("expected issue detail local keys, got %q", view)
+	}
+}
+
+func TestIssueDiscussionsTabRendersCommentsAndReplyInput(t *testing.T) {
+	model := NewModelWithProject(nil, ProjectOptions{Path: "group/project", Section: SectionIssues})
+	model.mode = ModeDetail
+	model.activeTab = TabDiscussions
+	model.issueItems = []issue.Issue{{IID: 82, Title: "Issue Discussions"}}
+	model.issueDiscussions = map[int][]issue.Discussion{82: {{ID: "d1", Notes: []mr.Note{{Author: "Alice", Body: "Needs work"}}}}}
+
+	view := model.renderRight()
+	if !strings.Contains(view, "Needs work") {
+		t.Fatalf("expected issue discussion body, got %q", view)
+	}
+
+	updated, _ := model.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune("r")})
+	model = updated.(Model)
+	if !model.replyInput || model.replyDiscussionID != "d1" {
+		t.Fatalf("expected reply input for d1, got input=%t discussion=%q", model.replyInput, model.replyDiscussionID)
+	}
+}
+
+func TestIssueGeneralCommentInputCallsPostIssueComment(t *testing.T) {
+	called := false
+	model := NewModelWithProject(nil, ProjectOptions{
+		Path:    "group/project",
+		Section: SectionIssues,
+		Issues:  []issue.Issue{{IID: 82, Title: "Issue Discussions"}},
+		PostIssueComment: func(iid int, body string) error {
+			called = true
+			if iid != 82 || body != "General comment" {
+				t.Fatalf("unexpected comment iid/body: %d %q", iid, body)
+			}
+			return nil
+		},
+	})
+	model.mode = ModeDetail
+
+	updated, _ := model.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune("m")})
+	model = updated.(Model)
+	updated, _ = model.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune("General comment")})
+	model = updated.(Model)
+	updated, cmd := model.Update(tea.KeyMsg{Type: tea.KeyEnter})
+	model = updated.(Model)
+
+	if model.issueCommentInput {
+		t.Fatal("expected issue comment input to close")
+	}
+	if cmd == nil {
+		t.Fatal("expected issue comment command")
+	}
+	cmd()
+	if !called {
+		t.Fatal("expected PostIssueComment to be called")
+	}
+}
+
+func TestIssueDiscussionsIgnoreResolveAndDraftKeys(t *testing.T) {
+	model := NewModelWithProject(nil, ProjectOptions{Path: "group/project", Section: SectionIssues})
+	model.mode = ModeDetail
+	model.activeTab = TabDiscussions
+	model.issueItems = []issue.Issue{{IID: 82, Title: "Issue Discussions"}}
+	model.issueDiscussions = map[int][]issue.Discussion{82: {{ID: "d1", Notes: []mr.Note{{Author: "Alice", Body: "Needs work"}}}}}
+
+	updated, cmd := model.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune("x")})
+	model = updated.(Model)
+	if cmd != nil || model.issueDiscussions[82][0].Resolved {
+		t.Fatalf("expected x to be ignored, cmd=%v discussion=%+v", cmd, model.issueDiscussions[82][0])
+	}
+	updated, _ = model.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune("d")})
+	model = updated.(Model)
+	if model.replyInput {
+		t.Fatal("expected d to be ignored for issue discussions")
 	}
 }
 

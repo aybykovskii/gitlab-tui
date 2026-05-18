@@ -23,8 +23,10 @@ type fakeIssues struct {
 }
 
 type fakeDiscussions struct {
-	issueIID int64
-	items    []*glab.Discussion
+	issueIID    int64
+	commentIID  int64
+	commentBody string
+	items       []*glab.Discussion
 }
 
 type fakeApprovals struct {
@@ -79,6 +81,14 @@ func (f *fakeDiscussions) ListMergeRequestDiscussions(pid any, mergeRequest int6
 func (f *fakeDiscussions) ListIssueDiscussions(pid any, issue int64, opt *glab.ListIssueDiscussionsOptions, options ...glab.RequestOptionFunc) ([]*glab.Discussion, *glab.Response, error) {
 	f.issueIID = issue
 	return f.items, &glab.Response{}, nil
+}
+
+func (f *fakeDiscussions) CreateIssueDiscussion(pid any, issue int64, opt *glab.CreateIssueDiscussionOptions, options ...glab.RequestOptionFunc) (*glab.Discussion, *glab.Response, error) {
+	f.commentIID = issue
+	if opt != nil && opt.Body != nil {
+		f.commentBody = *opt.Body
+	}
+	return &glab.Discussion{}, &glab.Response{}, nil
 }
 
 func (f fakeApprovals) GetConfiguration(pid any, mergeRequest int64, options ...glab.RequestOptionFunc) (*glab.MergeRequestApprovals, *glab.Response, error) {
@@ -229,6 +239,18 @@ func TestListIssueDiscussionsMapsComments(t *testing.T) {
 	}
 	if len(items[0].Notes) != 1 || items[0].Notes[0].Author != "Alice" || items[0].Notes[0].Body != "Looks good" {
 		t.Fatalf("unexpected notes: %+v", items[0].Notes)
+	}
+}
+
+func TestAddIssueCommentCreatesIssueDiscussion(t *testing.T) {
+	discussions := &fakeDiscussions{}
+	client := NewClientWithDiscussions(discussions)
+
+	if err := client.AddIssueComment(context.Background(), "group/project", 82, "General comment"); err != nil {
+		t.Fatalf("expected no error, got %v", err)
+	}
+	if discussions.commentIID != 82 || discussions.commentBody != "General comment" {
+		t.Fatalf("unexpected issue comment: iid=%d body=%q", discussions.commentIID, discussions.commentBody)
 	}
 }
 

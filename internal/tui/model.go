@@ -65,6 +65,7 @@ const (
 
 type RefreshFunc func() ([]mr.MergeRequest, error)
 type LoadIssuesFunc func(state string, search string) ([]issue.Issue, error)
+type LoadIssueDiscussionsFunc func(iid int) ([]issue.Discussion, error)
 type DiffFunc func(iid int) ([]mr.DiffRow, error)
 type ProjectLoadFunc func(path string) (ProjectData, error)
 type AccountProjectsLoadFunc func() ([]string, error)
@@ -78,6 +79,7 @@ type ResolveDiscussionFunc func(iid int, discussionID string) error
 type UnresolveDiscussionFunc func(iid int, discussionID string) error
 type PostInlineCommentFunc func(iid int, position mr.DiffPosition, body string) error
 type PostMRCommentFunc func(iid int, body string) error
+type PostIssueCommentFunc func(iid int, body string) error
 type ApproveMRFunc func(iid int) error
 type MergeMRFunc func(iid int) error
 type EditMRFunc func(iid int, title, description string) error
@@ -241,13 +243,15 @@ func (k FileDiffKeys) LocalKeys() []key.Binding {
 }
 
 type ProjectData struct {
-	Items           []mr.MergeRequest
-	Issues          []issue.Issue
-	Refresh         RefreshFunc
-	LoadIssues      LoadIssuesFunc
-	LoadDiff        DiffFunc
-	LoadDiscussions LoadDiscussionsFunc
-	LoadFiles       LoadFilesFunc
+	Items                []mr.MergeRequest
+	Issues               []issue.Issue
+	Refresh              RefreshFunc
+	LoadIssues           LoadIssuesFunc
+	PostIssueComment     PostIssueCommentFunc
+	LoadIssueDiscussions LoadIssueDiscussionsFunc
+	LoadDiff             DiffFunc
+	LoadDiscussions      LoadDiscussionsFunc
+	LoadFiles            LoadFilesFunc
 }
 
 type AccountProjectLoader struct {
@@ -262,33 +266,35 @@ type RecentProjectOption struct {
 }
 
 type ProjectOptions struct {
-	Path                string
-	Recents             []string
-	RecentProjects      []RecentProjectOption
-	Projects            []string
-	LoadProjects        []AccountProjectLoader
-	Section             Section
-	EntityID            string
-	Issues              []issue.Issue
-	Refresh             RefreshFunc
-	LoadIssues          LoadIssuesFunc
-	LoadDiff            DiffFunc
-	LoadProject         ProjectLoadFunc
-	LoadDiscussions     LoadDiscussionsFunc
-	LoadFiles           LoadFilesFunc
-	SubmitDrafts        SubmitDraftsFunc
-	DiscardDrafts       DiscardDraftsFunc
-	ReplyToDiscussion   ReplyToDiscussionFunc
-	DraftReply          DraftReplyFunc
-	ResolveDiscussion   ResolveDiscussionFunc
-	UnresolveDiscussion UnresolveDiscussionFunc
-	PostInlineComment   PostInlineCommentFunc
-	PostMRComment       PostMRCommentFunc
-	ApproveMR           ApproveMRFunc
-	MergeMR             MergeMRFunc
-	EditMR              EditMRFunc
-	OpenURL             OpenURLFunc
-	OpenEditor          OpenEditorFunc
+	Path                 string
+	Recents              []string
+	RecentProjects       []RecentProjectOption
+	Projects             []string
+	LoadProjects         []AccountProjectLoader
+	Section              Section
+	EntityID             string
+	Issues               []issue.Issue
+	Refresh              RefreshFunc
+	LoadIssues           LoadIssuesFunc
+	LoadDiff             DiffFunc
+	LoadProject          ProjectLoadFunc
+	LoadDiscussions      LoadDiscussionsFunc
+	LoadFiles            LoadFilesFunc
+	SubmitDrafts         SubmitDraftsFunc
+	DiscardDrafts        DiscardDraftsFunc
+	ReplyToDiscussion    ReplyToDiscussionFunc
+	DraftReply           DraftReplyFunc
+	ResolveDiscussion    ResolveDiscussionFunc
+	UnresolveDiscussion  UnresolveDiscussionFunc
+	PostInlineComment    PostInlineCommentFunc
+	PostMRComment        PostMRCommentFunc
+	PostIssueComment     PostIssueCommentFunc
+	LoadIssueDiscussions LoadIssueDiscussionsFunc
+	ApproveMR            ApproveMRFunc
+	MergeMR              MergeMRFunc
+	EditMR               EditMRFunc
+	OpenURL              OpenURLFunc
+	OpenEditor           OpenEditorFunc
 }
 
 type projectStartedMsg struct {
@@ -413,6 +419,12 @@ type issuesFinishedMsg struct {
 	err   error
 }
 
+type issueDiscussionsFinishedMsg struct {
+	iid         int
+	discussions []issue.Discussion
+	err         error
+}
+
 type diffStartedMsg struct{}
 
 type diffFinishedMsg struct {
@@ -445,6 +457,7 @@ type Model struct {
 	projectLoaded        bool
 	activeTab            DetailTab
 	discussions          map[int][]mr.Discussion
+	issueDiscussions     map[int][]issue.Discussion
 	changedFiles         map[int][]mr.ChangedFile
 	selectedFile         int
 	fileDiffTop          int
@@ -457,6 +470,9 @@ type Model struct {
 	mrCommentInput       bool
 	mrCommentBuffer      string
 	mrCommentError       string
+	issueCommentInput    bool
+	issueCommentBuffer   string
+	issueCommentError    string
 	mergeConfirmPending  bool
 	editInput            bool
 	editField            string
@@ -465,6 +481,8 @@ type Model struct {
 	actionError          string
 	postInlineComment    PostInlineCommentFunc
 	postMRComment        PostMRCommentFunc
+	postIssueComment     PostIssueCommentFunc
+	loadIssueDiscussions LoadIssueDiscussionsFunc
 	approveMR            ApproveMRFunc
 	mergeMR              MergeMRFunc
 	editMR               EditMRFunc
@@ -542,6 +560,7 @@ func NewModelWithProject(items []mr.MergeRequest, options ProjectOptions) Model 
 		loadDiscussions:      options.LoadDiscussions,
 		loadFiles:            options.LoadFiles,
 		discussions:          map[int][]mr.Discussion{},
+		issueDiscussions:     map[int][]issue.Discussion{},
 		changedFiles:         map[int][]mr.ChangedFile{},
 		drafts:               map[int][]mr.DraftComment{},
 		rangeStart:           -1,
@@ -553,6 +572,8 @@ func NewModelWithProject(items []mr.MergeRequest, options ProjectOptions) Model 
 		unresolveDiscussion:  options.UnresolveDiscussion,
 		postInlineComment:    options.PostInlineComment,
 		postMRComment:        options.PostMRComment,
+		postIssueComment:     options.PostIssueComment,
+		loadIssueDiscussions: options.LoadIssueDiscussions,
 		approveMR:            options.ApproveMR,
 		mergeMR:              options.MergeMR,
 		editMR:               options.EditMR,
@@ -663,6 +684,8 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.issueItems = msg.data.Issues
 		m.refresh = msg.data.Refresh
 		m.loadIssues = msg.data.LoadIssues
+		m.postIssueComment = msg.data.PostIssueComment
+		m.loadIssueDiscussions = msg.data.LoadIssueDiscussions
 		m.loadDiff = msg.data.LoadDiff
 		m.loadDiscussions = msg.data.LoadDiscussions
 		m.loadFiles = msg.data.LoadFiles
@@ -817,6 +840,13 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.issueItems = msg.items
 		m.selected = clampSelection(m.selected, len(m.filteredIssues()))
 		m.listTop = 0
+		return m, nil
+	case issueDiscussionsFinishedMsg:
+		if msg.err != nil {
+			m.discussionsError = msg.err.Error()
+			return m, nil
+		}
+		m.issueDiscussions[msg.iid] = msg.discussions
 		return m, nil
 	case diffStartedMsg:
 		m.diffLoading = true
@@ -1257,6 +1287,9 @@ func (m Model) updateKey(msg tea.KeyMsg) (Model, tea.Cmd) {
 		return m.updateMREdit(msg)
 	}
 
+	if m.mode == ModeDetail && m.issueCommentInput {
+		return m.updateIssueCommentInput(msg)
+	}
 	if m.mode == ModeDetail && m.mrCommentInput {
 		return m.updateMRCommentInput(msg)
 	}
@@ -1266,7 +1299,10 @@ func (m Model) updateKey(msg tea.KeyMsg) (Model, tea.Cmd) {
 		return m, nil
 	}
 
-	if m.mode == ModeDetail && m.activeTab == TabDiscussions && m.section != SectionIssues {
+	if m.mode == ModeDetail && m.activeTab == TabDiscussions && msg.String() != "tab" {
+		if m.section == SectionIssues {
+			return m.updateIssueDiscussionsTab(msg)
+		}
 		return m.updateDiscussionsTab(msg)
 	}
 
@@ -1292,9 +1328,15 @@ func (m Model) updateKey(msg tea.KeyMsg) (Model, tea.Cmd) {
 		return m, m.refreshCommand()
 	case msg.String() == "m":
 		if m.mode == ModeDetail {
-			m.mrCommentInput = true
-			m.mrCommentBuffer = ""
-			m.mrCommentError = ""
+			if m.section == SectionIssues {
+				m.issueCommentInput = true
+				m.issueCommentBuffer = ""
+				m.issueCommentError = ""
+			} else {
+				m.mrCommentInput = true
+				m.mrCommentBuffer = ""
+				m.mrCommentError = ""
+			}
 		}
 	case msg.String() == "A":
 		if m.mode == ModeDetail {
@@ -1351,7 +1393,7 @@ func (m Model) updateKey(msg tea.KeyMsg) (Model, tea.Cmd) {
 		if m.mode == ModeDetail {
 			if m.section == SectionIssues {
 				m.activeTab = (m.activeTab + 1) % (TabDiscussions + 1)
-				return m, nil
+				return m, m.loadIssueDiscussionsCommand()
 			}
 			m.activeTab = (m.activeTab + 1) % (TabFiles + 1)
 			return m.onTabEntered()
@@ -1428,6 +1470,35 @@ func (m Model) updateMREdit(msg tea.KeyMsg) (Model, tea.Cmd) {
 	return m, nil
 }
 
+func (m Model) updateIssueCommentInput(msg tea.KeyMsg) (Model, tea.Cmd) {
+	switch msg.Type {
+	case tea.KeyEsc:
+		m.issueCommentInput = false
+		m.issueCommentBuffer = ""
+	case tea.KeyBackspace:
+		if len(m.issueCommentBuffer) > 0 {
+			m.issueCommentBuffer = m.issueCommentBuffer[:len(m.issueCommentBuffer)-1]
+		}
+	case tea.KeyRunes:
+		m.issueCommentBuffer += msg.String()
+	case tea.KeyEnter:
+		body := m.issueCommentBuffer
+		m.issueCommentInput = false
+		m.issueCommentBuffer = ""
+		item, ok := m.selectedIssue()
+		if !ok || m.postIssueComment == nil {
+			return m, nil
+		}
+		fn := m.postIssueComment
+		iid := item.IID
+		return m, func() tea.Msg {
+			err := fn(iid, body)
+			return mrCommentFinishedMsg{iid: iid, err: err}
+		}
+	}
+	return m, nil
+}
+
 func (m Model) updateMRCommentInput(msg tea.KeyMsg) (Model, tea.Cmd) {
 	switch msg.Type {
 	case tea.KeyEsc:
@@ -1457,6 +1528,26 @@ func (m Model) updateMRCommentInput(msg tea.KeyMsg) (Model, tea.Cmd) {
 	return m, nil
 }
 
+func (m Model) selectedIssue() (issue.Issue, bool) {
+	items := m.filteredIssues()
+	if len(items) == 0 {
+		return issue.Issue{}, false
+	}
+	return items[clampSelection(m.selected, len(items))], true
+}
+
+func (m Model) focusedIssueDiscussion() (issue.Discussion, bool) {
+	item, ok := m.selectedIssue()
+	if !ok {
+		return issue.Discussion{}, false
+	}
+	ds := m.issueDiscussions[item.IID]
+	if m.discussionCursor < 0 || m.discussionCursor >= len(ds) {
+		return issue.Discussion{}, false
+	}
+	return ds[m.discussionCursor], true
+}
+
 func (m Model) focusedDiscussion() (mr.Discussion, bool) {
 	item, ok := m.selectedItem()
 	if !ok {
@@ -1467,6 +1558,46 @@ func (m Model) focusedDiscussion() (mr.Discussion, bool) {
 		return mr.Discussion{}, false
 	}
 	return ds[m.discussionCursor], true
+}
+
+func (m Model) updateIssueDiscussionsTab(msg tea.KeyMsg) (Model, tea.Cmd) {
+	if m.replyInput {
+		switch msg.Type {
+		case tea.KeyEsc:
+			m.replyInput = false
+			m.replyBuffer = ""
+			m.replyDiscussionID = ""
+		case tea.KeyBackspace:
+			if len(m.replyBuffer) > 0 {
+				m.replyBuffer = m.replyBuffer[:len(m.replyBuffer)-1]
+			}
+		case tea.KeyRunes:
+			m.replyBuffer += msg.String()
+		case tea.KeyEnter:
+			m.replyInput = false
+			m.replyBuffer = ""
+			m.replyDiscussionID = ""
+		}
+		return m, nil
+	}
+
+	switch {
+	case msg.String() == "j" || msg.String() == "down":
+		if item, ok := m.selectedIssue(); ok {
+			count := len(m.issueDiscussions[item.IID])
+			m.discussionCursor = clamp(m.discussionCursor+1, 0, max(0, count-1))
+		}
+	case msg.String() == "k" || msg.String() == "up":
+		m.discussionCursor = clamp(m.discussionCursor-1, 0, max(0, m.discussionCursor))
+	case msg.String() == "r":
+		if d, ok := m.focusedIssueDiscussion(); ok {
+			m.replyInput = true
+			m.replyDraft = false
+			m.replyDiscussionID = d.ID
+			m.replyBuffer = ""
+		}
+	}
+	return m, nil
 }
 
 func (m Model) updateDiscussionsTab(msg tea.KeyMsg) (Model, tea.Cmd) {
@@ -1714,6 +1845,22 @@ func (m Model) loadIssuesCommand() tea.Cmd {
 			return issuesFinishedMsg{items: items, err: err}
 		},
 	)
+}
+
+func (m Model) loadIssueDiscussionsCommand() tea.Cmd {
+	if m.activeTab != TabDiscussions || m.loadIssueDiscussions == nil {
+		return nil
+	}
+	item, ok := m.selectedIssue()
+	if !ok {
+		return nil
+	}
+	load := m.loadIssueDiscussions
+	iid := item.IID
+	return func() tea.Msg {
+		discussions, err := load(iid)
+		return issueDiscussionsFinishedMsg{iid: iid, discussions: discussions, err: err}
+	}
 }
 
 func (m Model) updateMouse(msg tea.MouseMsg) (Model, tea.Cmd) {
@@ -1979,7 +2126,7 @@ func (m Model) issueListLines(height int) []string {
 }
 
 func (m Model) inputActive() bool {
-	return m.projectFilterActive || m.mode == ModeProjectInput || m.commentInput || m.mrCommentInput || m.editInput || m.replyInput || m.focus == FocusFilter
+	return m.projectFilterActive || m.mode == ModeProjectInput || m.commentInput || m.mrCommentInput || m.issueCommentInput || m.editInput || m.replyInput || m.focus == FocusFilter
 }
 
 func (m *Model) syncGlobalKeys() {
@@ -2355,7 +2502,7 @@ func (m Model) renderIssueDetail() string {
 	}
 	header := fmt.Sprintf("#%d %s\n%s", item.IID, item.Title, tabs)
 	if m.activeTab == TabDiscussions {
-		return header + "\n\nDiscussions coming soon"
+		return header + "\n\n" + m.renderIssueDiscussions(item)
 	}
 	lines := []string{
 		header,
@@ -2368,7 +2515,44 @@ func (m Model) renderIssueDetail() string {
 	if item.Weight > 0 {
 		lines = append(lines, fmt.Sprintf("⚖️ Weight: %d", item.Weight))
 	}
-	lines = append(lines, "", item.Description)
+	if m.issueCommentInput {
+		lines = append(lines, "", "Issue comment: "+m.issueCommentBuffer+"█")
+	} else {
+		lines = append(lines, "", item.Description)
+	}
+	return strings.Join(lines, "\n")
+}
+
+func (m Model) renderIssueDiscussions(item issue.Issue) string {
+	discussions, loaded := m.issueDiscussions[item.IID]
+	if !loaded {
+		return "No discussions"
+	}
+	if len(discussions) == 0 {
+		return "No discussions"
+	}
+	lines := []string{}
+	for i, d := range discussions {
+		cursor := "  "
+		if i == m.discussionCursor {
+			cursor = "> "
+		}
+		firstAuthor := ""
+		if len(d.Notes) > 0 {
+			firstAuthor = d.Notes[0].Author
+		}
+		lines = append(lines, cursor+firstAuthor)
+		for j, note := range d.Notes {
+			if j == 0 {
+				lines = append(lines, "  "+note.Body)
+			} else {
+				lines = append(lines, "  ↳ "+note.Author+": "+note.Body)
+			}
+		}
+	}
+	if m.replyInput {
+		lines = append(lines, "", "Reply: "+m.replyBuffer+"█")
+	}
 	return strings.Join(lines, "\n")
 }
 
