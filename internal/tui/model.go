@@ -146,13 +146,15 @@ type DiffViewKeys struct {
 }
 
 type FileDiffKeys struct {
-	PrevFile            key.Binding
-	NextFile            key.Binding
-	Up                  key.Binding
-	Down                key.Binding
-	Comment             key.Binding
-	Reply               key.Binding
-	ToggleThreadPanel   key.Binding
+	PrevFile          key.Binding
+	NextFile          key.Binding
+	Up                key.Binding
+	Down              key.Binding
+	Comment           key.Binding
+	Reply             key.Binding
+	ToggleThreadPanel key.Binding
+	PrevThread        key.Binding
+	NextThread        key.Binding
 }
 
 func newGlobalKeys() GlobalKeys {
@@ -248,11 +250,13 @@ func newFileDiffKeys() FileDiffKeys {
 		Comment:           key.NewBinding(key.WithKeys("i", "c"), key.WithHelp("i/c", "comment")),
 		Reply:             key.NewBinding(key.WithKeys("r"), key.WithHelp("r", "reply")),
 		ToggleThreadPanel: key.NewBinding(key.WithKeys("t"), key.WithHelp("t", "thread")),
+		PrevThread:        key.NewBinding(key.WithKeys("["), key.WithHelp("[", "prev thread")),
+		NextThread:        key.NewBinding(key.WithKeys("]"), key.WithHelp("]", "next thread")),
 	}
 }
 
 func (k FileDiffKeys) LocalKeys() []key.Binding {
-	return []key.Binding{k.PrevFile, k.NextFile, k.Up, k.Down, k.Comment, k.Reply, k.ToggleThreadPanel}
+	return []key.Binding{k.PrevFile, k.NextFile, k.Up, k.Down, k.Comment, k.Reply, k.ToggleThreadPanel, k.PrevThread, k.NextThread}
 }
 
 type ProjectData struct {
@@ -596,6 +600,7 @@ type Model struct {
 	errorMessage         string
 	keyBarExpanded       bool
 	threadPanelVisible   bool
+	threadPanelCursor    int
 	globals              GlobalKeys
 	projectListKeys      ProjectListKeys
 }
@@ -1306,12 +1311,14 @@ func (m Model) updateKey(msg tea.KeyMsg) (Model, tea.Cmd) {
 				rowCount = len(files[m.selectedFile].Diff)
 			}
 			m.diffCursor = clamp(m.diffCursor-1, 0, max(0, rowCount-1))
+			m.threadPanelCursor = 0
 		case "down", "j":
 			rowCount := 0
 			if len(files) > m.selectedFile {
 				rowCount = len(files[m.selectedFile].Diff)
 			}
 			m.diffCursor = clamp(m.diffCursor+1, 0, max(0, rowCount-1))
+			m.threadPanelCursor = 0
 		case "v":
 			if m.rangeStart >= 0 {
 				m.rangeStart = -1
@@ -1330,69 +1337,50 @@ func (m Model) updateKey(msg tea.KeyMsg) (Model, tea.Cmd) {
 			m.commentError = ""
 		case "r", "d":
 			isDraft := msg.String() == "d"
-			item, ok := m.selectedItem()
-			if !ok {
-				break
-			}
-			files := m.currentFiles()
-			if len(files) <= m.selectedFile {
-				break
-			}
-			file := files[m.selectedFile]
-			if m.diffCursor >= len(file.Diff) {
-				break
-			}
-			row := file.Diff[m.diffCursor]
-			ds := m.discussions[item.IID]
-			for _, d := range ds {
-				if d.Position != nil && d.Position.NewPath == file.Path && d.Position.NewLine == row.NewLine && row.NewLine != 0 {
-					m.replyInput = true
-					m.replyDraft = isDraft
-					m.replyDiscussionID = d.ID
-					m.replyBuffer = ""
-					break
-				}
+			ds := m.discussionsAtCursor()
+			if len(ds) > 0 {
+				idx := clamp(m.threadPanelCursor, 0, len(ds)-1)
+				m.replyInput = true
+				m.replyDraft = isDraft
+				m.replyDiscussionID = ds[idx].ID
+				m.replyBuffer = ""
 			}
 		case "x":
 			item, ok := m.selectedItem()
 			if !ok {
 				break
 			}
-			files := m.currentFiles()
-			if len(files) <= m.selectedFile {
+			ds := m.discussionsAtCursor()
+			if len(ds) == 0 {
 				break
 			}
-			file := files[m.selectedFile]
-			if m.diffCursor >= len(file.Diff) {
-				break
-			}
-			row := file.Diff[m.diffCursor]
-			ds := m.discussions[item.IID]
-			for i, d := range ds {
-				if d.Position != nil && d.Position.NewPath == file.Path && d.Position.NewLine == row.NewLine && row.NewLine != 0 {
-					iid := item.IID
-					dID := d.ID
-					resolved := !d.Resolved
-					if resolved {
-						fn := m.resolveDiscussion
-						if fn == nil {
-							m.discussions[iid][i].Resolved = true
-							return m, nil
-						}
-						return m, func() tea.Msg {
-							err := fn(iid, dID)
-							return resolveFinishedMsg{iid: iid, discussionID: dID, resolved: true, err: err}
-						}
-					}
-					fn := m.unresolveDiscussion
+			idx := clamp(m.threadPanelCursor, 0, len(ds)-1)
+			activeID := ds[idx].ID
+			iid := item.IID
+			for i, d := range m.discussions[iid] {
+				if d.ID != activeID {
+					continue
+				}
+				resolved := !d.Resolved
+				if resolved {
+					fn := m.resolveDiscussion
 					if fn == nil {
-						m.discussions[iid][i].Resolved = false
+						m.discussions[iid][i].Resolved = true
 						return m, nil
 					}
 					return m, func() tea.Msg {
-						err := fn(iid, dID)
-						return resolveFinishedMsg{iid: iid, discussionID: dID, resolved: false, err: err}
+						err := fn(iid, activeID)
+						return resolveFinishedMsg{iid: iid, discussionID: activeID, resolved: true, err: err}
 					}
+				}
+				fn := m.unresolveDiscussion
+				if fn == nil {
+					m.discussions[iid][i].Resolved = false
+					return m, nil
+				}
+				return m, func() tea.Msg {
+					err := fn(iid, activeID)
+					return resolveFinishedMsg{iid: iid, discussionID: activeID, resolved: false, err: err}
 				}
 			}
 		case "p":
@@ -1440,6 +1428,15 @@ func (m Model) updateKey(msg tea.KeyMsg) (Model, tea.Cmd) {
 			}
 		case "t":
 			m.threadPanelVisible = !m.threadPanelVisible
+		case "[":
+			if m.threadPanelCursor > 0 {
+				m.threadPanelCursor--
+			}
+		case "]":
+			ds := m.discussionsAtCursor()
+			if m.threadPanelCursor < len(ds)-1 {
+				m.threadPanelCursor++
+			}
 		case "esc", "backspace":
 			if m.rangeStart >= 0 {
 				m.rangeStart = -1
@@ -3342,9 +3339,10 @@ func (m Model) renderFileDiffPane() string {
 	}
 
 	discussion, draft := m.threadAtCursor()
+	allDiscussions := m.discussionsAtCursor()
 	var panelLines []string
 	if (discussion != nil || draft != nil) && m.threadPanelVisible {
-		panelLines = m.renderThreadPanelLines(discussion, draft, width-4)
+		panelLines = m.renderThreadPanelLines(discussion, draft, len(allDiscussions), width-4)
 	}
 
 	diffHeight := max(1, height-2-len(inputLines)-len(panelLines))
@@ -3406,28 +3404,50 @@ func (m Model) isActiveDraftRangeRow(index int) bool {
 	return index >= start && index <= end
 }
 
-func (m Model) threadAtCursor() (*mr.Discussion, *mr.DraftComment) {
+func (m Model) cursorRow() (mr.ChangedFile, mr.DiffRow, bool) {
 	files := m.currentFiles()
 	if len(files) <= m.selectedFile {
-		return nil, nil
+		return mr.ChangedFile{}, mr.DiffRow{}, false
 	}
 	file := files[m.selectedFile]
 	if m.diffCursor >= len(file.Diff) {
-		return nil, nil
+		return mr.ChangedFile{}, mr.DiffRow{}, false
 	}
-	row := file.Diff[m.diffCursor]
-	if row.NewLine == 0 {
+	return file, file.Diff[m.diffCursor], true
+}
+
+func (m Model) discussionsAtCursor() []mr.Discussion {
+	file, row, ok := m.cursorRow()
+	if !ok || row.NewLine == 0 {
+		return nil
+	}
+	item, ok := m.selectedItem()
+	if !ok {
+		return nil
+	}
+	var result []mr.Discussion
+	for _, d := range m.discussions[item.IID] {
+		if d.Position != nil && d.Position.NewPath == file.Path && d.Position.NewLine == row.NewLine {
+			result = append(result, d)
+		}
+	}
+	return result
+}
+
+func (m Model) threadAtCursor() (*mr.Discussion, *mr.DraftComment) {
+	ds := m.discussionsAtCursor()
+	if len(ds) > 0 {
+		idx := clamp(m.threadPanelCursor, 0, len(ds)-1)
+		d := ds[idx]
+		return &d, nil
+	}
+	file, row, ok := m.cursorRow()
+	if !ok || row.NewLine == 0 {
 		return nil, nil
 	}
 	item, ok := m.selectedItem()
 	if !ok {
 		return nil, nil
-	}
-	for i := range m.discussions[item.IID] {
-		d := &m.discussions[item.IID][i]
-		if d.Position != nil && d.Position.NewPath == file.Path && d.Position.NewLine == row.NewLine {
-			return d, nil
-		}
 	}
 	for i := range m.drafts[item.IID] {
 		dr := &m.drafts[item.IID][i]
@@ -3438,19 +3458,23 @@ func (m Model) threadAtCursor() (*mr.Discussion, *mr.DraftComment) {
 	return nil, nil
 }
 
-func (m Model) renderThreadPanelLines(discussion *mr.Discussion, draft *mr.DraftComment, width int) []string {
+func (m Model) renderThreadPanelLines(discussion *mr.Discussion, draft *mr.DraftComment, total int, width int) []string {
 	sep := strings.Repeat("─", max(4, width))
 	dimStyle := lipgloss.NewStyle().Foreground(lipgloss.Color("240"))
 	var lines []string
 	lines = append(lines, sep)
 	if discussion != nil {
+		header := "Discussion"
+		if total > 1 {
+			header = fmt.Sprintf("Discussion [%d/%d  [/]: switch]", m.threadPanelCursor+1, total)
+		}
 		if discussion.Resolved {
-			lines = append(lines, dimStyle.Render("✅ Discussion (resolved)"))
+			lines = append(lines, dimStyle.Render("✅ "+header+" (resolved)"))
 			for _, n := range discussion.Notes {
 				lines = append(lines, dimStyle.Render(fmt.Sprintf("  %s: %s", n.Author, n.Body)))
 			}
 		} else {
-			lines = append(lines, "Discussion")
+			lines = append(lines, header)
 			for _, n := range discussion.Notes {
 				lines = append(lines, fmt.Sprintf("  %s: %s", n.Author, n.Body))
 			}
