@@ -22,8 +22,13 @@ type MergeRequestApprovalsClient interface {
 	GetConfiguration(pid any, mr int64, options ...glab.RequestOptionFunc) (*glab.MergeRequestApprovals, *glab.Response, error)
 }
 
+type IssuesClient interface {
+	ListProjectIssues(pid any, opt *glab.ListProjectIssuesOptions, options ...glab.RequestOptionFunc) ([]*glab.Issue, *glab.Response, error)
+}
+
 type DiscussionsClient interface {
 	ListMergeRequestDiscussions(pid any, mergeRequest int64, opt *glab.ListMergeRequestDiscussionsOptions, options ...glab.RequestOptionFunc) ([]*glab.Discussion, *glab.Response, error)
+	ListIssueDiscussions(pid any, issue int64, opt *glab.ListIssueDiscussionsOptions, options ...glab.RequestOptionFunc) ([]*glab.Discussion, *glab.Response, error)
 }
 
 type ProjectsClient interface {
@@ -35,6 +40,7 @@ type Client struct {
 	approvals     MergeRequestApprovalsClient
 	discussions   DiscussionsClient
 	projects      ProjectsClient
+	issues        IssuesClient
 }
 
 func NewClient(account config.Account, env []string) (Client, error) {
@@ -48,7 +54,7 @@ func NewClient(account config.Account, env []string) (Client, error) {
 		return Client{}, err
 	}
 
-	return Client{mergeRequests: client.MergeRequests, approvals: client.MergeRequestApprovals, discussions: client.Discussions, projects: client.Projects}, nil
+	return Client{mergeRequests: client.MergeRequests, approvals: client.MergeRequestApprovals, discussions: client.Discussions, projects: client.Projects, issues: client.Issues}, nil
 }
 
 func NewClientWithMergeRequests(mergeRequests MergeRequestClient) Client {
@@ -57,6 +63,14 @@ func NewClientWithMergeRequests(mergeRequests MergeRequestClient) Client {
 
 func NewClientWithProjects(projects ProjectsClient) Client {
 	return Client{projects: projects}
+}
+
+func NewClientWithIssues(issues IssuesClient) Client {
+	return Client{issues: issues}
+}
+
+func NewClientWithDiscussions(discussions DiscussionsClient) Client {
+	return Client{discussions: discussions}
 }
 
 func NewClientWithServices(mergeRequests MergeRequestClient, approvals MergeRequestApprovalsClient) Client {
@@ -127,6 +141,31 @@ func (c Client) OpenMergeRequests(ctx context.Context, projectPath string) ([]mr
 		options.Page = response.NextPage
 	}
 
+	return result, nil
+}
+
+func (c Client) ListProjectIssues(ctx context.Context, projectPath string, state string, search string) ([]issue.Issue, error) {
+	if c.issues == nil {
+		return nil, fmt.Errorf("issues client is not configured")
+	}
+
+	options := &glab.ListProjectIssuesOptions{
+		State:  &state,
+		Search: &search,
+		ListOptions: glab.ListOptions{
+			PerPage: 50,
+			Page:    1,
+		},
+	}
+	items, _, err := c.issues.ListProjectIssues(projectPath, options, glab.WithContext(ctx))
+	if err != nil {
+		return nil, err
+	}
+
+	result := make([]issue.Issue, 0, len(items))
+	for _, item := range items {
+		result = append(result, MapIssue(item))
+	}
 	return result, nil
 }
 
@@ -269,6 +308,33 @@ func (c Client) MergeRequestDiscussions(ctx context.Context, projectPath string,
 	var result []mr.Discussion
 	for {
 		items, response, err := c.discussions.ListMergeRequestDiscussions(projectPath, int64(iid), opt, glab.WithContext(ctx))
+		if err != nil {
+			return nil, err
+		}
+		for _, item := range items {
+			d := MapDiscussion(item)
+			if len(d.Notes) > 0 {
+				result = append(result, d)
+			}
+		}
+		if response == nil || response.NextPage == 0 {
+			break
+		}
+		opt.Page = response.NextPage
+	}
+	return result, nil
+}
+
+func (c Client) ListIssueDiscussions(ctx context.Context, projectPath string, iid int) ([]issue.Discussion, error) {
+	if c.discussions == nil {
+		return nil, fmt.Errorf("discussions client is not configured")
+	}
+	opt := &glab.ListIssueDiscussionsOptions{
+		ListOptions: glab.ListOptions{PerPage: 100, Page: 1},
+	}
+	var result []issue.Discussion
+	for {
+		items, response, err := c.discussions.ListIssueDiscussions(projectPath, int64(iid), opt, glab.WithContext(ctx))
 		if err != nil {
 			return nil, err
 		}
