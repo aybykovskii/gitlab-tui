@@ -15,6 +15,16 @@ import (
 	"github.com/aybykovskii/gitlab-tui/internal/tui"
 )
 
+type gitLabClient interface {
+	ListProjects(ctx context.Context, limit int) ([]string, error)
+	OpenMergeRequests(ctx context.Context, projectPath string) ([]mr.MergeRequest, error)
+	MergeRequestDiff(ctx context.Context, projectPath string, iid int) ([]mr.DiffRow, error)
+	MergeRequestDiscussions(ctx context.Context, projectPath string, iid int) ([]mr.Discussion, error)
+	MergeRequestChangedFiles(ctx context.Context, projectPath string, iid int) ([]mr.ChangedFile, error)
+}
+
+type gitLabClientFactory func(config.Account) (gitLabClient, error)
+
 type App struct {
 	version string
 	env     []string
@@ -72,12 +82,28 @@ func (a App) runTUI(stdout io.Writer, stderr io.Writer, intent CLIIntent) int {
 		return 1
 	}
 	resolution := ProjectResolver{Config: cfg, Remotes: gitremote.CommandRunner{Dir: cwd}, ProjectOverride: intent.ProjectOverride}.Resolve()
+	options := buildProjectOptions(&cfg, configPath, configLoaded, resolution, intent, func(account config.Account) (gitLabClient, error) {
+		client, err := gitlabclient.NewClient(account, a.env)
+		if err != nil {
+			return nil, err
+		}
+		return client, nil
+	})
+
+	if err := tui.RunWithProject(stdout, options); err != nil {
+		fmt.Fprintf(stderr, "run TUI: %v\n", err)
+		return 1
+	}
+	return 0
+}
+
+func buildProjectOptions(cfg *config.Config, configPath string, configLoaded bool, resolution ProjectResolution, intent CLIIntent, newClient gitLabClientFactory) tui.ProjectOptions {
 	loadProject := func(projectPath string) (tui.ProjectData, error) {
 		account, ok := cfg.Account(resolution.Account)
 		if !ok {
 			return tui.ProjectData{}, fmt.Errorf("account %q not found", resolution.Account)
 		}
-		client, err := gitlabclient.NewClient(account, a.env)
+		client, err := newClient(account)
 		if err != nil {
 			return tui.ProjectData{}, fmt.Errorf("create GitLab client: %w", err)
 		}
@@ -97,17 +123,19 @@ func (a App) runTUI(stdout io.Writer, stderr io.Writer, intent CLIIntent) int {
 		if err != nil {
 			return tui.ProjectData{}, fmt.Errorf("load merge requests: %w", err)
 		}
-		RememberResolvedProject(&cfg, resolution.Account, projectPath, time.Now())
+		RememberResolvedProject(cfg, resolution.Account, projectPath, time.Now())
 		if configLoaded {
-			if err := config.Save(configPath, cfg); err != nil {
+			if err := config.Save(configPath, *cfg); err != nil {
 				return tui.ProjectData{}, fmt.Errorf("save recent project: %w", err)
 			}
 		}
 
 		return tui.ProjectData{Items: items, Refresh: loadMRs, LoadDiff: loadDiff, LoadDiscussions: loadDiscussions, LoadFiles: loadFiles}, nil
 	}
+
 	options := tui.ProjectOptions{Path: resolution.Path, Section: intent.Section, EntityID: intent.EntityID, LoadProject: loadProject}
 	for _, recent := range cfg.RecentProjects() {
+		options.Recents = append(options.Recents, recent.Path)
 		options.RecentProjects = append(options.RecentProjects, tui.RecentProjectOption{Path: recent.Path, Account: recent.Account})
 	}
 	for _, account := range cfg.Accounts {
@@ -116,7 +144,7 @@ func (a App) runTUI(stdout io.Writer, stderr io.Writer, intent CLIIntent) int {
 			ID:   account.ID,
 			Host: account.Host,
 			Load: func() ([]string, error) {
-				client, err := gitlabclient.NewClient(account, a.env)
+				client, err := newClient(account)
 				if err != nil {
 					return nil, fmt.Errorf("create GitLab client: %w", err)
 				}
@@ -124,12 +152,7 @@ func (a App) runTUI(stdout io.Writer, stderr io.Writer, intent CLIIntent) int {
 			},
 		})
 	}
-
-	if err := tui.RunWithProject(stdout, options); err != nil {
-		fmt.Fprintf(stderr, "run TUI: %v\n", err)
-		return 1
-	}
-	return 0
+	return options
 }
 
 func (a App) runInit(stdout io.Writer, stderr io.Writer) int {
