@@ -1,6 +1,7 @@
 package tui
 
 import (
+	"bytes"
 	"errors"
 	"strings"
 	"testing"
@@ -11,6 +12,29 @@ import (
 	"github.com/aybykovskii/gitlab-tui/internal/config"
 	"github.com/aybykovskii/gitlab-tui/internal/mr"
 )
+
+type quitModel struct{}
+
+func (quitModel) Init() tea.Cmd { return tea.Quit }
+func (quitModel) Update(tea.Msg) (tea.Model, tea.Cmd) { return quitModel{}, nil }
+func (quitModel) View() string { return "full screen" }
+
+func TestProgramUsesAltScreen(t *testing.T) {
+	var stdout bytes.Buffer
+	program := tea.NewProgram(quitModel{}, append(programOptions(&stdout), tea.WithInput(bytes.NewBuffer(nil)))...)
+
+	if _, err := program.Run(); err != nil {
+		t.Fatalf("expected program to run: %v", err)
+	}
+
+	output := stdout.String()
+	if !strings.Contains(output, "\x1b[?1049h") {
+		t.Fatalf("expected program to enter alternate screen, got %q", output)
+	}
+	if !strings.Contains(output, "\x1b[?1049l") {
+		t.Fatalf("expected program to leave alternate screen, got %q", output)
+	}
+}
 
 var errTestRefresh = errors.New("refresh failed")
 

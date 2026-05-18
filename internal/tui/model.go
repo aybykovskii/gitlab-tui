@@ -681,9 +681,17 @@ func Run(stdout io.Writer) error {
 }
 
 func RunWithProject(stdout io.Writer, options ProjectOptions) error {
-	program := tea.NewProgram(NewModelWithProject(nil, options), tea.WithMouseCellMotion(), tea.WithOutput(stdout))
+	program := newProgram(NewModelWithProject(nil, options), stdout)
 	_, err := program.Run()
 	return err
+}
+
+func newProgram(model tea.Model, stdout io.Writer) *tea.Program {
+	return tea.NewProgram(model, programOptions(stdout)...)
+}
+
+func programOptions(stdout io.Writer) []tea.ProgramOption {
+	return []tea.ProgramOption{tea.WithMouseCellMotion(), tea.WithAltScreen(), tea.WithOutput(stdout)}
 }
 
 func (m Model) Init() tea.Cmd {
