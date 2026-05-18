@@ -42,6 +42,14 @@ func (f *fakeGitLabClient) AddIssueComment(ctx context.Context, projectPath stri
 	return nil
 }
 
+func (f *fakeGitLabClient) CloseIssue(ctx context.Context, projectPath string, iid int) error {
+	return nil
+}
+
+func (f *fakeGitLabClient) ReopenIssue(ctx context.Context, projectPath string, iid int) error {
+	return nil
+}
+
 func (f *fakeGitLabClient) MergeRequestDiff(ctx context.Context, projectPath string, iid int) ([]mr.DiffRow, error) {
 	return nil, nil
 }

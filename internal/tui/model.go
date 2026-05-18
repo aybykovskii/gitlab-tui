@@ -80,6 +80,7 @@ type UnresolveDiscussionFunc func(iid int, discussionID string) error
 type PostInlineCommentFunc func(iid int, position mr.DiffPosition, body string) error
 type PostMRCommentFunc func(iid int, body string) error
 type PostIssueCommentFunc func(iid int, body string) error
+type IssueStateActionFunc func(iid int) error
 type ApproveMRFunc func(iid int) error
 type MergeMRFunc func(iid int) error
 type EditMRFunc func(iid int, title, description string) error
@@ -252,6 +253,8 @@ type ProjectData struct {
 	LoadDiff             DiffFunc
 	LoadDiscussions      LoadDiscussionsFunc
 	LoadFiles            LoadFilesFunc
+	CloseIssue           IssueStateActionFunc
+	ReopenIssue          IssueStateActionFunc
 }
 
 type AccountProjectLoader struct {
@@ -290,6 +293,8 @@ type ProjectOptions struct {
 	PostMRComment        PostMRCommentFunc
 	PostIssueComment     PostIssueCommentFunc
 	LoadIssueDiscussions LoadIssueDiscussionsFunc
+	CloseIssue           IssueStateActionFunc
+	ReopenIssue          IssueStateActionFunc
 	ApproveMR            ApproveMRFunc
 	MergeMR              MergeMRFunc
 	EditMR               EditMRFunc
@@ -379,6 +384,12 @@ type inlineCommentFinishedMsg struct {
 type mrCommentFinishedMsg struct {
 	iid int
 	err error
+}
+
+type issueStateFinishedMsg struct {
+	iid   int
+	state string
+	err   error
 }
 
 type approveMRFinishedMsg struct {
@@ -483,6 +494,8 @@ type Model struct {
 	postMRComment        PostMRCommentFunc
 	postIssueComment     PostIssueCommentFunc
 	loadIssueDiscussions LoadIssueDiscussionsFunc
+	closeIssue           IssueStateActionFunc
+	reopenIssue          IssueStateActionFunc
 	approveMR            ApproveMRFunc
 	mergeMR              MergeMRFunc
 	editMR               EditMRFunc
@@ -574,6 +587,8 @@ func NewModelWithProject(items []mr.MergeRequest, options ProjectOptions) Model 
 		postMRComment:        options.PostMRComment,
 		postIssueComment:     options.PostIssueComment,
 		loadIssueDiscussions: options.LoadIssueDiscussions,
+		closeIssue:           options.CloseIssue,
+		reopenIssue:          options.ReopenIssue,
 		approveMR:            options.ApproveMR,
 		mergeMR:              options.MergeMR,
 		editMR:               options.EditMR,
@@ -689,6 +704,8 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.loadDiff = msg.data.LoadDiff
 		m.loadDiscussions = msg.data.LoadDiscussions
 		m.loadFiles = msg.data.LoadFiles
+		m.closeIssue = msg.data.CloseIssue
+		m.reopenIssue = msg.data.ReopenIssue
 		m.selected = clampSelection(0, len(m.filtered()))
 		m.selectEntity()
 		m.listTop = 0
@@ -771,6 +788,18 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			m.mrCommentError = msg.err.Error()
 		} else {
 			m.mrCommentError = ""
+		}
+		return m, nil
+	case issueStateFinishedMsg:
+		if msg.err != nil {
+			m.actionError = msg.err.Error()
+			return m, nil
+		}
+		for i := range m.issueItems {
+			if m.issueItems[i].IID == msg.iid {
+				m.issueItems[i].State = msg.state
+				break
+			}
 		}
 		return m, nil
 	case replyFinishedMsg:
@@ -1338,6 +1367,10 @@ func (m Model) updateKey(msg tea.KeyMsg) (Model, tea.Cmd) {
 				m.mrCommentError = ""
 			}
 		}
+	case msg.String() == "c":
+		if m.mode == ModeDetail && m.section == SectionIssues {
+			return m.closeOrReopenIssueCommand()
+		}
 	case msg.String() == "A":
 		if m.mode == ModeDetail {
 			item, ok := m.selectedItem()
@@ -1468,6 +1501,27 @@ func (m Model) updateMREdit(msg tea.KeyMsg) (Model, tea.Cmd) {
 		}
 	}
 	return m, nil
+}
+
+func (m Model) closeOrReopenIssueCommand() (Model, tea.Cmd) {
+	item, ok := m.selectedIssue()
+	if !ok {
+		return m, nil
+	}
+	state := "closed"
+	fn := m.closeIssue
+	if item.State == "closed" {
+		state = "opened"
+		fn = m.reopenIssue
+	}
+	if fn == nil {
+		return m, nil
+	}
+	iid := item.IID
+	return m, func() tea.Msg {
+		err := fn(iid)
+		return issueStateFinishedMsg{iid: iid, state: state, err: err}
+	}
 }
 
 func (m Model) updateIssueCommentInput(msg tea.KeyMsg) (Model, tea.Cmd) {

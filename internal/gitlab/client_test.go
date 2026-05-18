@@ -14,12 +14,14 @@ type fakeMergeRequests struct {
 }
 
 type fakeIssues struct {
-	calls  int
-	state  string
-	search string
-	limit  int64
-	page   int64
-	items  []*glab.Issue
+	calls      int
+	state      string
+	search     string
+	limit      int64
+	page       int64
+	updateIID  int64
+	stateEvent string
+	items      []*glab.Issue
 }
 
 type fakeDiscussions struct {
@@ -72,6 +74,14 @@ func (f *fakeIssues) ListProjectIssues(pid any, opt *glab.ListProjectIssuesOptio
 		f.page = opt.Page
 	}
 	return f.items, &glab.Response{}, nil
+}
+
+func (f *fakeIssues) UpdateIssue(pid any, issue int64, opt *glab.UpdateIssueOptions, options ...glab.RequestOptionFunc) (*glab.Issue, *glab.Response, error) {
+	f.updateIID = issue
+	if opt != nil && opt.StateEvent != nil {
+		f.stateEvent = *opt.StateEvent
+	}
+	return &glab.Issue{}, &glab.Response{}, nil
 }
 
 func (f *fakeDiscussions) ListMergeRequestDiscussions(pid any, mergeRequest int64, opt *glab.ListMergeRequestDiscussionsOptions, options ...glab.RequestOptionFunc) ([]*glab.Discussion, *glab.Response, error) {
@@ -239,6 +249,25 @@ func TestListIssueDiscussionsMapsComments(t *testing.T) {
 	}
 	if len(items[0].Notes) != 1 || items[0].Notes[0].Author != "Alice" || items[0].Notes[0].Body != "Looks good" {
 		t.Fatalf("unexpected notes: %+v", items[0].Notes)
+	}
+}
+
+func TestCloseAndReopenIssueUpdateStateEvent(t *testing.T) {
+	issues := &fakeIssues{}
+	client := NewClientWithIssues(issues)
+
+	if err := client.CloseIssue(context.Background(), "group/project", 83); err != nil {
+		t.Fatalf("expected no error, got %v", err)
+	}
+	if issues.updateIID != 83 || issues.stateEvent != "close" {
+		t.Fatalf("unexpected close update: iid=%d state=%q", issues.updateIID, issues.stateEvent)
+	}
+
+	if err := client.ReopenIssue(context.Background(), "group/project", 83); err != nil {
+		t.Fatalf("expected no error, got %v", err)
+	}
+	if issues.updateIID != 83 || issues.stateEvent != "reopen" {
+		t.Fatalf("unexpected reopen update: iid=%d state=%q", issues.updateIID, issues.stateEvent)
 	}
 }
 

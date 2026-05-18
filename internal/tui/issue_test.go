@@ -151,6 +151,50 @@ func TestIssueDetailKeyBarUsesIssueKeys(t *testing.T) {
 	}
 }
 
+func TestIssueCloseReopenActionUsesStateAndUpdatesModel(t *testing.T) {
+	closed := false
+	reopened := false
+	model := NewModelWithProject(nil, ProjectOptions{
+		Path:    "group/project",
+		Section: SectionIssues,
+		Issues:  []issue.Issue{{IID: 83, Title: "Close me", State: "opened"}},
+		CloseIssue: func(iid int) error {
+			closed = iid == 83
+			return nil
+		},
+		ReopenIssue: func(iid int) error {
+			reopened = iid == 83
+			return nil
+		},
+	})
+	model.mode = ModeDetail
+
+	updated, cmd := model.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune("c")})
+	model = updated.(Model)
+	if cmd == nil {
+		t.Fatal("expected close command")
+	}
+	updated, _ = model.Update(cmd())
+	model = updated.(Model)
+	if !closed || reopened || model.issueItems[0].State != "closed" {
+		t.Fatalf("expected close to update state, closed=%t reopened=%t issue=%+v", closed, reopened, model.issueItems[0])
+	}
+	if !strings.Contains(model.renderRight(), "🔴 closed") {
+		t.Fatalf("expected closed summary, got %q", model.renderRight())
+	}
+
+	updated, cmd = model.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune("c")})
+	model = updated.(Model)
+	if cmd == nil {
+		t.Fatal("expected reopen command")
+	}
+	updated, _ = model.Update(cmd())
+	model = updated.(Model)
+	if !reopened || model.issueItems[0].State != "opened" {
+		t.Fatalf("expected reopen to update state, reopened=%t issue=%+v", reopened, model.issueItems[0])
+	}
+}
+
 func TestIssueDiscussionsTabRendersCommentsAndReplyInput(t *testing.T) {
 	model := NewModelWithProject(nil, ProjectOptions{Path: "group/project", Section: SectionIssues})
 	model.mode = ModeDetail

@@ -24,6 +24,7 @@ type MergeRequestApprovalsClient interface {
 
 type IssuesClient interface {
 	ListProjectIssues(pid any, opt *glab.ListProjectIssuesOptions, options ...glab.RequestOptionFunc) ([]*glab.Issue, *glab.Response, error)
+	UpdateIssue(pid any, issue int64, opt *glab.UpdateIssueOptions, options ...glab.RequestOptionFunc) (*glab.Issue, *glab.Response, error)
 }
 
 type DiscussionsClient interface {
@@ -143,6 +144,22 @@ func (c Client) OpenMergeRequests(ctx context.Context, projectPath string) ([]mr
 	}
 
 	return result, nil
+}
+
+func (c Client) CloseIssue(ctx context.Context, projectPath string, iid int) error {
+	return c.updateIssueState(ctx, projectPath, iid, "close")
+}
+
+func (c Client) ReopenIssue(ctx context.Context, projectPath string, iid int) error {
+	return c.updateIssueState(ctx, projectPath, iid, "reopen")
+}
+
+func (c Client) updateIssueState(ctx context.Context, projectPath string, iid int, stateEvent string) error {
+	if c.issues == nil {
+		return fmt.Errorf("issues client is not configured")
+	}
+	_, _, err := c.issues.UpdateIssue(projectPath, int64(iid), &glab.UpdateIssueOptions{StateEvent: &stateEvent}, glab.WithContext(ctx))
+	return err
 }
 
 func (c Client) ListProjectIssues(ctx context.Context, projectPath string, state string, search string) ([]issue.Issue, error) {

@@ -22,6 +22,8 @@ type gitLabClient interface {
 	ListProjectIssues(ctx context.Context, projectPath string, state string, search string) ([]issue.Issue, error)
 	ListIssueDiscussions(ctx context.Context, projectPath string, iid int) ([]issue.Discussion, error)
 	AddIssueComment(ctx context.Context, projectPath string, iid int, body string) error
+	CloseIssue(ctx context.Context, projectPath string, iid int) error
+	ReopenIssue(ctx context.Context, projectPath string, iid int) error
 	MergeRequestDiff(ctx context.Context, projectPath string, iid int) ([]mr.DiffRow, error)
 	MergeRequestDiscussions(ctx context.Context, projectPath string, iid int) ([]mr.Discussion, error)
 	MergeRequestChangedFiles(ctx context.Context, projectPath string, iid int) ([]mr.ChangedFile, error)
@@ -123,6 +125,12 @@ func buildProjectOptions(cfg *config.Config, configPath string, configLoaded boo
 		loadIssueDiscussions := func(iid int) ([]issue.Discussion, error) {
 			return client.ListIssueDiscussions(context.Background(), projectPath, iid)
 		}
+		closeIssue := func(iid int) error {
+			return client.CloseIssue(context.Background(), projectPath, iid)
+		}
+		reopenIssue := func(iid int) error {
+			return client.ReopenIssue(context.Background(), projectPath, iid)
+		}
 		loadDiff := func(iid int) ([]mr.DiffRow, error) {
 			return client.MergeRequestDiff(context.Background(), projectPath, iid)
 		}
@@ -152,7 +160,7 @@ func buildProjectOptions(cfg *config.Config, configPath string, configLoaded boo
 			}
 		}
 
-		return tui.ProjectData{Items: items, Issues: issues, Refresh: loadMRs, LoadIssues: loadIssues, PostIssueComment: postIssueComment, LoadIssueDiscussions: loadIssueDiscussions, LoadDiff: loadDiff, LoadDiscussions: loadDiscussions, LoadFiles: loadFiles}, nil
+		return tui.ProjectData{Items: items, Issues: issues, Refresh: loadMRs, LoadIssues: loadIssues, PostIssueComment: postIssueComment, LoadIssueDiscussions: loadIssueDiscussions, LoadDiff: loadDiff, LoadDiscussions: loadDiscussions, LoadFiles: loadFiles, CloseIssue: closeIssue, ReopenIssue: reopenIssue}, nil
 	}
 
 	options := tui.ProjectOptions{Path: resolution.Path, Section: intent.Section, EntityID: intent.EntityID, LoadProject: loadProject}
