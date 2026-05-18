@@ -95,9 +95,15 @@ type AccountProjectLoader struct {
 	Load AccountProjectsLoadFunc
 }
 
+type RecentProjectOption struct {
+	Path    string
+	Account string
+}
+
 type ProjectOptions struct {
 	Path                string
 	Recents             []string
+	RecentProjects      []RecentProjectOption
 	Projects            []string
 	LoadProjects        []AccountProjectLoader
 	Section             Section
@@ -148,6 +154,7 @@ type accountProjectState struct {
 
 type projectListRow struct {
 	project    string
+	label      string
 	selectable bool
 }
 
@@ -258,6 +265,7 @@ type Model struct {
 	rightTop             int
 	projectPath          string
 	recentProjects       []string
+	recentProjectOptions []RecentProjectOption
 	gitlabProjects       []string
 	projectList          []string
 	projectRows          []projectListRow
@@ -339,6 +347,7 @@ func NewModelWithProject(items []mr.MergeRequest, options ProjectOptions) Model 
 		height:               30,
 		projectPath:          options.Path,
 		recentProjects:       options.Recents,
+		recentProjectOptions: buildRecentProjectOptions(options.Recents, options.RecentProjects),
 		gitlabProjects:       options.Projects,
 		projectList:          buildProjectList(options.Path, options.Recents, options.Projects),
 		loadProjects:         options.LoadProjects,
@@ -370,7 +379,7 @@ func NewModelWithProject(items []mr.MergeRequest, options ProjectOptions) Model 
 	}
 	model.rebuildProjectRows()
 	if model.projectPath == "" {
-		if len(model.projectList) > 0 || len(model.loadProjects) > 0 {
+		if len(model.projectList) > 0 || len(model.recentProjectOptions) > 0 || len(model.loadProjects) > 0 {
 			model.mode = ModeProjectSelect
 			model.selected = model.nextSelectable(-1, 1)
 		} else {
@@ -1555,6 +1564,17 @@ func loadAccountProjectsCommand(loader AccountProjectLoader) tea.Cmd {
 	}
 }
 
+func buildRecentProjectOptions(recents []string, recentProjects []RecentProjectOption) []RecentProjectOption {
+	if len(recentProjects) > 0 {
+		return recentProjects
+	}
+	options := make([]RecentProjectOption, 0, len(recents))
+	for _, recent := range recents {
+		options = append(options, RecentProjectOption{Path: recent})
+	}
+	return options
+}
+
 func buildProjectList(opened string, recents []string, projects []string) []string {
 	seen := map[string]bool{}
 	list := []string{}
@@ -1676,23 +1696,33 @@ func (m Model) renderAppContextPane() string {
 
 func (m *Model) rebuildProjectRows() {
 	m.projectRows = nil
+	if len(m.recentProjectOptions) > 0 {
+		m.projectRows = append(m.projectRows, projectListRow{label: "Recent"})
+		for _, recent := range m.recentProjectOptions {
+			label := recent.Path
+			if recent.Account != "" {
+				label += " (" + recent.Account + ")"
+			}
+			m.projectRows = append(m.projectRows, projectListRow{project: recent.Path, label: label, selectable: true})
+		}
+	}
 	for _, project := range m.projectList {
-		m.projectRows = append(m.projectRows, projectListRow{project: project, selectable: true})
+		m.projectRows = append(m.projectRows, projectListRow{project: project, label: project, selectable: true})
 	}
 	for _, loader := range m.loadProjects {
 		state := m.accountProjectStates[loader.ID]
 		header := fmt.Sprintf("[%s]  %s", loader.ID, state.host)
-		m.projectRows = append(m.projectRows, projectListRow{project: header})
+		m.projectRows = append(m.projectRows, projectListRow{label: header})
 		if state.loading {
-			m.projectRows = append(m.projectRows, projectListRow{project: "Loading…"})
+			m.projectRows = append(m.projectRows, projectListRow{label: "Loading…"})
 			continue
 		}
 		if state.err != "" {
-			m.projectRows = append(m.projectRows, projectListRow{project: "Error: " + state.err + "  r: retry"})
+			m.projectRows = append(m.projectRows, projectListRow{label: "Error: " + state.err + "  r: retry"})
 			continue
 		}
 		for _, project := range state.projects[:min(len(state.projects), 15)] {
-			m.projectRows = append(m.projectRows, projectListRow{project: project, selectable: true})
+			m.projectRows = append(m.projectRows, projectListRow{project: project, label: project, selectable: true})
 		}
 	}
 }
@@ -1765,7 +1795,7 @@ func (m Model) renderProjectPicker() string {
 		if i == m.selected && row.selectable {
 			prefix = "> "
 		}
-		lines = append(lines, prefix+row.project)
+		lines = append(lines, prefix+row.label)
 	}
 	lines = append(lines, "", "Enter/click: open  i: manual input  r: retry")
 	return style.Render(strings.Join(lines, "\n"))

@@ -107,8 +107,22 @@ func (a App) runTUI(stdout io.Writer, stderr io.Writer, intent CLIIntent) int {
 		return tui.ProjectData{Items: items, Refresh: loadMRs, LoadDiff: loadDiff, LoadDiscussions: loadDiscussions, LoadFiles: loadFiles}, nil
 	}
 	options := tui.ProjectOptions{Path: resolution.Path, Section: intent.Section, EntityID: intent.EntityID, LoadProject: loadProject}
-	for _, recent := range resolution.Recents {
-		options.Recents = append(options.Recents, recent.Path)
+	for _, recent := range cfg.RecentProjects() {
+		options.RecentProjects = append(options.RecentProjects, tui.RecentProjectOption{Path: recent.Path, Account: recent.Account})
+	}
+	for _, account := range cfg.Accounts {
+		account := account
+		options.LoadProjects = append(options.LoadProjects, tui.AccountProjectLoader{
+			ID:   account.ID,
+			Host: account.Host,
+			Load: func() ([]string, error) {
+				client, err := gitlabclient.NewClient(account, a.env)
+				if err != nil {
+					return nil, fmt.Errorf("create GitLab client: %w", err)
+				}
+				return client.ListProjects(context.Background(), 15)
+			},
+		})
 	}
 
 	if err := tui.RunWithProject(stdout, options); err != nil {

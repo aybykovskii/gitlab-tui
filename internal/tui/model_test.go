@@ -2385,6 +2385,57 @@ func TestTabKeyCyclesDetailTabs(t *testing.T) {
 	}
 }
 
+func TestProjectSelectShowsRecentSectionBeforeAccounts(t *testing.T) {
+	model := NewModelWithProject(nil, ProjectOptions{
+		RecentProjects: []RecentProjectOption{
+			{Path: "group/new", Account: "work"},
+			{Path: "group/old", Account: "default"},
+		},
+		LoadProjects: []AccountProjectLoader{{ID: "default", Host: "https://gitlab.com", Load: func() ([]string, error) { return nil, nil }}},
+	})
+
+	view := model.View()
+	recentIndex := strings.Index(view, "Recent")
+	accountIndex := strings.Index(view, "[default]  https://gitlab.com")
+	if recentIndex == -1 || accountIndex == -1 || recentIndex > accountIndex {
+		t.Fatalf("expected Recent before account section, got %q", view)
+	}
+	for _, want := range []string{"group/new (work)", "group/old (default)"} {
+		if !strings.Contains(view, want) {
+			t.Fatalf("expected recent entry %q, got %q", want, view)
+		}
+	}
+	if model.projectRows[0].selectable {
+		t.Fatalf("expected Recent header to be non-selectable: %+v", model.projectRows[0])
+	}
+	if model.selected != 1 {
+		t.Fatalf("expected cursor to skip Recent header, selected=%d rows=%+v", model.selected, model.projectRows)
+	}
+}
+
+func TestProjectSelectHidesRecentSectionWhenEmpty(t *testing.T) {
+	model := NewModelWithProject(nil, ProjectOptions{
+		LoadProjects: []AccountProjectLoader{{ID: "default", Host: "https://gitlab.com", Load: func() ([]string, error) { return nil, nil }}},
+	})
+
+	if strings.Contains(model.View(), "Recent") {
+		t.Fatalf("expected no Recent section, got %q", model.View())
+	}
+}
+
+func TestProjectSelectRecentSelectionUsesProjectPath(t *testing.T) {
+	model := NewModelWithProject(nil, ProjectOptions{
+		RecentProjects: []RecentProjectOption{{Path: "group/project", Account: "work"}},
+	})
+
+	updated, _ := model.Update(tea.KeyMsg{Type: tea.KeyEnter})
+	model = updated.(Model)
+
+	if model.projectPath != "group/project" || model.mode != ModeSections {
+		t.Fatalf("expected recent project path to open sections, path=%q mode=%v", model.projectPath, model.mode)
+	}
+}
+
 func TestProjectSelectStartsAccountProjectLoads(t *testing.T) {
 	model := NewModelWithProject(nil, ProjectOptions{LoadProjects: []AccountProjectLoader{
 		{ID: "default", Host: "https://gitlab.com", Load: func() ([]string, error) { return []string{"group/project"}, nil }},
