@@ -9,18 +9,18 @@ import (
 
 var threeDiscussions = []mr.Discussion{
 	{
-		ID:    "d1",
-		Notes: []mr.Note{{Author: "alice", Body: "First note"}},
+		ID:       "d1",
+		Notes:    []mr.Note{{Author: "alice", Body: "First note"}},
 		Position: &mr.DiffPosition{NewPath: "main.go", NewLine: 3},
 	},
 	{
-		ID:    "d2",
-		Notes: []mr.Note{{Author: "bob", Body: "Second note"}},
+		ID:       "d2",
+		Notes:    []mr.Note{{Author: "bob", Body: "Second note"}},
 		Position: &mr.DiffPosition{NewPath: "main.go", NewLine: 3},
 	},
 	{
-		ID:    "d3",
-		Notes: []mr.Note{{Author: "carol", Body: "Third note"}},
+		ID:       "d3",
+		Notes:    []mr.Note{{Author: "carol", Body: "Third note"}},
 		Position: &mr.DiffPosition{NewPath: "main.go", NewLine: 3},
 	},
 }

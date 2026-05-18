@@ -1,0 +1,190 @@
+package tui
+
+import (
+	"github.com/charmbracelet/bubbles/key"
+	tea "github.com/charmbracelet/bubbletea"
+
+	"github.com/aybykovskii/gitlab-tui/internal/issue"
+	"github.com/aybykovskii/gitlab-tui/internal/mr"
+)
+
+func (m Model) selectedIssue() (issue.Issue, bool) {
+	items := m.filteredIssues()
+	if len(items) == 0 {
+		return issue.Issue{}, false
+	}
+	return items[clampSelection(m.selected, len(items))], true
+}
+
+func (m Model) focusedIssueDiscussion() (issue.Discussion, bool) {
+	item, ok := m.selectedIssue()
+	if !ok {
+		return issue.Discussion{}, false
+	}
+	ds := m.issueDiscussions[item.IID]
+	if m.discussionCursor < 0 || m.discussionCursor >= len(ds) {
+		return issue.Discussion{}, false
+	}
+	return ds[m.discussionCursor], true
+}
+
+func (m Model) focusedDiscussion() (mr.Discussion, bool) {
+	item, ok := m.selectedItem()
+	if !ok {
+		return mr.Discussion{}, false
+	}
+	ds := m.discussions[item.IID]
+	if m.discussionCursor < 0 || m.discussionCursor >= len(ds) {
+		return mr.Discussion{}, false
+	}
+	return ds[m.discussionCursor], true
+}
+
+func (m Model) updateIssueDiscussionsTab(msg tea.KeyMsg) (Model, tea.Cmd) {
+	if m.replyInput {
+		switch msg.Type {
+		case tea.KeyEsc:
+			m.replyInput = false
+			m.replyBuffer = ""
+			m.replyDiscussionID = ""
+		case tea.KeyBackspace:
+			if len(m.replyBuffer) > 0 {
+				m.replyBuffer = m.replyBuffer[:len(m.replyBuffer)-1]
+			}
+		case tea.KeyRunes, tea.KeySpace:
+			m.replyBuffer += msg.String()
+		case tea.KeyEnter:
+			m.replyInput = false
+			m.replyBuffer = ""
+			m.replyDiscussionID = ""
+		}
+		return m, nil
+	}
+
+	switch {
+	case msg.String() == "j" || msg.String() == "down":
+		if item, ok := m.selectedIssue(); ok {
+			count := len(m.issueDiscussions[item.IID])
+			m.discussionCursor = clamp(m.discussionCursor+1, 0, max(0, count-1))
+		}
+	case msg.String() == "k" || msg.String() == "up":
+		m.discussionCursor = clamp(m.discussionCursor-1, 0, max(0, m.discussionCursor))
+	case msg.String() == "r":
+		if d, ok := m.focusedIssueDiscussion(); ok {
+			m.replyInput = true
+			m.replyDraft = false
+			m.replyDiscussionID = d.ID
+			m.replyBuffer = ""
+		}
+	}
+	return m, nil
+}
+
+func (m Model) updateDiscussionsTab(msg tea.KeyMsg) (Model, tea.Cmd) {
+	if m.replyInput {
+		switch msg.Type {
+		case tea.KeyEsc:
+			m.replyInput = false
+			m.replyBuffer = ""
+			m.replyDiscussionID = ""
+		case tea.KeyBackspace:
+			if len(m.replyBuffer) > 0 {
+				m.replyBuffer = m.replyBuffer[:len(m.replyBuffer)-1]
+			}
+		case tea.KeyRunes, tea.KeySpace:
+			m.replyBuffer += msg.String()
+		case tea.KeyEnter:
+			body := m.replyBuffer
+			discussionID := m.replyDiscussionID
+			isDraft := m.replyDraft
+			m.replyInput = false
+			m.replyBuffer = ""
+			m.replyDiscussionID = ""
+			m.replyDraft = false
+			item, ok := m.selectedItem()
+			if !ok {
+				return m, nil
+			}
+			iid := item.IID
+			if isDraft {
+				fn := m.draftReply
+				if fn == nil {
+					return m, nil
+				}
+				return m, func() tea.Msg {
+					err := fn(iid, discussionID, body)
+					return replyFinishedMsg{iid: iid, discussionID: discussionID, body: body, draft: true, err: err}
+				}
+			}
+			fn := m.replyToDiscussion
+			if fn == nil {
+				return m, nil
+			}
+			return m, func() tea.Msg {
+				err := fn(iid, discussionID, body)
+				return replyFinishedMsg{iid: iid, discussionID: discussionID, body: body, draft: false, err: err}
+			}
+		}
+		return m, nil
+	}
+
+	item, ok := m.selectedItem()
+	if !ok {
+		return m, nil
+	}
+	ds := m.discussions[item.IID]
+	count := len(ds)
+
+	switch {
+	case msg.String() == "j" || msg.String() == "down":
+		m.discussionCursor = clamp(m.discussionCursor+1, 0, max(0, count-1))
+	case msg.String() == "k" || msg.String() == "up":
+		m.discussionCursor = clamp(m.discussionCursor-1, 0, max(0, count-1))
+	case msg.String() == "r":
+		if d, ok := m.focusedDiscussion(); ok {
+			m.replyInput = true
+			m.replyDraft = false
+			m.replyDiscussionID = d.ID
+			m.replyBuffer = ""
+		}
+	case msg.String() == "d":
+		if d, ok := m.focusedDiscussion(); ok {
+			m.replyInput = true
+			m.replyDraft = true
+			m.replyDiscussionID = d.ID
+			m.replyBuffer = ""
+		}
+	case msg.String() == "x":
+		if d, ok := m.focusedDiscussion(); ok {
+			iid := item.IID
+			dID := d.ID
+			resolved := !d.Resolved
+			if resolved {
+				fn := m.resolveDiscussion
+				if fn == nil {
+					m.discussions[iid][m.discussionCursor].Resolved = true
+					return m, nil
+				}
+				return m, func() tea.Msg {
+					err := fn(iid, dID)
+					return resolveFinishedMsg{iid: iid, discussionID: dID, resolved: true, err: err}
+				}
+			}
+			fn := m.unresolveDiscussion
+			if fn == nil {
+				m.discussions[iid][m.discussionCursor].Resolved = false
+				return m, nil
+			}
+			return m, func() tea.Msg {
+				err := fn(iid, dID)
+				return resolveFinishedMsg{iid: iid, discussionID: dID, resolved: false, err: err}
+			}
+		}
+	case msg.String() == "tab":
+		m.activeTab = (m.activeTab + 1) % (TabFiles + 1)
+		return m.onTabEntered()
+	case key.Matches(msg, m.globals.Quit):
+		return m, tea.Quit
+	}
+	return m, nil
+}
