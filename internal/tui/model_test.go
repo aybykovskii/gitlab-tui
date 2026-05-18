@@ -12,6 +12,57 @@ import (
 
 var errTestRefresh = errors.New("refresh failed")
 
+func TestViewRendersPersistentKeyBar(t *testing.T) {
+	model := NewModelWithProject(nil, ProjectOptions{Recents: []string{"group/project"}})
+	model.width = 80
+	model.height = 24
+
+	view := model.View()
+
+	for _, want := range []string{"Local", "Global", "q quit", "Esc back", "h keys"} {
+		if !strings.Contains(view, want) {
+			t.Fatalf("expected key bar to contain %q, got %q", want, view)
+		}
+	}
+}
+
+func TestHKeyTogglesExpandedKeyBarAndPaneHeight(t *testing.T) {
+	model := NewModelWithProject(nil, ProjectOptions{Recents: []string{"group/project"}})
+	model.height = 30
+	collapsedHeight := model.paneHeight()
+
+	updated, _ := model.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'h'}})
+	model = updated.(Model)
+
+	if !model.keyBarExpanded {
+		t.Fatal("expected key bar to expand")
+	}
+	if model.paneHeight() >= collapsedHeight {
+		t.Fatalf("expected expanded key bar to shrink panes, collapsed=%d expanded=%d", collapsedHeight, model.paneHeight())
+	}
+
+	updated, _ = model.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'h'}})
+	model = updated.(Model)
+	if model.keyBarExpanded {
+		t.Fatal("expected key bar to collapse")
+	}
+}
+
+func TestInputModeQDoesNotQuit(t *testing.T) {
+	model := NewModelWithProject(FakeMergeRequests(), ProjectOptions{Path: "group/project", Section: SectionMergeRequests})
+	model.mrCommentInput = true
+
+	updated, cmd := model.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'q'}})
+	model = updated.(Model)
+
+	if cmd != nil {
+		t.Fatal("expected q to be handled as input, not global quit")
+	}
+	if model.mrCommentBuffer != "q" {
+		t.Fatalf("expected q in comment buffer, got %q", model.mrCommentBuffer)
+	}
+}
+
 func TestResolvedProjectShowsProjectListAndSections(t *testing.T) {
 	model := NewModelWithProject(FakeMergeRequests(), ProjectOptions{
 		Path:     "group/project",

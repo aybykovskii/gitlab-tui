@@ -6,6 +6,7 @@ import (
 	"strconv"
 	"strings"
 
+	"github.com/charmbracelet/bubbles/key"
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
 
@@ -80,6 +81,44 @@ type MergeMRFunc func(iid int) error
 type EditMRFunc func(iid int, title, description string) error
 type OpenURLFunc func(url string) error
 type OpenEditorFunc func(path string, line int) error
+
+type GlobalKeys struct {
+	Quit         key.Binding
+	Back         key.Binding
+	ToggleKeyBar key.Binding
+}
+
+type ProjectListKeys struct {
+	Up     key.Binding
+	Down   key.Binding
+	Open   key.Binding
+	Filter key.Binding
+	Input  key.Binding
+	Retry  key.Binding
+}
+
+func newGlobalKeys() GlobalKeys {
+	return GlobalKeys{
+		Quit:         key.NewBinding(key.WithKeys("q", "ctrl+c"), key.WithHelp("q", "quit")),
+		Back:         key.NewBinding(key.WithKeys("esc"), key.WithHelp("Esc", "back")),
+		ToggleKeyBar: key.NewBinding(key.WithKeys("h"), key.WithHelp("h", "keys")),
+	}
+}
+
+func newProjectListKeys() ProjectListKeys {
+	return ProjectListKeys{
+		Up:     key.NewBinding(key.WithKeys("up", "k"), key.WithHelp("↑/k", "up")),
+		Down:   key.NewBinding(key.WithKeys("down", "j"), key.WithHelp("↓/j", "down")),
+		Open:   key.NewBinding(key.WithKeys("enter"), key.WithHelp("Enter", "open")),
+		Filter: key.NewBinding(key.WithKeys("/"), key.WithHelp("/", "filter")),
+		Input:  key.NewBinding(key.WithKeys("i"), key.WithHelp("i", "manual")),
+		Retry:  key.NewBinding(key.WithKeys("r"), key.WithHelp("r", "retry")),
+	}
+}
+
+func (k ProjectListKeys) LocalKeys() []key.Binding {
+	return []key.Binding{k.Up, k.Down, k.Open, k.Filter, k.Input, k.Retry}
+}
 
 type ProjectData struct {
 	Items           []mr.MergeRequest
@@ -330,6 +369,9 @@ type Model struct {
 	projectError         bool
 	diffLoading          bool
 	errorMessage         string
+	keyBarExpanded       bool
+	globals              GlobalKeys
+	projectListKeys      ProjectListKeys
 }
 
 func NewFakeModel() Model {
@@ -381,6 +423,8 @@ func NewModelWithProject(items []mr.MergeRequest, options ProjectOptions) Model 
 		editMR:               options.EditMR,
 		openURL:              options.OpenURL,
 		openEditor:           options.OpenEditor,
+		globals:              newGlobalKeys(),
+		projectListKeys:      newProjectListKeys(),
 	}
 	model.rebuildProjectRows()
 	if model.projectPath == "" {
@@ -644,6 +688,10 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 }
 
 func (m Model) updateKey(msg tea.KeyMsg) (Model, tea.Cmd) {
+	if key.Matches(msg, m.globals.ToggleKeyBar) && !m.inputActive() {
+		m.keyBarExpanded = !m.keyBarExpanded
+		return m, nil
+	}
 	if m.mode == ModeProjectSelect {
 		if m.projectFilterActive {
 			switch msg.Type {
@@ -667,28 +715,28 @@ func (m Model) updateKey(msg tea.KeyMsg) (Model, tea.Cmd) {
 				return m, nil
 			}
 		}
-		switch msg.String() {
-		case "/":
+		switch {
+		case key.Matches(msg, m.projectListKeys.Filter):
 			m.projectFilterActive = true
 			m.query = ""
 			m.rebuildProjectRows()
 			m.selected = m.nearestSelectable(0)
-		case "esc":
+		case key.Matches(msg, m.globals.Back):
 			m.query = ""
 			m.projectFilterActive = false
 			m.rebuildProjectRows()
 			m.selected = m.nearestSelectable(0)
-		case "up", "k":
+		case key.Matches(msg, m.projectListKeys.Up):
 			m.selected = m.nextSelectable(m.selected, -1)
-		case "down", "j":
+		case key.Matches(msg, m.projectListKeys.Down):
 			m.selected = m.nextSelectable(m.selected, 1)
-		case "enter":
+		case key.Matches(msg, m.projectListKeys.Open):
 			if project, ok := m.selectedProject(); ok {
 				return m.selectProject(project)
 			}
-		case "r":
+		case key.Matches(msg, m.projectListKeys.Retry):
 			return m, m.retryFailedProjectLoads()
-		case "i":
+		case key.Matches(msg, m.projectListKeys.Input):
 			m.mode = ModeProjectInput
 			m.focus = FocusFilter
 			m.projectInput = ""
@@ -1568,22 +1616,19 @@ func (m *Model) scrollFocused(delta int) {
 }
 
 func (m Model) View() string {
+	var body string
 	if m.mode == ModeProjectSelect || m.mode == ModeProjectInput {
-		return lipgloss.JoinHorizontal(lipgloss.Top, m.renderAppContextPane(), m.renderProjectPicker())
+		body = lipgloss.JoinHorizontal(lipgloss.Top, m.renderAppContextPane(), m.renderProjectPicker())
+	} else if m.mode == ModeSections {
+		body = lipgloss.JoinHorizontal(lipgloss.Top, m.renderProjectList(), m.renderSections())
+	} else if m.mode == ModeEntityList {
+		body = lipgloss.JoinHorizontal(lipgloss.Top, m.renderSectionsContext(), m.renderEntityListPane())
+	} else if m.mode == ModeFileDiff {
+		body = lipgloss.JoinHorizontal(lipgloss.Top, m.renderChangedFilesPane(), m.renderFileDiffPane())
+	} else {
+		body = lipgloss.JoinHorizontal(lipgloss.Top, m.renderList(), m.renderRight())
 	}
-	if m.mode == ModeSections {
-		return lipgloss.JoinHorizontal(lipgloss.Top, m.renderProjectList(), m.renderSections())
-	}
-	if m.mode == ModeEntityList {
-		return lipgloss.JoinHorizontal(lipgloss.Top, m.renderSectionsContext(), m.renderEntityListPane())
-	}
-	if m.mode == ModeFileDiff {
-		return lipgloss.JoinHorizontal(lipgloss.Top, m.renderChangedFilesPane(), m.renderFileDiffPane())
-	}
-
-	left := m.renderList()
-	right := m.renderRight()
-	return lipgloss.JoinHorizontal(lipgloss.Top, left, right)
+	return lipgloss.JoinVertical(lipgloss.Left, body, m.renderKeyBar())
 }
 
 func initialAccountProjectStates(loaders []AccountProjectLoader) map[string]accountProjectState {
@@ -1633,7 +1678,7 @@ func buildProjectList(opened string, recents []string, projects []string) []stri
 
 func (m Model) renderProjectList() string {
 	width := m.leftWidth()
-	style := paneStyle(width, max(8, m.height), false)
+	style := paneStyle(width, m.paneHeight(), false)
 	lines := []string{"Projects", ""}
 	for _, project := range m.projectList {
 		prefix := "  "
@@ -1650,7 +1695,7 @@ func (m Model) renderProjectList() string {
 
 func (m Model) renderSections() string {
 	width := max(20, m.width-m.leftWidth())
-	style := paneStyle(width, max(8, m.height), true)
+	style := paneStyle(width, m.paneHeight(), true)
 	lines := []string{"Sections", ""}
 	for i, sec := range tuiSections {
 		prefix := "  "
@@ -1673,7 +1718,7 @@ func (m Model) renderSections() string {
 
 func (m Model) renderSectionsContext() string {
 	width := m.leftWidth()
-	style := paneStyle(width, max(8, m.height), false)
+	style := paneStyle(width, m.paneHeight(), false)
 	lines := []string{"Sections", ""}
 	for _, sec := range tuiSections {
 		prefix := "  "
@@ -1688,7 +1733,7 @@ func (m Model) renderSectionsContext() string {
 
 func (m Model) renderEntityListPane() string {
 	width := max(20, m.width-m.leftWidth())
-	height := max(8, m.height)
+	height := m.paneHeight()
 	style := paneStyle(width, height, true)
 	lines := []string{"Project: " + m.projectPath, "Merge Requests", "Filter: " + m.query}
 	if m.projectLoading {
@@ -1725,9 +1770,95 @@ func (m Model) renderEntityListPane() string {
 	return style.Render(strings.Join(lines, "\n"))
 }
 
+func (m Model) inputActive() bool {
+	return m.projectFilterActive || m.mode == ModeProjectInput || m.commentInput || m.mrCommentInput || m.editInput || m.replyInput
+}
+
+func bindingHelp(binding key.Binding) string {
+	if !binding.Enabled() {
+		return ""
+	}
+	k, d := binding.Help().Key, binding.Help().Desc
+	if k == "" || d == "" {
+		return ""
+	}
+	return k + " " + d
+}
+
+func joinBindingHelp(bindings []key.Binding) string {
+	parts := []string{}
+	for _, binding := range bindings {
+		if help := bindingHelp(binding); help != "" {
+			parts = append(parts, help)
+		}
+	}
+	return strings.Join(parts, "  ")
+}
+
+func truncateLine(line string, width int) string {
+	if width <= 0 || len(line) <= width {
+		return line
+	}
+	if width == 1 {
+		return "…"
+	}
+	return line[:width-1] + "…"
+}
+
+func (m Model) localKeys() []key.Binding {
+	if m.mode == ModeProjectSelect {
+		return m.projectListKeys.LocalKeys()
+	}
+	return []key.Binding{key.NewBinding(key.WithKeys("r"), key.WithHelp("r", "refresh")), key.NewBinding(key.WithKeys("/"), key.WithHelp("/", "filter")), key.NewBinding(key.WithKeys("Enter"), key.WithHelp("Enter", "open"))}
+}
+
+func (m Model) globalKeys() []key.Binding {
+	if m.inputActive() {
+		return []key.Binding{key.NewBinding(key.WithKeys("enter"), key.WithHelp("Enter", "send")), key.NewBinding(key.WithKeys("esc"), key.WithHelp("Esc", "cancel"))}
+	}
+	return []key.Binding{m.globals.Quit, m.globals.Back, m.globals.ToggleKeyBar}
+}
+
+func (m Model) keyBarHeight() int {
+	content := 2
+	if m.keyBarExpanded {
+		content = max(4, (len(m.localKeys())+1)/2+2)
+	}
+	return content + 2
+}
+
+func (m Model) paneHeight() int {
+	return max(8, m.height-m.keyBarHeight())
+}
+
+func (m Model) renderKeyBar() string {
+	width := max(20, m.width)
+	inner := max(1, width-4)
+	lines := []string{}
+	if m.keyBarExpanded {
+		locals := m.localKeys()
+		mid := (len(locals) + 1) / 2
+		for i := 0; i < mid; i++ {
+			left := bindingHelp(locals[i])
+			right := ""
+			if i+mid < len(locals) {
+				right = bindingHelp(locals[i+mid])
+			}
+			lines = append(lines, fmt.Sprintf("%-24s %s", left, right))
+		}
+		lines = append(lines, strings.Repeat("─", min(inner, 24)))
+		lines = append(lines, "Global: "+joinBindingHelp(m.globalKeys()))
+	} else {
+		lines = append(lines, truncateLine("Local: "+joinBindingHelp(m.localKeys()), inner))
+		lines = append(lines, truncateLine("Global: "+joinBindingHelp(m.globalKeys()), inner))
+	}
+	style := lipgloss.NewStyle().Width(width - 2).Border(lipgloss.RoundedBorder())
+	return style.Render(strings.Join(lines, "\n"))
+}
+
 func (m Model) renderAppContextPane() string {
 	width := m.leftWidth()
-	style := paneStyle(width, max(8, m.height), false)
+	style := paneStyle(width, m.paneHeight(), false)
 	return style.Render("gitlab-tui")
 }
 
@@ -1855,7 +1986,7 @@ func (m Model) retryFailedProjectLoads() tea.Cmd {
 
 func (m Model) renderProjectPicker() string {
 	width := max(20, m.width-m.leftWidth())
-	style := paneStyle(width, max(8, m.height), true)
+	style := paneStyle(width, m.paneHeight(), true)
 	if m.mode == ModeProjectInput {
 		return style.Render(strings.Join([]string{
 			"Open GitLab project",
@@ -1887,7 +2018,7 @@ func (m Model) renderProjectPicker() string {
 
 func (m Model) renderList() string {
 	width := m.leftWidth()
-	height := max(8, m.height)
+	height := m.paneHeight()
 	style := paneStyle(width, height, m.focus == FocusList || m.focus == FocusFilter)
 	lines := []string{"Project: " + m.projectPath, "Merge Requests", "Filter: " + m.query}
 	if m.projectLoading {
@@ -1929,7 +2060,7 @@ func (m Model) renderList() string {
 
 func (m Model) renderRight() string {
 	width := max(20, m.width-m.leftWidth())
-	height := max(8, m.height)
+	height := m.paneHeight()
 	style := paneStyle(width, height, m.focus == FocusDetail)
 	items := m.filtered()
 	if len(items) == 0 {
@@ -2071,7 +2202,7 @@ func (m Model) currentFiles() []mr.ChangedFile {
 
 func (m Model) renderChangedFilesPane() string {
 	width := m.leftWidth()
-	height := max(8, m.height)
+	height := m.paneHeight()
 	style := paneStyle(width, height, false)
 	files := m.currentFiles()
 	lines := []string{"Changed Files", ""}
@@ -2088,7 +2219,7 @@ func (m Model) renderChangedFilesPane() string {
 
 func (m Model) renderFileDiffPane() string {
 	width := max(20, m.width-m.leftWidth())
-	height := max(8, m.height)
+	height := m.paneHeight()
 	style := paneStyle(width, height, true)
 	files := m.currentFiles()
 	if len(files) == 0 {
