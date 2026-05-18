@@ -21,6 +21,7 @@ type Config struct {
 	Accounts             []Account       `yaml:"accounts"`
 	RecentProjectsLimit  int             `yaml:"recent_projects_limit"`
 	RecentProjectHistory []RecentProject `yaml:"recent_projects,omitempty"`
+	Emoji                EmojiConfig     `yaml:"emoji"`
 }
 
 type Account struct {
@@ -48,6 +49,7 @@ func Default() Config {
 			Host:     "https://gitlab.com",
 			TokenEnv: DefaultTokenEnv,
 		}},
+		Emoji: DefaultEmojiConfig(),
 	}
 }
 

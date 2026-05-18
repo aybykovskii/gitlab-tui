@@ -8,6 +8,7 @@ import (
 	"github.com/charmbracelet/bubbles/key"
 	tea "github.com/charmbracelet/bubbletea"
 
+	"github.com/aybykovskii/gitlab-tui/internal/config"
 	"github.com/aybykovskii/gitlab-tui/internal/mr"
 )
 
@@ -265,12 +266,11 @@ func TestMRListAndDetailRenderPreviousMRInfo(t *testing.T) {
 	view := model.View()
 	for _, want := range []string{
 		"✓ !10 Add review UI",
-		"Alice Doe",
+		"Alice Doe @alice",
 		"feature/review → main",
-		"Author: Alice Doe @alice",
-		"State: opened",
-		"Pipeline: ✓ success",
-		"Approvals: 1/2",
+		"opened",
+		"✓ success",
+		"1/2",
 		"Review from terminal",
 		"https://gitlab.com/group/project/-/merge_requests/10",
 	} {
@@ -3019,5 +3019,166 @@ func TestProjectSelectEnterOpensSelectedLoadedProjectSections(t *testing.T) {
 	}
 	if model.projectPath != "group/project" || model.mode != ModeSections {
 		t.Fatalf("expected selected project sections to open, path=%q mode=%v", model.projectPath, model.mode)
+	}
+}
+
+// --- issue #68: EmojiConfig + Draft toggle ---
+
+func TestDKeyInModeDetailFlipsDraftOptimistically(t *testing.T) {
+	items := []mr.MergeRequest{{IID: 42, Title: "Fix login", Draft: false, State: "opened"}}
+	model := NewModelWithProject(items, ProjectOptions{
+		Path:    "group/project",
+		Section: SectionMergeRequests,
+	})
+
+	updated, _ := model.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune("d")})
+	model = updated.(Model)
+
+	if !model.items[0].Draft {
+		t.Fatal("expected Draft to be flipped to true optimistically")
+	}
+}
+
+func TestDKeyInModeDetailCallsToggleDraftFunc(t *testing.T) {
+	var calledIID int
+	items := []mr.MergeRequest{{IID: 42, Title: "Fix login", Draft: false, State: "opened"}}
+	model := NewModelWithProject(items, ProjectOptions{
+		Path:    "group/project",
+		Section: SectionMergeRequests,
+		ToggleDraftMR: func(iid int) error {
+			calledIID = iid
+			return nil
+		},
+	})
+
+	updated, cmd := model.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune("d")})
+	model = updated.(Model)
+
+	if cmd == nil {
+		t.Fatal("expected a command to be returned for ToggleDraftMR")
+	}
+	msg := cmd()
+	model.Update(msg)
+
+	if calledIID != 42 {
+		t.Fatalf("expected ToggleDraftMR called with iid=42, got %d", calledIID)
+	}
+}
+
+func TestDKeyInModeDetailWithNilFuncFlipsDraftLocally(t *testing.T) {
+	items := []mr.MergeRequest{{IID: 42, Title: "Draft: Fix login", Draft: true, State: "opened"}}
+	model := NewModelWithProject(items, ProjectOptions{
+		Path:    "group/project",
+		Section: SectionMergeRequests,
+	})
+
+	updated, cmd := model.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune("d")})
+	model = updated.(Model)
+
+	if model.items[0].Draft {
+		t.Fatal("expected Draft to be flipped to false")
+	}
+	if cmd != nil {
+		t.Fatal("expected no command when ToggleDraftMR is nil")
+	}
+}
+
+func TestDKeyInModeDetailDoesNotTriggerInDiscussionsTab(t *testing.T) {
+	items := []mr.MergeRequest{{IID: 42, Title: "Fix", Draft: false, State: "opened"}}
+	model := NewModelWithProject(items, ProjectOptions{
+		Path:            "group/project",
+		Section:         SectionMergeRequests,
+		LoadDiscussions: func(iid int) ([]mr.Discussion, error) { return nil, nil },
+		LoadFiles:       func(iid int) ([]mr.ChangedFile, error) { return nil, nil },
+	})
+	// Switch to discussions tab
+	updated, _ := model.Update(tea.KeyMsg{Type: tea.KeyTab})
+	model = updated.(Model)
+	updated, _ = model.Update(discussionsFinishedMsg{iid: 42, discussions: []mr.Discussion{
+		{ID: "d1", Notes: []mr.Note{{Author: "alice", Body: "check this"}}},
+	}})
+	model = updated.(Model)
+
+	// 'd' in discussions tab should open draft reply, not toggle Draft
+	updated, _ = model.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune("d")})
+	model = updated.(Model)
+
+	if model.items[0].Draft {
+		t.Fatal("expected Draft NOT to be toggled when in discussions tab")
+	}
+	if !model.replyInput {
+		t.Fatal("expected replyInput to be opened (draft reply in discussions tab)")
+	}
+}
+
+func TestSummaryRendersDraftPrefixForDraftMR(t *testing.T) {
+	items := []mr.MergeRequest{{IID: 42, Title: "Fix login", Draft: true, State: "opened", Approvals: "0/1"}}
+	model := NewModelWithProject(items, ProjectOptions{
+		Path:    "group/project",
+		Section: SectionMergeRequests,
+	})
+
+	view := model.renderRight()
+
+	if !strings.Contains(view, "Draft:") {
+		t.Fatalf("expected 'Draft:' prefix in summary for draft MR, got:\n%s", view)
+	}
+}
+
+func TestSummaryDoesNotRenderDraftPrefixForNonDraftMR(t *testing.T) {
+	items := []mr.MergeRequest{{IID: 42, Title: "Fix login", Draft: false, State: "opened", Approvals: "0/1"}}
+	model := NewModelWithProject(items, ProjectOptions{
+		Path:    "group/project",
+		Section: SectionMergeRequests,
+	})
+
+	view := model.renderRight()
+
+	if strings.Contains(view, "Draft:") {
+		t.Fatalf("expected no 'Draft:' prefix for non-draft MR, got:\n%s", view)
+	}
+}
+
+func TestSummaryRendersEmojiAuthorWhenEnabled(t *testing.T) {
+	items := []mr.MergeRequest{{
+		IID: 42, Title: "Fix login", Author: "alice", AuthorUsername: "alice",
+		SourceBranch: "feat", TargetBranch: "main", State: "opened",
+		Pipeline: "success", Approvals: "1/2",
+	}}
+	model := NewModelWithProject(items, ProjectOptions{
+		Path:    "group/project",
+		Section: SectionMergeRequests,
+		Emoji:   config.DefaultEmojiConfig(),
+	})
+
+	view := model.renderRight()
+
+	if !strings.Contains(view, "👤") {
+		t.Fatalf("expected 👤 author emoji in summary when enabled, got:\n%s", view)
+	}
+	if !strings.Contains(view, "🌿") {
+		t.Fatalf("expected 🌿 branch emoji in summary when enabled, got:\n%s", view)
+	}
+}
+
+func TestSummaryRendersReviewersAndAssignees(t *testing.T) {
+	items := []mr.MergeRequest{{
+		IID: 42, Title: "Fix", Author: "alice", SourceBranch: "feat", TargetBranch: "main",
+		State: "opened", Approvals: "0/1",
+		Reviewers: []string{"bob", "carol"},
+		Assignees: []string{"dave"},
+	}}
+	model := NewModelWithProject(items, ProjectOptions{
+		Path:    "group/project",
+		Section: SectionMergeRequests,
+	})
+
+	view := model.renderRight()
+
+	if !strings.Contains(view, "bob") {
+		t.Fatalf("expected reviewer 'bob' in summary, got:\n%s", view)
+	}
+	if !strings.Contains(view, "dave") {
+		t.Fatalf("expected assignee 'dave' in summary, got:\n%s", view)
 	}
 }

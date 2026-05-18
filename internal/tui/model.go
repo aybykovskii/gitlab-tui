@@ -10,6 +10,7 @@ import (
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
 
+	"github.com/aybykovskii/gitlab-tui/internal/config"
 	"github.com/aybykovskii/gitlab-tui/internal/diff"
 	"github.com/aybykovskii/gitlab-tui/internal/mr"
 )
@@ -81,6 +82,7 @@ type MergeMRFunc func(iid int) error
 type EditMRFunc func(iid int, title, description string) error
 type OpenURLFunc func(url string) error
 type OpenEditorFunc func(path string, line int) error
+type ToggleDraftMRFunc func(iid int) error
 
 type GlobalKeys struct {
 	Quit         key.Binding
@@ -112,12 +114,13 @@ type EntityListKeys struct {
 }
 
 type MRDetailKeys struct {
-	Approve key.Binding
-	Merge   key.Binding
-	Edit    key.Binding
-	OpenURL key.Binding
-	Comment key.Binding
-	NextTab key.Binding
+	Approve     key.Binding
+	Merge       key.Binding
+	Edit        key.Binding
+	OpenURL     key.Binding
+	Comment     key.Binding
+	NextTab     key.Binding
+	ToggleDraft key.Binding
 }
 
 type DiffViewKeys struct {
@@ -186,17 +189,18 @@ func (k EntityListKeys) LocalKeys() []key.Binding {
 
 func newMRDetailKeys() MRDetailKeys {
 	return MRDetailKeys{
-		Approve: key.NewBinding(key.WithKeys("A"), key.WithHelp("A", "approve")),
-		Merge:   key.NewBinding(key.WithKeys("M"), key.WithHelp("M", "merge")),
-		Edit:    key.NewBinding(key.WithKeys("e"), key.WithHelp("e", "edit")),
-		OpenURL: key.NewBinding(key.WithKeys("o"), key.WithHelp("o", "open")),
-		Comment: key.NewBinding(key.WithKeys("m"), key.WithHelp("m", "comment")),
-		NextTab: key.NewBinding(key.WithKeys("tab"), key.WithHelp("Tab", "next tab")),
+		Approve:     key.NewBinding(key.WithKeys("A"), key.WithHelp("A", "approve")),
+		Merge:       key.NewBinding(key.WithKeys("M"), key.WithHelp("M", "merge")),
+		Edit:        key.NewBinding(key.WithKeys("e"), key.WithHelp("e", "edit")),
+		OpenURL:     key.NewBinding(key.WithKeys("o"), key.WithHelp("o", "open")),
+		Comment:     key.NewBinding(key.WithKeys("m"), key.WithHelp("m", "comment")),
+		NextTab:     key.NewBinding(key.WithKeys("tab"), key.WithHelp("Tab", "next tab")),
+		ToggleDraft: key.NewBinding(key.WithKeys("d"), key.WithHelp("d", "toggle draft")),
 	}
 }
 
 func (k MRDetailKeys) LocalKeys() []key.Binding {
-	return []key.Binding{k.Approve, k.Merge, k.Edit, k.OpenURL, k.Comment, k.NextTab}
+	return []key.Binding{k.Approve, k.Merge, k.Edit, k.OpenURL, k.Comment, k.NextTab, k.ToggleDraft}
 }
 
 func newDiffViewKeys() DiffViewKeys {
@@ -273,6 +277,8 @@ type ProjectOptions struct {
 	EditMR              EditMRFunc
 	OpenURL             OpenURLFunc
 	OpenEditor          OpenEditorFunc
+	ToggleDraftMR       ToggleDraftMRFunc
+	Emoji               config.EmojiConfig
 }
 
 type projectStartedMsg struct {
@@ -385,6 +391,12 @@ type openEditorMsg struct {
 	err error
 }
 
+type toggleDraftFinishedMsg struct {
+	iid  int
+	prev bool
+	err  error
+}
+
 type refreshStartedMsg struct{}
 
 type refreshFinishedMsg struct {
@@ -449,6 +461,8 @@ type Model struct {
 	editMR               EditMRFunc
 	openURL              OpenURLFunc
 	openEditor           OpenEditorFunc
+	toggleDraftMR        ToggleDraftMRFunc
+	emoji                config.EmojiConfig
 	drafts               map[int][]mr.DraftComment
 	submitDrafts         SubmitDraftsFunc
 	discardDrafts        DiscardDraftsFunc
@@ -531,6 +545,8 @@ func NewModelWithProject(items []mr.MergeRequest, options ProjectOptions) Model 
 		editMR:               options.EditMR,
 		openURL:              options.OpenURL,
 		openEditor:           options.OpenEditor,
+		toggleDraftMR:        options.ToggleDraftMR,
+		emoji:                options.Emoji,
 		globals:              newGlobalKeys(),
 		projectListKeys:      newProjectListKeys(),
 	}
@@ -702,6 +718,17 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m, nil
 	case openEditorMsg:
 		if msg.err != nil {
+			m.actionError = msg.err.Error()
+		}
+		return m, nil
+	case toggleDraftFinishedMsg:
+		if msg.err != nil {
+			for i := range m.items {
+				if m.items[i].IID == msg.iid {
+					m.items[i].Draft = msg.prev
+					break
+				}
+			}
 			m.actionError = msg.err.Error()
 		}
 		return m, nil
@@ -1292,6 +1319,29 @@ func (m Model) updateKey(msg tea.KeyMsg) (Model, tea.Cmd) {
 				m.editField = "title"
 				m.editBuffer = item.Title
 				m.editTitle = ""
+			}
+		}
+	case msg.String() == "d":
+		if m.mode == ModeDetail && m.activeTab != TabDiscussions {
+			item, ok := m.selectedItem()
+			if !ok {
+				return m, nil
+			}
+			prev := item.Draft
+			for i := range m.items {
+				if m.items[i].IID == item.IID {
+					m.items[i].Draft = !prev
+					break
+				}
+			}
+			if m.toggleDraftMR == nil {
+				return m, nil
+			}
+			fn := m.toggleDraftMR
+			iid := item.IID
+			return m, func() tea.Msg {
+				err := fn(iid)
+				return toggleDraftFinishedMsg{iid: iid, prev: prev, err: err}
 			}
 		}
 	case msg.String() == "tab":
@@ -2197,7 +2247,8 @@ func (m Model) renderRight() string {
 	default:
 		tabs = "[>Summary<] [Discussions] [Files]"
 	}
-	header := fmt.Sprintf("!%d %s\n%s", item.IID, item.Title, tabs)
+	icons := m.emoji.Resolve()
+	header := fmt.Sprintf("%s\n%s", mrTitleLine(item, icons), tabs)
 
 	switch m.activeTab {
 	case TabDiscussions:
@@ -2205,14 +2256,39 @@ func (m Model) renderRight() string {
 	case TabFiles:
 		return style.Render(header + "\n\n" + m.renderFiles(item))
 	default:
+		authorPart := iconPrefix(icons.Author) + formatAuthor(item)
+		reviewerPart := ""
+		if len(item.Reviewers) > 0 {
+			reviewerPart = iconPrefix(icons.Reviewers) + strings.Join(item.Reviewers, ", ")
+		}
+		assigneePart := ""
+		if len(item.Assignees) > 0 {
+			assigneePart = iconPrefix(icons.Assignees) + strings.Join(item.Assignees, ", ")
+		}
+		peopleParts := []string{authorPart}
+		if reviewerPart != "" {
+			peopleParts = append(peopleParts, reviewerPart)
+		}
+		if assigneePart != "" {
+			peopleParts = append(peopleParts, assigneePart)
+		}
+
+		statePart := stateEmoji(icons, item.State) + " " + item.State
+		if icons.State == "" {
+			statePart = item.State
+		}
+		pipelinePart := iconPrefix(icons.Pipeline) + pipelineIcon(item.Pipeline) + " " + item.Pipeline
+		approvalsPart := iconPrefix(icons.Approvals) + item.Approvals
+
 		lines := []string{
 			header,
 			"",
-			"Author: " + formatAuthor(item),
-			"Branches: " + item.SourceBranch + " → " + item.TargetBranch,
-			"State: " + item.State,
-			"Pipeline: " + pipelineIcon(item.Pipeline) + " " + item.Pipeline,
-			"Approvals: " + item.Approvals,
+			strings.Join(peopleParts, "  ·  "),
+			iconPrefix(icons.Branch) + item.SourceBranch + " → " + item.TargetBranch,
+			strings.Join([]string{statePart, pipelinePart, approvalsPart}, "  ·  "),
+		}
+		if len(item.Labels) > 0 {
+			lines = append(lines, iconPrefix(icons.Labels)+strings.Join(item.Labels, " "))
 		}
 		if item.WebURL != "" {
 			lines = append(lines, "URL: "+item.WebURL)
@@ -2443,6 +2519,41 @@ func (m Model) renderDiff(item mr.MergeRequest) string {
 	visible := max(1, m.height-2)
 	end := min(len(lines), m.rightTop+visible)
 	return strings.Join(lines[m.rightTop:end], "\n")
+}
+
+func mrTitleLine(item mr.MergeRequest, icons config.EmojiMap) string {
+	prefix := ""
+	if icons.Draft != "" {
+		prefix = icons.Draft + " "
+	}
+	title := item.Title
+	if item.Draft {
+		title = "Draft: " + title
+	}
+	return fmt.Sprintf("%s!%d %s", prefix, item.IID, title)
+}
+
+func stateEmoji(icons config.EmojiMap, state string) string {
+	if icons.State == "" {
+		return ""
+	}
+	switch state {
+	case "opened":
+		return "🟢"
+	case "merged":
+		return "🟣"
+	case "closed":
+		return "🔴"
+	default:
+		return icons.State
+	}
+}
+
+func iconPrefix(icon string) string {
+	if icon == "" {
+		return ""
+	}
+	return icon + " "
 }
 
 func formatAuthor(item mr.MergeRequest) string {
