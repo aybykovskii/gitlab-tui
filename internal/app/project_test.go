@@ -17,6 +17,8 @@ func (r fakeRemotes) RemoteURLs() ([]string, error) {
 }
 
 func TestProjectResolverUsesProjectOverrideFirst(t *testing.T) {
+	t.Parallel()
+
 	cfg := config.Default()
 	resolution := ProjectResolver{
 		Config:          cfg,
@@ -34,6 +36,8 @@ func TestProjectResolverUsesProjectOverrideFirst(t *testing.T) {
 }
 
 func TestProjectResolverUsesGitRemoteFirst(t *testing.T) {
+	t.Parallel()
+
 	cfg := config.Default()
 	cfg.RecentProjectHistory = []config.RecentProject{{Account: "default", Path: "recent/project", LastUsedAt: time.Now()}}
 	resolution := ProjectResolver{
@@ -51,6 +55,8 @@ func TestProjectResolverUsesGitRemoteFirst(t *testing.T) {
 }
 
 func TestProjectResolverFallsBackToRecentProjects(t *testing.T) {
+	t.Parallel()
+
 	cfg := config.Default()
 	now := time.Now()
 	cfg.RecentProjectHistory = []config.RecentProject{{Account: "default", Path: "recent/project", LastUsedAt: now}}
@@ -69,6 +75,8 @@ func TestProjectResolverFallsBackToRecentProjects(t *testing.T) {
 }
 
 func TestProjectResolverFallsBackToManualInput(t *testing.T) {
+	t.Parallel()
+
 	resolution := ProjectResolver{Config: config.Default(), Remotes: fakeRemotes{}}.Resolve()
 
 	if resolution.Source != ProjectSourceManualInput {
@@ -77,6 +85,8 @@ func TestProjectResolverFallsBackToManualInput(t *testing.T) {
 }
 
 func TestRememberResolvedProject(t *testing.T) {
+	t.Parallel()
+
 	cfg := config.Default()
 	now := time.Now()
 	RememberResolvedProject(&cfg, "default", "group/project", now)

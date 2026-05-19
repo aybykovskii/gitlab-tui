@@ -20,6 +20,8 @@ func (quitModel) Update(tea.Msg) (tea.Model, tea.Cmd) { return quitModel{}, nil 
 func (quitModel) View() string                        { return "full screen" }
 
 func TestProgramUsesAltScreen(t *testing.T) {
+	t.Parallel()
+
 	var stdout bytes.Buffer
 	program := tea.NewProgram(quitModel{}, append(programOptions(&stdout), tea.WithInput(bytes.NewBuffer(nil)))...)
 
@@ -40,6 +42,8 @@ func TestProgramUsesAltScreen(t *testing.T) {
 var errTestRefresh = errors.New("refresh failed")
 
 func TestAllNavigationKeyMapsHaveHelp(t *testing.T) {
+	t.Parallel()
+
 	keyMaps := map[string][]key.Binding{
 		"project list": newProjectListKeys().LocalKeys(),
 		"sections":     newSectionsKeys().LocalKeys(),
@@ -62,6 +66,8 @@ func TestAllNavigationKeyMapsHaveHelp(t *testing.T) {
 }
 
 func TestCollapsedKeyBarTruncatesLocalKeys(t *testing.T) {
+	t.Parallel()
+
 	model := NewModelWithProject(nil, ProjectOptions{Recents: []string{"group/project"}})
 	model.width = 34
 
@@ -72,6 +78,8 @@ func TestCollapsedKeyBarTruncatesLocalKeys(t *testing.T) {
 }
 
 func TestExpandedKeyBarShowsAllProjectListLocalKeys(t *testing.T) {
+	t.Parallel()
+
 	model := NewModelWithProject(nil, ProjectOptions{Recents: []string{"group/project"}})
 	model.width = 80
 	model.keyBarExpanded = true
@@ -89,6 +97,8 @@ func TestExpandedKeyBarShowsAllProjectListLocalKeys(t *testing.T) {
 }
 
 func TestViewRendersPersistentKeyBar(t *testing.T) {
+	t.Parallel()
+
 	model := NewModelWithProject(nil, ProjectOptions{Recents: []string{"group/project"}})
 	model.width = 80
 	model.height = 24
@@ -103,6 +113,8 @@ func TestViewRendersPersistentKeyBar(t *testing.T) {
 }
 
 func TestHKeyTogglesExpandedKeyBarAndPaneHeight(t *testing.T) {
+	t.Parallel()
+
 	model := NewModelWithProject(nil, ProjectOptions{Recents: []string{"group/project"}})
 	model.height = 30
 	collapsedHeight := model.paneHeight()
@@ -127,6 +139,8 @@ func TestHKeyTogglesExpandedKeyBarAndPaneHeight(t *testing.T) {
 }
 
 func TestGlobalKeysUseDeclaredBindings(t *testing.T) {
+	t.Parallel()
+
 	model := NewModelWithProject(FakeMergeRequests(), ProjectOptions{Path: "group/project", Section: SectionMergeRequests})
 
 	_, cmd := model.Update(tea.KeyMsg{Type: tea.KeyCtrlC})
@@ -137,6 +151,8 @@ func TestGlobalKeysUseDeclaredBindings(t *testing.T) {
 }
 
 func TestInputModeQDoesNotQuit(t *testing.T) {
+	t.Parallel()
+
 	model := NewModelWithProject(FakeMergeRequests(), ProjectOptions{Path: "group/project", Section: SectionMergeRequests})
 	model.mrCommentInput = true
 
@@ -153,6 +169,8 @@ func TestInputModeQDoesNotQuit(t *testing.T) {
 }
 
 func TestResolvedProjectShowsProjectListAndSections(t *testing.T) {
+	t.Parallel()
+
 	model := NewModelWithProject(FakeMergeRequests(), ProjectOptions{
 		Path:     "group/project",
 		Recents:  []string{"group/project", "recent/other"},
@@ -177,6 +195,8 @@ func TestResolvedProjectShowsProjectListAndSections(t *testing.T) {
 }
 
 func TestEnterOnMergeRequestsSectionOpensMRList(t *testing.T) {
+	t.Parallel()
+
 	model := NewModelWithProject(FakeMergeRequests(), ProjectOptions{Path: "group/project"})
 	updated, _ := model.Update(tea.KeyMsg{Type: tea.KeyEnter})
 	model = updated.(Model)
@@ -195,6 +215,8 @@ func TestEnterOnMergeRequestsSectionOpensMRList(t *testing.T) {
 }
 
 func TestOpenedProjectMovesToTopOfProjectList(t *testing.T) {
+	t.Parallel()
+
 	model := NewModelWithProject(FakeMergeRequests(), ProjectOptions{
 		Path:     "group/project",
 		Recents:  []string{"recent/other"},
@@ -207,6 +229,8 @@ func TestOpenedProjectMovesToTopOfProjectList(t *testing.T) {
 }
 
 func TestKeyboardSelectionAndDiffNavigation(t *testing.T) {
+	t.Parallel()
+
 	model := NewFakeModel()
 	model.rightTop = 2
 
@@ -240,6 +264,8 @@ func TestKeyboardSelectionAndDiffNavigation(t *testing.T) {
 }
 
 func TestFilterInputNarrowsList(t *testing.T) {
+	t.Parallel()
+
 	model := NewFakeModel()
 	updated, _ := model.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune("/")})
 	model = updated.(Model)
@@ -257,6 +283,8 @@ func TestFilterInputNarrowsList(t *testing.T) {
 }
 
 func TestDirectMRDeepLinkSelectsLoadedMergeRequest(t *testing.T) {
+	t.Parallel()
+
 	model := NewModelWithProject(nil, ProjectOptions{Path: "group/project", Section: SectionMergeRequests, EntityID: "123"})
 	updated, _ := model.Update(projectFinishedMsg{path: "group/project", data: ProjectData{Items: []mr.MergeRequest{
 		{IID: 101, Title: "First MR"},
@@ -274,6 +302,8 @@ func TestDirectMRDeepLinkSelectsLoadedMergeRequest(t *testing.T) {
 }
 
 func TestDirectMRDeepLinkSelectsMatchingMergeRequest(t *testing.T) {
+	t.Parallel()
+
 	model := NewModelWithProject([]mr.MergeRequest{
 		{IID: 101, Title: "First MR"},
 		{IID: 123, Title: "Target MR", Description: "Deep linked"},
@@ -290,6 +320,8 @@ func TestDirectMRDeepLinkSelectsMatchingMergeRequest(t *testing.T) {
 }
 
 func TestMRListAndDetailRenderPreviousMRInfo(t *testing.T) {
+	t.Parallel()
+
 	model := NewModelWithProject([]mr.MergeRequest{{
 		IID:            10,
 		Title:          "Add review UI",
@@ -322,6 +354,8 @@ func TestMRListAndDetailRenderPreviousMRInfo(t *testing.T) {
 }
 
 func TestProjectSelectionShowsRecentsAndGitLabProjects(t *testing.T) {
+	t.Parallel()
+
 	model := NewModelWithProject(FakeMergeRequests(), ProjectOptions{
 		Recents:  []string{"recent/project"},
 		Projects: []string{"gitlab/project"},
@@ -334,6 +368,8 @@ func TestProjectSelectionShowsRecentsAndGitLabProjects(t *testing.T) {
 }
 
 func TestProjectSelectionGoesToSectionsImmediately(t *testing.T) {
+	t.Parallel()
+
 	model := NewModelWithProject(nil, ProjectOptions{
 		Recents: []string{"group/one", "group/two"},
 		LoadProject: func(path string) (ProjectData, error) {
@@ -363,6 +399,8 @@ func TestProjectSelectionGoesToSectionsImmediately(t *testing.T) {
 }
 
 func TestProjectLoadShowsLoadingState(t *testing.T) {
+	t.Parallel()
+
 	model := NewModelWithProject(FakeMergeRequests(), ProjectOptions{Recents: []string{"group/project"}})
 	updated, _ := model.Update(projectStartedMsg{path: "group/project"})
 	model = updated.(Model)
@@ -378,6 +416,8 @@ func TestProjectLoadShowsLoadingState(t *testing.T) {
 }
 
 func TestProjectLoadErrorCanReturnToSelection(t *testing.T) {
+	t.Parallel()
+
 	model := NewModelWithProject(FakeMergeRequests(), ProjectOptions{Recents: []string{"group/project"}})
 	updated, _ := model.Update(projectStartedMsg{path: "group/project"})
 	model = updated.(Model)
@@ -402,6 +442,8 @@ func TestProjectLoadErrorCanReturnToSelection(t *testing.T) {
 }
 
 func TestProjectLoadErrorRetryReloadsSameProject(t *testing.T) {
+	t.Parallel()
+
 	calls := 0
 	model := NewModelWithProject(FakeMergeRequests(), ProjectOptions{
 		Recents: []string{"group/project"},
@@ -432,6 +474,8 @@ func TestProjectLoadErrorRetryReloadsSameProject(t *testing.T) {
 }
 
 func TestManualProjectLoadErrorReturnsToInput(t *testing.T) {
+	t.Parallel()
+
 	model := NewModelWithProject(FakeMergeRequests(), ProjectOptions{})
 	updated, _ := model.Update(projectStartedMsg{path: "group/project"})
 	model = updated.(Model)
@@ -450,6 +494,8 @@ func TestManualProjectLoadErrorReturnsToInput(t *testing.T) {
 }
 
 func TestManualProjectInputGoesToSectionsImmediately(t *testing.T) {
+	t.Parallel()
+
 	model := NewModelWithProject(nil, ProjectOptions{
 		LoadProject: func(path string) (ProjectData, error) {
 			return ProjectData{Items: []mr.MergeRequest{{IID: 7, Title: "Manual"}}}, nil
@@ -478,6 +524,8 @@ func TestManualProjectInputGoesToSectionsImmediately(t *testing.T) {
 }
 
 func TestEnterOnSummaryDoesNotTriggerDiff(t *testing.T) {
+	t.Parallel()
+
 	model := NewModelWithProject([]mr.MergeRequest{{IID: 1, Title: "Needs diff"}}, ProjectOptions{
 		Path:    "group/project",
 		Section: SectionMergeRequests,
@@ -496,6 +544,8 @@ func TestEnterOnSummaryDoesNotTriggerDiff(t *testing.T) {
 }
 
 func TestEmptyProjectStateCanReturnToProjectSelection(t *testing.T) {
+	t.Parallel()
+
 	model := NewModelWithProject(FakeMergeRequests(), ProjectOptions{Recents: []string{"group/project"}, Section: SectionMergeRequests})
 	updated, _ := model.Update(projectFinishedMsg{path: "group/project", data: ProjectData{Items: []mr.MergeRequest{}}})
 	model = updated.(Model)
@@ -518,6 +568,8 @@ func TestEmptyProjectStateCanReturnToProjectSelection(t *testing.T) {
 }
 
 func TestRefreshKeyReturnsCommand(t *testing.T) {
+	t.Parallel()
+
 	model := NewModelWithProject(FakeMergeRequests(), ProjectOptions{
 		Path:    "group/project",
 		Section: SectionMergeRequests,
@@ -533,6 +585,8 @@ func TestRefreshKeyReturnsCommand(t *testing.T) {
 }
 
 func TestRefreshFinishedReplacesItems(t *testing.T) {
+	t.Parallel()
+
 	model := NewFakeModel()
 	updated, _ := model.Update(refreshFinishedMsg{items: []mr.MergeRequest{{IID: 99, Title: "Refreshed"}}})
 	model = updated.(Model)
@@ -547,6 +601,8 @@ func TestRefreshFinishedReplacesItems(t *testing.T) {
 }
 
 func TestRefreshFinishedStoresError(t *testing.T) {
+	t.Parallel()
+
 	model := NewFakeModel()
 	updated, _ := model.Update(refreshFinishedMsg{err: errTestRefresh})
 	model = updated.(Model)
@@ -583,6 +639,8 @@ func discussionOpts() ProjectOptions {
 }
 
 func TestDiscussionsTabTriggersLoadOnFirstVisit(t *testing.T) {
+	t.Parallel()
+
 	model := NewModelWithProject(FakeMergeRequests(), discussionOpts())
 
 	updated, cmd := model.Update(tea.KeyMsg{Type: tea.KeyTab})
@@ -602,6 +660,8 @@ func TestDiscussionsTabTriggersLoadOnFirstVisit(t *testing.T) {
 }
 
 func TestDiscussionsTabRendersThreadsAfterLoad(t *testing.T) {
+	t.Parallel()
+
 	model := NewModelWithProject(FakeMergeRequests(), discussionOpts())
 	updated, _ := model.Update(tea.KeyMsg{Type: tea.KeyTab})
 	model = updated.(Model)
@@ -626,6 +686,8 @@ func TestDiscussionsTabRendersThreadsAfterLoad(t *testing.T) {
 }
 
 func TestFocusedDiscussionThreadIsMarked(t *testing.T) {
+	t.Parallel()
+
 	model := NewModelWithProject(FakeMergeRequests(), discussionOpts())
 	updated, _ := model.Update(tea.KeyMsg{Type: tea.KeyTab})
 	model = updated.(Model)
@@ -659,6 +721,8 @@ func TestFocusedDiscussionThreadIsMarked(t *testing.T) {
 }
 
 func TestDiscussionThreadsAreSeparatedByDivider(t *testing.T) {
+	t.Parallel()
+
 	model := NewModelWithProject(FakeMergeRequests(), discussionOpts())
 	updated, _ := model.Update(tea.KeyMsg{Type: tea.KeyTab})
 	model = updated.(Model)
@@ -683,6 +747,8 @@ func TestDiscussionThreadsAreSeparatedByDivider(t *testing.T) {
 }
 
 func TestDiscussionThreadShowsAllReplies(t *testing.T) {
+	t.Parallel()
+
 	model := NewModelWithProject(FakeMergeRequests(), discussionOpts())
 	updated, _ := model.Update(tea.KeyMsg{Type: tea.KeyTab})
 	model = updated.(Model)
@@ -707,6 +773,8 @@ func TestDiscussionThreadShowsAllReplies(t *testing.T) {
 }
 
 func TestDiscussionsTabShowsEmptyState(t *testing.T) {
+	t.Parallel()
+
 	model := NewModelWithProject(FakeMergeRequests(), discussionOpts())
 	updated, _ := model.Update(tea.KeyMsg{Type: tea.KeyTab})
 	model = updated.(Model)
@@ -719,6 +787,8 @@ func TestDiscussionsTabShowsEmptyState(t *testing.T) {
 }
 
 func TestDiscussionsTabShowsErrorState(t *testing.T) {
+	t.Parallel()
+
 	model := NewModelWithProject(FakeMergeRequests(), discussionOpts())
 	updated, _ := model.Update(tea.KeyMsg{Type: tea.KeyTab})
 	model = updated.(Model)
@@ -731,6 +801,8 @@ func TestDiscussionsTabShowsErrorState(t *testing.T) {
 }
 
 func TestFilesTabTriggersLoadOnFirstVisit(t *testing.T) {
+	t.Parallel()
+
 	model := NewModelWithProject(FakeMergeRequests(), discussionOpts())
 
 	// Tab twice: Summary → Discussions → Files
@@ -753,6 +825,8 @@ func TestFilesTabTriggersLoadOnFirstVisit(t *testing.T) {
 }
 
 func TestFilesTabRendersChangedFilesAfterLoad(t *testing.T) {
+	t.Parallel()
+
 	model := NewModelWithProject(FakeMergeRequests(), discussionOpts())
 	updated, _ := model.Update(tea.KeyMsg{Type: tea.KeyTab})
 	model = updated.(Model)
@@ -780,6 +854,8 @@ func TestFilesTabRendersChangedFilesAfterLoad(t *testing.T) {
 }
 
 func TestFilesTabShowsEmptyState(t *testing.T) {
+	t.Parallel()
+
 	model := NewModelWithProject(FakeMergeRequests(), discussionOpts())
 	updated, _ := model.Update(tea.KeyMsg{Type: tea.KeyTab})
 	model = updated.(Model)
@@ -794,6 +870,8 @@ func TestFilesTabShowsEmptyState(t *testing.T) {
 }
 
 func TestFilesTabShowsErrorState(t *testing.T) {
+	t.Parallel()
+
 	model := NewModelWithProject(FakeMergeRequests(), discussionOpts())
 	updated, _ := model.Update(tea.KeyMsg{Type: tea.KeyTab})
 	model = updated.(Model)
@@ -837,6 +915,8 @@ func fileDiffOpts() ProjectOptions {
 }
 
 func TestEnterOnFileInFilesTabOpensFileDiffMode(t *testing.T) {
+	t.Parallel()
+
 	model := NewModelWithProject(FakeMergeRequests(), fileDiffOpts())
 
 	// Navigate to Files tab (Tab twice: Summary → Discussions → Files)
@@ -866,6 +946,8 @@ func TestEnterOnFileInFilesTabOpensFileDiffMode(t *testing.T) {
 }
 
 func TestFileDiffLeftPaneShowsFileListWithCurrentHighlighted(t *testing.T) {
+	t.Parallel()
+
 	model := NewModelWithProject(FakeMergeRequests(), fileDiffOpts())
 
 	updated, _ := model.Update(tea.KeyMsg{Type: tea.KeyTab})
@@ -891,6 +973,8 @@ func TestFileDiffLeftPaneShowsFileListWithCurrentHighlighted(t *testing.T) {
 }
 
 func TestFileDiffRightPaneShowsPerFileDiffRows(t *testing.T) {
+	t.Parallel()
+
 	model := NewModelWithProject(FakeMergeRequests(), fileDiffOpts())
 
 	updated, _ := model.Update(tea.KeyMsg{Type: tea.KeyTab})
@@ -925,6 +1009,8 @@ func TestFileDiffRightPaneShowsPerFileDiffRows(t *testing.T) {
 }
 
 func TestFileDiffShowsDiscussionGutterWithoutInlineBody(t *testing.T) {
+	t.Parallel()
+
 	model := NewModelWithProject(FakeMergeRequests(), ProjectOptions{
 		Path:    "group/project",
 		Section: SectionMergeRequests,
@@ -998,6 +1084,8 @@ func fileDiffModelWithFiles(t *testing.T, files []mr.ChangedFile) Model {
 }
 
 func TestRightKeyMovesToNextFile(t *testing.T) {
+	t.Parallel()
+
 	model := fileDiffModelWithFiles(t, []mr.ChangedFile{
 		{Path: "a.go", Diff: []mr.DiffRow{{OldLine: 1, NewLine: 1, OldText: "a", NewText: "a"}}},
 		{Path: "b.go", Diff: []mr.DiffRow{{OldLine: 1, NewLine: 1, OldText: "b", NewText: "b"}}},
@@ -1016,6 +1104,8 @@ func TestRightKeyMovesToNextFile(t *testing.T) {
 }
 
 func TestRightKeyDoesNotExceedLastFile(t *testing.T) {
+	t.Parallel()
+
 	model := fileDiffModelWithFiles(t, []mr.ChangedFile{
 		{Path: "a.go", Diff: []mr.DiffRow{{OldLine: 1, NewLine: 1, OldText: "a", NewText: "a"}}},
 	})
@@ -1029,6 +1119,8 @@ func TestRightKeyDoesNotExceedLastFile(t *testing.T) {
 }
 
 func TestLeftKeyMovesToPreviousFile(t *testing.T) {
+	t.Parallel()
+
 	model := fileDiffModelWithFiles(t, []mr.ChangedFile{
 		{Path: "a.go", Diff: []mr.DiffRow{{OldLine: 1, NewLine: 1, OldText: "a", NewText: "a"}}},
 		{Path: "b.go", Diff: []mr.DiffRow{{OldLine: 1, NewLine: 1, OldText: "b", NewText: "b"}}},
@@ -1049,6 +1141,8 @@ func TestLeftKeyMovesToPreviousFile(t *testing.T) {
 }
 
 func TestLeftKeyDoesNotGoBelowFirstFile(t *testing.T) {
+	t.Parallel()
+
 	model := fileDiffModelWithFiles(t, []mr.ChangedFile{
 		{Path: "a.go", Diff: []mr.DiffRow{{OldLine: 1, NewLine: 1, OldText: "a", NewText: "a"}}},
 	})
@@ -1062,6 +1156,8 @@ func TestLeftKeyDoesNotGoBelowFirstFile(t *testing.T) {
 }
 
 func TestEscInFileDiffReturnsToFilesTab(t *testing.T) {
+	t.Parallel()
+
 	model := fileDiffModelWithFiles(t, []mr.ChangedFile{
 		{Path: "a.go", Diff: []mr.DiffRow{{OldLine: 1, NewLine: 1, OldText: "a", NewText: "a"}}},
 	})
@@ -1079,6 +1175,8 @@ func TestEscInFileDiffReturnsToFilesTab(t *testing.T) {
 }
 
 func TestBackspaceInFileDiffReturnsToFilesTab(t *testing.T) {
+	t.Parallel()
+
 	model := fileDiffModelWithFiles(t, []mr.ChangedFile{
 		{Path: "a.go", Diff: []mr.DiffRow{{OldLine: 1, NewLine: 1, OldText: "a", NewText: "a"}}},
 	})
@@ -1141,6 +1239,8 @@ func draftFileDiffModel(t *testing.T) Model {
 }
 
 func TestReviewTabAppearsInTabCycleWithDraftCount(t *testing.T) {
+	t.Parallel()
+
 	model := draftFileDiffModel(t)
 	updated, _ := model.Update(draftAddedMsg{iid: 42, draft: mr.DraftComment{
 		LocalID:  "d1",
@@ -1171,6 +1271,8 @@ func TestReviewTabAppearsInTabCycleWithDraftCount(t *testing.T) {
 }
 
 func TestReviewTabOpensDraftDiffAndEscReturnsToReview(t *testing.T) {
+	t.Parallel()
+
 	model := draftFileDiffModel(t)
 	updated, _ := model.Update(draftAddedMsg{iid: 42, draft: mr.DraftComment{
 		LocalID:  "d1",
@@ -1198,6 +1300,8 @@ func TestReviewTabOpensDraftDiffAndEscReturnsToReview(t *testing.T) {
 }
 
 func TestReviewTabPublishesDraftsWithSummaryAndDiscards(t *testing.T) {
+	t.Parallel()
+
 	submitted := false
 	postedSummary := ""
 	discarded := false
@@ -1254,6 +1358,8 @@ func TestReviewTabPublishesDraftsWithSummaryAndDiscards(t *testing.T) {
 }
 
 func TestModelStoresDraftCommentForCurrentMR(t *testing.T) {
+	t.Parallel()
+
 	model := draftFileDiffModel(t)
 
 	draft := mr.DraftComment{
@@ -1274,6 +1380,8 @@ func TestModelStoresDraftCommentForCurrentMR(t *testing.T) {
 }
 
 func TestDraftMarkerAppearsInGutterWithoutInlineBody(t *testing.T) {
+	t.Parallel()
+
 	model := draftFileDiffModel(t)
 
 	updated, _ := model.Update(draftAddedMsg{iid: 42, draft: mr.DraftComment{
@@ -1294,6 +1402,8 @@ func TestDraftMarkerAppearsInGutterWithoutInlineBody(t *testing.T) {
 }
 
 func TestDraftRangeMarkerSpansMultipleRows(t *testing.T) {
+	t.Parallel()
+
 	model := draftFileDiffModel(t)
 
 	// range draft: lines 1–2 (EndLine > 0)
@@ -1325,6 +1435,8 @@ func TestDraftRangeMarkerSpansMultipleRows(t *testing.T) {
 }
 
 func TestFileDiffGuttersUseTextSymbolsWhenEmojiDisabled(t *testing.T) {
+	t.Parallel()
+
 	model := draftFileDiffModel(t)
 	model.emoji = config.EmojiConfig{Enabled: false}
 	updated, _ := model.Update(draftAddedMsg{iid: 42, draft: mr.DraftComment{
@@ -1350,6 +1462,8 @@ func TestFileDiffGuttersUseTextSymbolsWhenEmojiDisabled(t *testing.T) {
 }
 
 func TestActiveDraftRangeUsesDotGutterMarker(t *testing.T) {
+	t.Parallel()
+
 	model := draftFileDiffModel(t)
 	updated, _ := model.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune("v")})
 	model = updated.(Model)
@@ -1363,6 +1477,8 @@ func TestActiveDraftRangeUsesDotGutterMarker(t *testing.T) {
 }
 
 func TestVKeyStartsRangeSelection(t *testing.T) {
+	t.Parallel()
+
 	model := draftFileDiffModel(t)
 
 	updated, _ := model.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune("v")})
@@ -1379,6 +1495,8 @@ func TestVKeyStartsRangeSelection(t *testing.T) {
 }
 
 func TestEscCancelsRangeSelection(t *testing.T) {
+	t.Parallel()
+
 	model := draftFileDiffModel(t)
 
 	updated, _ := model.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune("v")})
@@ -1401,6 +1519,8 @@ func TestEscCancelsRangeSelection(t *testing.T) {
 }
 
 func TestCKeyEntersCommentInputAndEnterSavesDraft(t *testing.T) {
+	t.Parallel()
+
 	model := draftFileDiffModel(t)
 
 	// Press 'c' to open comment input
@@ -1439,6 +1559,8 @@ func TestCKeyEntersCommentInputAndEnterSavesDraft(t *testing.T) {
 }
 
 func TestCommentInputBufferAppearsInView(t *testing.T) {
+	t.Parallel()
+
 	model := draftFileDiffModel(t)
 
 	updated, _ := model.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune("c")})
@@ -1453,6 +1575,8 @@ func TestCommentInputBufferAppearsInView(t *testing.T) {
 }
 
 func TestPKeySubmitsDraftsAndClearsOnSuccess(t *testing.T) {
+	t.Parallel()
+
 	submitted := false
 	model := NewModelWithProject(FakeMergeRequests(), ProjectOptions{
 		Path:    "group/project",
@@ -1510,6 +1634,8 @@ func TestPKeySubmitsDraftsAndClearsOnSuccess(t *testing.T) {
 }
 
 func TestDKeyDiscardsAllLocalDrafts(t *testing.T) {
+	t.Parallel()
+
 	discarded := false
 	model := NewModelWithProject(FakeMergeRequests(), ProjectOptions{
 		Path:    "group/project",
@@ -1597,6 +1723,8 @@ func discussionsTabModel(t *testing.T) Model {
 }
 
 func TestDiscussionCursorMovesWithJK(t *testing.T) {
+	t.Parallel()
+
 	model := discussionsTabModel(t)
 
 	if model.discussionCursor != 0 {
@@ -1619,6 +1747,8 @@ func TestDiscussionCursorMovesWithJK(t *testing.T) {
 }
 
 func TestDiscussionCursorDoesNotExceedBounds(t *testing.T) {
+	t.Parallel()
+
 	model := discussionsTabModel(t)
 
 	updated, _ := model.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune("k")})
@@ -1640,6 +1770,8 @@ func TestDiscussionCursorDoesNotExceedBounds(t *testing.T) {
 }
 
 func TestRKeyOpensReplyInputForFocusedDiscussion(t *testing.T) {
+	t.Parallel()
+
 	model := discussionsTabModel(t)
 
 	updated, _ := model.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune("r")})
@@ -1659,6 +1791,8 @@ func TestRKeyOpensReplyInputForFocusedDiscussion(t *testing.T) {
 }
 
 func TestEnterInReplyInputSendsReplyAndAddsNote(t *testing.T) {
+	t.Parallel()
+
 	called := false
 	opts := discussionWriteOpts()
 	opts.ReplyToDiscussion = func(iid int, discussionID string, body string) error {
@@ -1719,6 +1853,8 @@ func TestEnterInReplyInputSendsReplyAndAddsNote(t *testing.T) {
 }
 
 func TestDKeyOpensDraftReplyAndEnterCallsService(t *testing.T) {
+	t.Parallel()
+
 	called := false
 	opts := discussionWriteOpts()
 	opts.DraftReply = func(iid int, discussionID string, body string) error {
@@ -1763,6 +1899,8 @@ func TestDKeyOpensDraftReplyAndEnterCallsService(t *testing.T) {
 }
 
 func TestXKeyResolvesOpenDiscussion(t *testing.T) {
+	t.Parallel()
+
 	resolved := false
 	opts := discussionWriteOpts()
 	opts.ResolveDiscussion = func(iid int, discussionID string) error {
@@ -1804,6 +1942,8 @@ func TestXKeyResolvesOpenDiscussion(t *testing.T) {
 }
 
 func TestXKeyUnresolvesResolvedDiscussion(t *testing.T) {
+	t.Parallel()
+
 	unresolved := false
 	opts := discussionWriteOpts()
 	opts.UnresolveDiscussion = func(iid int, discussionID string) error {
@@ -1883,6 +2023,8 @@ func diffViewWithInlineDiscussion(t *testing.T, replyFn ReplyToDiscussionFunc) M
 }
 
 func TestRKeyInDiffViewOnInlineDiscussionOpensReplyInput(t *testing.T) {
+	t.Parallel()
+
 	model := diffViewWithInlineDiscussion(t, nil)
 
 	// diffCursor is at 0 which has the inline discussion (NewLine=1)
@@ -1899,6 +2041,8 @@ func TestRKeyInDiffViewOnInlineDiscussionOpensReplyInput(t *testing.T) {
 }
 
 func TestDKeyInDiffViewOpensDraftReplyForInlineDiscussion(t *testing.T) {
+	t.Parallel()
+
 	model := diffViewWithInlineDiscussion(t, nil)
 
 	updated, _ := model.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune("d")})
@@ -1918,6 +2062,8 @@ func TestDKeyInDiffViewOpensDraftReplyForInlineDiscussion(t *testing.T) {
 }
 
 func TestXKeyInDiffViewResolvesInlineDiscussion(t *testing.T) {
+	t.Parallel()
+
 	resolved := false
 	opts := ProjectOptions{
 		Path:    "group/project",
@@ -2008,6 +2154,8 @@ func instantCommentFileDiffModel(t *testing.T, postFn PostInlineCommentFunc) Mod
 }
 
 func TestIKeyOpensInstantInlineCommentInput(t *testing.T) {
+	t.Parallel()
+
 	model := instantCommentFileDiffModel(t, nil)
 
 	updated, _ := model.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune("i")})
@@ -2023,6 +2171,8 @@ func TestIKeyOpensInstantInlineCommentInput(t *testing.T) {
 }
 
 func TestEnterInInstantCommentCallsAPIAndDoesNotSaveDraft(t *testing.T) {
+	t.Parallel()
+
 	called := false
 	model := instantCommentFileDiffModel(t, func(iid int, position mr.DiffPosition, body string) error {
 		called = true
@@ -2062,6 +2212,8 @@ func TestEnterInInstantCommentCallsAPIAndDoesNotSaveDraft(t *testing.T) {
 }
 
 func TestInstantCommentAPIErrorShownInView(t *testing.T) {
+	t.Parallel()
+
 	model := instantCommentFileDiffModel(t, func(iid int, position mr.DiffPosition, body string) error {
 		return errors.New("network timeout")
 	})
@@ -2089,6 +2241,8 @@ func TestInstantCommentAPIErrorShownInView(t *testing.T) {
 }
 
 func TestMKeyOpensMRCommentInput(t *testing.T) {
+	t.Parallel()
+
 	model := NewModelWithProject(FakeMergeRequests(), ProjectOptions{
 		Path:          "group/project",
 		Section:       SectionMergeRequests,
@@ -2104,6 +2258,8 @@ func TestMKeyOpensMRCommentInput(t *testing.T) {
 }
 
 func TestEnterInMRCommentInputCallsPostMRCommentFunc(t *testing.T) {
+	t.Parallel()
+
 	called := false
 	model := NewModelWithProject(FakeMergeRequests(), ProjectOptions{
 		Path:    "group/project",
@@ -2143,6 +2299,8 @@ func TestEnterInMRCommentInputCallsPostMRCommentFunc(t *testing.T) {
 }
 
 func TestEscInMRCommentInputCancelsWithoutSending(t *testing.T) {
+	t.Parallel()
+
 	called := false
 	model := NewModelWithProject(FakeMergeRequests(), ProjectOptions{
 		Path:          "group/project",
@@ -2175,6 +2333,8 @@ func TestEscInMRCommentInputCancelsWithoutSending(t *testing.T) {
 }
 
 func TestMRCommentAPIErrorShownInViewWithoutLosingContext(t *testing.T) {
+	t.Parallel()
+
 	model := NewModelWithProject(FakeMergeRequests(), ProjectOptions{
 		Path:    "group/project",
 		Section: SectionMergeRequests,
@@ -2222,6 +2382,8 @@ func mrActionsModel(t *testing.T, opts ProjectOptions) Model {
 }
 
 func TestAKeyApprovesCurrentMR(t *testing.T) {
+	t.Parallel()
+
 	called := false
 	model := mrActionsModel(t, ProjectOptions{
 		ApproveMR: func(iid int) error {
@@ -2254,6 +2416,8 @@ func TestAKeyApprovesCurrentMR(t *testing.T) {
 }
 
 func TestMKeySetsMergeConfirmPending(t *testing.T) {
+	t.Parallel()
+
 	model := mrActionsModel(t, ProjectOptions{
 		MergeMR: func(iid int) error { return nil },
 	})
@@ -2271,6 +2435,8 @@ func TestMKeySetsMergeConfirmPending(t *testing.T) {
 }
 
 func TestMKeyAgainConfirmsMerge(t *testing.T) {
+	t.Parallel()
+
 	called := false
 	model := mrActionsModel(t, ProjectOptions{
 		MergeMR: func(iid int) error { called = true; return nil },
@@ -2292,6 +2458,8 @@ func TestMKeyAgainConfirmsMerge(t *testing.T) {
 }
 
 func TestOtherKeyAfterMCancelsMerge(t *testing.T) {
+	t.Parallel()
+
 	model := mrActionsModel(t, ProjectOptions{
 		MergeMR: func(iid int) error { return nil },
 	})
@@ -2311,6 +2479,8 @@ func TestOtherKeyAfterMCancelsMerge(t *testing.T) {
 }
 
 func TestOKeyOpensURLInBrowser(t *testing.T) {
+	t.Parallel()
+
 	opened := ""
 	model := NewModelWithProject([]mr.MergeRequest{{
 		IID: 42, Title: "Test", WebURL: "https://gitlab.com/group/project/-/merge_requests/42",
@@ -2334,6 +2504,8 @@ func TestOKeyOpensURLInBrowser(t *testing.T) {
 }
 
 func TestEKeyOpensEditModeOnTitleField(t *testing.T) {
+	t.Parallel()
+
 	model := mrActionsModel(t, ProjectOptions{
 		EditMR: func(iid int, title, description string) error { return nil },
 	})
@@ -2355,6 +2527,8 @@ func TestEKeyOpensEditModeOnTitleField(t *testing.T) {
 }
 
 func TestTabInEditModeMoveToDescriptionField(t *testing.T) {
+	t.Parallel()
+
 	model := mrActionsModel(t, ProjectOptions{
 		EditMR: func(iid int, title, description string) error { return nil },
 	})
@@ -2376,6 +2550,8 @@ func TestTabInEditModeMoveToDescriptionField(t *testing.T) {
 }
 
 func TestEnterInEditModeSavesAndCallsEditMR(t *testing.T) {
+	t.Parallel()
+
 	called := false
 	model := NewModelWithProject([]mr.MergeRequest{{
 		IID: 42, Title: "Old title", Description: "Old desc",
@@ -2430,6 +2606,8 @@ func TestEnterInEditModeSavesAndCallsEditMR(t *testing.T) {
 }
 
 func TestEKeyInDiffViewOpensFileInEditor(t *testing.T) {
+	t.Parallel()
+
 	openedPath := ""
 	openedLine := 0
 	model := NewModelWithProject(FakeMergeRequests(), ProjectOptions{
@@ -2509,6 +2687,8 @@ func fileDiffModelWithRows(t *testing.T, rows []mr.DiffRow) Model {
 }
 
 func TestDiffAdditionRowHasNoZeroOldLineNumber(t *testing.T) {
+	t.Parallel()
+
 	model := fileDiffModelWithRows(t, []mr.DiffRow{
 		{OldLine: 0, NewLine: 5, NewText: "added"},
 	})
@@ -2521,6 +2701,8 @@ func TestDiffAdditionRowHasNoZeroOldLineNumber(t *testing.T) {
 }
 
 func TestDiffContextRowHasNoTypeMarker(t *testing.T) {
+	t.Parallel()
+
 	model := fileDiffModelWithRows(t, []mr.DiffRow{
 		{OldLine: 1, NewLine: 1, OldText: "unchanged", NewText: "unchanged"},
 	})
@@ -2536,6 +2718,8 @@ func TestDiffContextRowHasNoTypeMarker(t *testing.T) {
 }
 
 func TestDiffDeletionRowIsMarkedWithMinus(t *testing.T) {
+	t.Parallel()
+
 	model := fileDiffModelWithRows(t, []mr.DiffRow{
 		{OldLine: 3, NewLine: 0, OldText: "old code"},
 	})
@@ -2547,6 +2731,8 @@ func TestDiffDeletionRowIsMarkedWithMinus(t *testing.T) {
 }
 
 func TestDiffAdditionRowIsMarkedWithPlus(t *testing.T) {
+	t.Parallel()
+
 	model := fileDiffModelWithRows(t, []mr.DiffRow{
 		{OldLine: 0, NewLine: 1, NewText: "new feature"},
 	})
@@ -2560,6 +2746,8 @@ func TestDiffAdditionRowIsMarkedWithPlus(t *testing.T) {
 // --- #50: Left panel always read-only, no focus ---
 
 func TestLeftPanelHasNoActiveBorderInDetailMode(t *testing.T) {
+	t.Parallel()
+
 	model := NewFakeModel()
 	// Simulate mouse click that used to set FocusList
 	updated, _ := model.Update(tea.MouseMsg{X: 2, Y: 5, Button: tea.MouseButtonLeft, Action: tea.MouseActionPress})
@@ -2583,6 +2771,8 @@ func TestLeftPanelHasNoActiveBorderInDetailMode(t *testing.T) {
 // --- #49: No eager MR loading on project selection ---
 
 func TestMRSectionSelectionTriggersLoadingWhenNotLoaded(t *testing.T) {
+	t.Parallel()
+
 	loadCalled := false
 	model := NewModelWithProject(nil, ProjectOptions{
 		Recents: []string{"group/project"},
@@ -2614,6 +2804,8 @@ func TestMRSectionSelectionTriggersLoadingWhenNotLoaded(t *testing.T) {
 }
 
 func TestMRSectionLoadingCompletionShowsMRList(t *testing.T) {
+	t.Parallel()
+
 	model := NewModelWithProject(nil, ProjectOptions{
 		Recents:     []string{"group/project"},
 		LoadProject: func(path string) (ProjectData, error) { return ProjectData{}, nil },
@@ -2681,6 +2873,8 @@ func entityListModel(t *testing.T) Model {
 }
 
 func TestEntityListViewShowsSectionsContextOnLeft(t *testing.T) {
+	t.Parallel()
+
 	model := entityListModel(t)
 	view := model.View()
 
@@ -2694,6 +2888,8 @@ func TestEntityListViewShowsSectionsContextOnLeft(t *testing.T) {
 }
 
 func TestEntityListEnterGoesToMRDetail(t *testing.T) {
+	t.Parallel()
+
 	model := entityListModel(t)
 
 	updated, _ := model.Update(tea.KeyMsg{Type: tea.KeyEnter})
@@ -2705,6 +2901,8 @@ func TestEntityListEnterGoesToMRDetail(t *testing.T) {
 }
 
 func TestEntityListEscGoesToSections(t *testing.T) {
+	t.Parallel()
+
 	model := entityListModel(t)
 
 	updated, _ := model.Update(tea.KeyMsg{Type: tea.KeyEsc})
@@ -2718,6 +2916,8 @@ func TestEntityListEscGoesToSections(t *testing.T) {
 // --- #48: Two-panel layout on project picker screen ---
 
 func TestProjectPickerRendersLeftContextPane(t *testing.T) {
+	t.Parallel()
+
 	model := NewModelWithProject(nil, ProjectOptions{
 		Recents: []string{"recent/project"},
 	})
@@ -2740,6 +2940,8 @@ func TestProjectPickerRendersLeftContextPane(t *testing.T) {
 }
 
 func TestProjectInputRendersLeftContextPane(t *testing.T) {
+	t.Parallel()
+
 	model := NewModelWithProject(nil, ProjectOptions{})
 	if model.mode != ModeProjectInput {
 		t.Fatalf("expected ModeProjectInput, got %v", model.mode)
@@ -2756,6 +2958,8 @@ func TestProjectInputRendersLeftContextPane(t *testing.T) {
 }
 
 func TestTabKeyCyclesDetailTabs(t *testing.T) {
+	t.Parallel()
+
 	model := NewModelWithProject(FakeMergeRequests(), ProjectOptions{Path: "group/project", Section: SectionMergeRequests})
 
 	// Summary (default) → Discussions
@@ -2792,6 +2996,8 @@ func TestTabKeyCyclesDetailTabs(t *testing.T) {
 }
 
 func TestProjectSelectStructuredRecentsDoNotRenderLegacyDuplicate(t *testing.T) {
+	t.Parallel()
+
 	model := NewModelWithProject(nil, ProjectOptions{
 		Recents:        []string{"group/project"},
 		RecentProjects: []RecentProjectOption{{Path: "group/project", Account: "default"}},
@@ -2804,6 +3010,8 @@ func TestProjectSelectStructuredRecentsDoNotRenderLegacyDuplicate(t *testing.T) 
 }
 
 func TestProjectSelectShowsRecentSectionBeforeAccounts(t *testing.T) {
+	t.Parallel()
+
 	model := NewModelWithProject(nil, ProjectOptions{
 		RecentProjects: []RecentProjectOption{
 			{Path: "group/new", Account: "work"},
@@ -2836,6 +3044,8 @@ func TestProjectSelectShowsRecentSectionBeforeAccounts(t *testing.T) {
 }
 
 func TestProjectSelectHidesRecentSectionWhenEmpty(t *testing.T) {
+	t.Parallel()
+
 	model := NewModelWithProject(nil, ProjectOptions{
 		LoadProjects: []AccountProjectLoader{{ID: "default", Host: "https://gitlab.com", Load: func() ([]string, error) { return nil, nil }}},
 	})
@@ -2846,6 +3056,8 @@ func TestProjectSelectHidesRecentSectionWhenEmpty(t *testing.T) {
 }
 
 func TestProjectSelectRecentSelectionUsesProjectPath(t *testing.T) {
+	t.Parallel()
+
 	model := NewModelWithProject(nil, ProjectOptions{
 		RecentProjects: []RecentProjectOption{{Path: "group/project", Account: "work"}},
 	})
@@ -2859,6 +3071,8 @@ func TestProjectSelectRecentSelectionUsesProjectPath(t *testing.T) {
 }
 
 func TestProjectSelectFilterMatchesRecentAndAccountProjects(t *testing.T) {
+	t.Parallel()
+
 	model := NewModelWithProject(nil, ProjectOptions{
 		RecentProjects: []RecentProjectOption{{Path: "team/Alpha", Account: "work"}, {Path: "group/beta", Account: "default"}},
 		LoadProjects:   []AccountProjectLoader{{ID: "default", Host: "https://gitlab.com", Load: func() ([]string, error) { return nil, nil }}},
@@ -2892,6 +3106,8 @@ func TestProjectSelectFilterMatchesRecentAndAccountProjects(t *testing.T) {
 }
 
 func TestProjectSelectFilterHidesSectionsWithoutMatchesAndEscResets(t *testing.T) {
+	t.Parallel()
+
 	model := NewModelWithProject(nil, ProjectOptions{
 		RecentProjects: []RecentProjectOption{{Path: "recent/only", Account: "work"}},
 		LoadProjects:   []AccountProjectLoader{{ID: "default", Host: "https://gitlab.com", Load: func() ([]string, error) { return nil, nil }}},
@@ -2922,6 +3138,8 @@ func TestProjectSelectFilterHidesSectionsWithoutMatchesAndEscResets(t *testing.T
 }
 
 func TestProjectSelectFilterShowsNoMatches(t *testing.T) {
+	t.Parallel()
+
 	model := NewModelWithProject(nil, ProjectOptions{RecentProjects: []RecentProjectOption{{Path: "group/project", Account: "default"}}})
 
 	updated, _ := model.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'/'}})
@@ -2935,6 +3153,8 @@ func TestProjectSelectFilterShowsNoMatches(t *testing.T) {
 }
 
 func TestProjectSelectStartsAccountProjectLoads(t *testing.T) {
+	t.Parallel()
+
 	model := NewModelWithProject(nil, ProjectOptions{LoadProjects: []AccountProjectLoader{
 		{ID: "default", Host: "https://gitlab.com", Load: func() ([]string, error) { return []string{"group/project"}, nil }},
 		{ID: "work", Host: "https://gitlab.example.com", Load: func() ([]string, error) { return []string{"work/project"}, nil }},
@@ -2959,6 +3179,8 @@ func TestProjectSelectStartsAccountProjectLoads(t *testing.T) {
 }
 
 func TestProjectSelectShowsLoadedAccountProjectsAndSkipsHeaders(t *testing.T) {
+	t.Parallel()
+
 	model := NewModelWithProject(nil, ProjectOptions{LoadProjects: []AccountProjectLoader{
 		{ID: "default", Host: "https://gitlab.com", Load: func() ([]string, error) { return nil, nil }},
 	}})
@@ -2983,6 +3205,8 @@ func TestProjectSelectShowsLoadedAccountProjectsAndSkipsHeaders(t *testing.T) {
 }
 
 func TestProjectSelectShowsErrorAndRetriesOnlyFailedAccounts(t *testing.T) {
+	t.Parallel()
+
 	failedCalls := 0
 	successCalls := 0
 	model := NewModelWithProject(nil, ProjectOptions{LoadProjects: []AccountProjectLoader{
@@ -3013,6 +3237,8 @@ func TestProjectSelectShowsErrorAndRetriesOnlyFailedAccounts(t *testing.T) {
 // --- #66: Up/down scrolls right panel in ModeDetail ---
 
 func TestDownScrollsRightPanelInModeDetail(t *testing.T) {
+	t.Parallel()
+
 	model := NewModelWithProject(FakeMergeRequests(), ProjectOptions{Path: "group/project", Section: SectionMergeRequests})
 	initialSelected := model.selected
 	model.rightTop = 5
@@ -3030,6 +3256,8 @@ func TestDownScrollsRightPanelInModeDetail(t *testing.T) {
 }
 
 func TestUpScrollsRightPanelInModeDetail(t *testing.T) {
+	t.Parallel()
+
 	model := NewModelWithProject(FakeMergeRequests(), ProjectOptions{Path: "group/project", Section: SectionMergeRequests})
 	initialSelected := model.selected
 	model.rightTop = 5
@@ -3047,6 +3275,8 @@ func TestUpScrollsRightPanelInModeDetail(t *testing.T) {
 }
 
 func TestRightTopFloorAtZeroInModeDetail(t *testing.T) {
+	t.Parallel()
+
 	model := NewModelWithProject(FakeMergeRequests(), ProjectOptions{Path: "group/project", Section: SectionMergeRequests})
 	model.rightTop = 0
 
@@ -3059,6 +3289,8 @@ func TestRightTopFloorAtZeroInModeDetail(t *testing.T) {
 }
 
 func TestArrowKeysScrollRightPanelInModeDetail(t *testing.T) {
+	t.Parallel()
+
 	model := NewModelWithProject(FakeMergeRequests(), ProjectOptions{Path: "group/project", Section: SectionMergeRequests})
 	model.rightTop = 3
 
@@ -3078,6 +3310,8 @@ func TestArrowKeysScrollRightPanelInModeDetail(t *testing.T) {
 }
 
 func TestUpDownInModeEntityListStillMovesSelection(t *testing.T) {
+	t.Parallel()
+
 	model := NewModelWithProject(FakeMergeRequests(), ProjectOptions{Path: "group/project", Section: SectionMergeRequests})
 	model.mode = ModeEntityList
 	initialSelected := model.selected
@@ -3098,6 +3332,8 @@ func TestUpDownInModeEntityListStillMovesSelection(t *testing.T) {
 // --- #64: Global key suppression in input modes ---
 
 func TestEnteringMRCommentInputDisablesGlobalKeys(t *testing.T) {
+	t.Parallel()
+
 	model := NewModelWithProject(FakeMergeRequests(), ProjectOptions{Path: "group/project", Section: SectionMergeRequests})
 
 	updated, _ := model.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'m'}})
@@ -3113,6 +3349,8 @@ func TestEnteringMRCommentInputDisablesGlobalKeys(t *testing.T) {
 }
 
 func TestExitingMRCommentInputRestoresGlobalKeys(t *testing.T) {
+	t.Parallel()
+
 	model := NewModelWithProject(FakeMergeRequests(), ProjectOptions{Path: "group/project", Section: SectionMergeRequests})
 	updated, _ := model.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'m'}})
 	model = updated.(Model)
@@ -3130,6 +3368,8 @@ func TestExitingMRCommentInputRestoresGlobalKeys(t *testing.T) {
 }
 
 func TestEnteringEditInputDisablesGlobalKeys(t *testing.T) {
+	t.Parallel()
+
 	model := NewModelWithProject(FakeMergeRequests(), ProjectOptions{Path: "group/project", Section: SectionMergeRequests})
 
 	updated, _ := model.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'e'}})
@@ -3145,6 +3385,8 @@ func TestEnteringEditInputDisablesGlobalKeys(t *testing.T) {
 }
 
 func TestExitingEditInputRestoresGlobalKeys(t *testing.T) {
+	t.Parallel()
+
 	model := NewModelWithProject(FakeMergeRequests(), ProjectOptions{Path: "group/project", Section: SectionMergeRequests})
 	updated, _ := model.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'e'}})
 	model = updated.(Model)
@@ -3162,6 +3404,8 @@ func TestExitingEditInputRestoresGlobalKeys(t *testing.T) {
 }
 
 func TestEnteringReplyInputInDiscussionsDisablesGlobalKeys(t *testing.T) {
+	t.Parallel()
+
 	model := NewModelWithProject(FakeMergeRequests(), ProjectOptions{Path: "group/project", Section: SectionMergeRequests})
 	model.activeTab = TabDiscussions
 	model.discussions[42] = []mr.Discussion{{ID: "d1", Notes: []mr.Note{{Author: "alice", Body: "test"}}}}
@@ -3179,6 +3423,8 @@ func TestEnteringReplyInputInDiscussionsDisablesGlobalKeys(t *testing.T) {
 }
 
 func TestExitingReplyInputInDiscussionsRestoresGlobalKeys(t *testing.T) {
+	t.Parallel()
+
 	model := NewModelWithProject(FakeMergeRequests(), ProjectOptions{Path: "group/project", Section: SectionMergeRequests})
 	model.activeTab = TabDiscussions
 	model.discussions[42] = []mr.Discussion{{ID: "d1", Notes: []mr.Note{{Author: "alice", Body: "test"}}}}
@@ -3198,6 +3444,8 @@ func TestExitingReplyInputInDiscussionsRestoresGlobalKeys(t *testing.T) {
 }
 
 func TestEnteringCommentInputInFileDiffDisablesGlobalKeys(t *testing.T) {
+	t.Parallel()
+
 	model := NewModelWithProject(FakeMergeRequests(), ProjectOptions{Path: "group/project", Section: SectionMergeRequests})
 	model.activeTab = TabFiles
 	model.changedFiles[42] = []mr.ChangedFile{{Path: "main.go", Diff: []mr.DiffRow{{OldLine: 1, NewLine: 1}}}}
@@ -3217,6 +3465,8 @@ func TestEnteringCommentInputInFileDiffDisablesGlobalKeys(t *testing.T) {
 }
 
 func TestExitingCommentInputInFileDiffRestoresGlobalKeys(t *testing.T) {
+	t.Parallel()
+
 	model := NewModelWithProject(FakeMergeRequests(), ProjectOptions{Path: "group/project", Section: SectionMergeRequests})
 	model.activeTab = TabFiles
 	model.changedFiles[42] = []mr.ChangedFile{{Path: "main.go", Diff: []mr.DiffRow{{OldLine: 1, NewLine: 1}}}}
@@ -3238,6 +3488,8 @@ func TestExitingCommentInputInFileDiffRestoresGlobalKeys(t *testing.T) {
 }
 
 func TestEnteringFocusFilterDisablesGlobalKeys(t *testing.T) {
+	t.Parallel()
+
 	model := NewModelWithProject(FakeMergeRequests(), ProjectOptions{Path: "group/project", Section: SectionMergeRequests})
 
 	updated, _ := model.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'/'}})
@@ -3253,6 +3505,8 @@ func TestEnteringFocusFilterDisablesGlobalKeys(t *testing.T) {
 }
 
 func TestExitingFocusFilterRestoresGlobalKeys(t *testing.T) {
+	t.Parallel()
+
 	model := NewModelWithProject(FakeMergeRequests(), ProjectOptions{Path: "group/project", Section: SectionMergeRequests})
 	updated, _ := model.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'/'}})
 	model = updated.(Model)
@@ -3270,6 +3524,8 @@ func TestExitingFocusFilterRestoresGlobalKeys(t *testing.T) {
 }
 
 func TestEnteringProjectInputModeDisablesGlobalKeys(t *testing.T) {
+	t.Parallel()
+
 	model := NewModelWithProject(nil, ProjectOptions{Recents: []string{"group/project"}})
 
 	updated, _ := model.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'i'}})
@@ -3285,6 +3541,8 @@ func TestEnteringProjectInputModeDisablesGlobalKeys(t *testing.T) {
 }
 
 func TestQInEditInputDoesNotQuit(t *testing.T) {
+	t.Parallel()
+
 	model := NewModelWithProject(FakeMergeRequests(), ProjectOptions{Path: "group/project", Section: SectionMergeRequests})
 	updated, _ := model.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'e'}})
 	model = updated.(Model)
@@ -3302,6 +3560,8 @@ func TestQInEditInputDoesNotQuit(t *testing.T) {
 }
 
 func TestQInFocusFilterDoesNotQuit(t *testing.T) {
+	t.Parallel()
+
 	model := NewModelWithProject(FakeMergeRequests(), ProjectOptions{Path: "group/project", Section: SectionMergeRequests})
 	updated, _ := model.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'/'}})
 	model = updated.(Model)
@@ -3314,6 +3574,8 @@ func TestQInFocusFilterDoesNotQuit(t *testing.T) {
 }
 
 func TestKeyBarShowsInputHintsInFilterMode(t *testing.T) {
+	t.Parallel()
+
 	model := NewModelWithProject(FakeMergeRequests(), ProjectOptions{Path: "group/project", Section: SectionMergeRequests})
 	updated, _ := model.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'/'}})
 	model = updated.(Model)
@@ -3329,6 +3591,8 @@ func TestKeyBarShowsInputHintsInFilterMode(t *testing.T) {
 }
 
 func TestProjectSelectEnterOpensSelectedLoadedProjectSections(t *testing.T) {
+	t.Parallel()
+
 	model := NewModelWithProject(nil, ProjectOptions{
 		LoadProjects: []AccountProjectLoader{{ID: "default", Host: "https://gitlab.com", Load: func() ([]string, error) { return nil, nil }}},
 	})
@@ -3351,6 +3615,8 @@ func TestProjectSelectEnterOpensSelectedLoadedProjectSections(t *testing.T) {
 // --- issue #68: EmojiConfig + Draft toggle ---
 
 func TestDKeyInModeDetailFlipsDraftOptimistically(t *testing.T) {
+	t.Parallel()
+
 	items := []mr.MergeRequest{{IID: 42, Title: "Fix login", Draft: false, State: "opened"}}
 	model := NewModelWithProject(items, ProjectOptions{
 		Path:    "group/project",
@@ -3366,6 +3632,8 @@ func TestDKeyInModeDetailFlipsDraftOptimistically(t *testing.T) {
 }
 
 func TestDKeyInModeDetailCallsToggleDraftFunc(t *testing.T) {
+	t.Parallel()
+
 	var calledIID int
 
 	items := []mr.MergeRequest{{IID: 42, Title: "Fix login", Draft: false, State: "opened"}}
@@ -3394,6 +3662,8 @@ func TestDKeyInModeDetailCallsToggleDraftFunc(t *testing.T) {
 }
 
 func TestDKeyInModeDetailWithNilFuncFlipsDraftLocally(t *testing.T) {
+	t.Parallel()
+
 	items := []mr.MergeRequest{{IID: 42, Title: "Draft: Fix login", Draft: true, State: "opened"}}
 	model := NewModelWithProject(items, ProjectOptions{
 		Path:    "group/project",
@@ -3413,6 +3683,8 @@ func TestDKeyInModeDetailWithNilFuncFlipsDraftLocally(t *testing.T) {
 }
 
 func TestDKeyInModeDetailDoesNotTriggerInDiscussionsTab(t *testing.T) {
+	t.Parallel()
+
 	items := []mr.MergeRequest{{IID: 42, Title: "Fix", Draft: false, State: "opened"}}
 	model := NewModelWithProject(items, ProjectOptions{
 		Path:            "group/project",
@@ -3442,6 +3714,8 @@ func TestDKeyInModeDetailDoesNotTriggerInDiscussionsTab(t *testing.T) {
 }
 
 func TestSummaryRendersDraftPrefixForDraftMR(t *testing.T) {
+	t.Parallel()
+
 	items := []mr.MergeRequest{{IID: 42, Title: "Fix login", Draft: true, State: "opened", Approvals: "0/1"}}
 	model := NewModelWithProject(items, ProjectOptions{
 		Path:    "group/project",
@@ -3456,6 +3730,8 @@ func TestSummaryRendersDraftPrefixForDraftMR(t *testing.T) {
 }
 
 func TestSummaryDoesNotRenderDraftPrefixForNonDraftMR(t *testing.T) {
+	t.Parallel()
+
 	items := []mr.MergeRequest{{IID: 42, Title: "Fix login", Draft: false, State: "opened", Approvals: "0/1"}}
 	model := NewModelWithProject(items, ProjectOptions{
 		Path:    "group/project",
@@ -3470,6 +3746,8 @@ func TestSummaryDoesNotRenderDraftPrefixForNonDraftMR(t *testing.T) {
 }
 
 func TestSummaryRendersEmojiAuthorWhenEnabled(t *testing.T) {
+	t.Parallel()
+
 	items := []mr.MergeRequest{{
 		IID: 42, Title: "Fix login", Author: "alice", AuthorUsername: "alice",
 		SourceBranch: "feat", TargetBranch: "main", State: "opened",
@@ -3493,6 +3771,8 @@ func TestSummaryRendersEmojiAuthorWhenEnabled(t *testing.T) {
 }
 
 func TestSummaryRendersReviewersAndAssignees(t *testing.T) {
+	t.Parallel()
+
 	items := []mr.MergeRequest{{
 		IID: 42, Title: "Fix", Author: "alice", SourceBranch: "feat", TargetBranch: "main",
 		State: "opened", Approvals: "0/1",
@@ -3528,6 +3808,8 @@ func labelSelectorModel() Model {
 }
 
 func TestLKeyInModeDetailSummaryOpensLabelSelector(t *testing.T) {
+	t.Parallel()
+
 	model := labelSelectorModel()
 
 	updated, _ := model.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune("l")})
@@ -3539,6 +3821,8 @@ func TestLKeyInModeDetailSummaryOpensLabelSelector(t *testing.T) {
 }
 
 func TestLabelSelectorRendersMarkers(t *testing.T) {
+	t.Parallel()
+
 	model := labelSelectorModel()
 	model.projectLabels = []mr.Label{
 		{Name: "bug", Color: "#EE0701"},
@@ -3559,6 +3843,8 @@ func TestLabelSelectorRendersMarkers(t *testing.T) {
 }
 
 func TestLabelSelectorUpDownMoveCursor(t *testing.T) {
+	t.Parallel()
+
 	model := labelSelectorModel()
 	model.projectLabels = []mr.Label{
 		{Name: "bug", Color: "#EE0701"},
@@ -3587,6 +3873,8 @@ func TestLabelSelectorUpDownMoveCursor(t *testing.T) {
 }
 
 func TestLabelSelectorSpaceTogglesSelection(t *testing.T) {
+	t.Parallel()
+
 	model := labelSelectorModel()
 	model.projectLabels = []mr.Label{
 		{Name: "bug", Color: "#EE0701"},
@@ -3625,6 +3913,8 @@ func TestLabelSelectorSpaceTogglesSelection(t *testing.T) {
 }
 
 func TestLabelSelectorEscReturnsToDetailWithoutAPICall(t *testing.T) {
+	t.Parallel()
+
 	called := false
 	model := NewModelWithProject(
 		[]mr.MergeRequest{{IID: 42, Title: "Fix", State: "opened", Labels: []string{"bug"}}},
@@ -3658,6 +3948,8 @@ func TestLabelSelectorEscReturnsToDetailWithoutAPICall(t *testing.T) {
 }
 
 func TestLabelSelectorEnterCallsUpdateMRLabels(t *testing.T) {
+	t.Parallel()
+
 	var calledWith []string
 
 	model := NewModelWithProject(
@@ -3704,6 +3996,8 @@ func TestLabelSelectorEnterCallsUpdateMRLabels(t *testing.T) {
 }
 
 func TestLabelSelectorEnterUpdatesLabelsOptimistically(t *testing.T) {
+	t.Parallel()
+
 	model := NewModelWithProject(
 		[]mr.MergeRequest{{IID: 42, Title: "Fix", State: "opened", Labels: []string{"bug"}}},
 		ProjectOptions{
@@ -3732,6 +4026,8 @@ func TestLabelSelectorEnterUpdatesLabelsOptimistically(t *testing.T) {
 }
 
 func TestLabelSelectorReopensWithSavedSelection(t *testing.T) {
+	t.Parallel()
+
 	model := NewModelWithProject(
 		[]mr.MergeRequest{{IID: 42, Title: "Fix", State: "opened", Labels: []string{"bug"}}},
 		ProjectOptions{

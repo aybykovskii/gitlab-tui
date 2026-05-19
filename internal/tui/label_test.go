@@ -9,6 +9,8 @@ import (
 
 // Cycle 1: luminance formula — dark background → white foreground.
 func TestForegroundForBlackBackgroundIsWhite(t *testing.T) {
+	t.Parallel()
+
 	fg := foregroundForBackground("#000000")
 	if fg != "255" {
 		t.Fatalf("expected white (255) for black background, got %q", fg)
@@ -17,6 +19,8 @@ func TestForegroundForBlackBackgroundIsWhite(t *testing.T) {
 
 // Cycle 2: light background → black foreground.
 func TestForegroundForWhiteBackgroundIsBlack(t *testing.T) {
+	t.Parallel()
+
 	fg := foregroundForBackground("#FFFFFF")
 	if fg != "0" {
 		t.Fatalf("expected black (0) for white background, got %q", fg)
@@ -25,6 +29,8 @@ func TestForegroundForWhiteBackgroundIsBlack(t *testing.T) {
 
 // Cycle 3: boundary — pure blue (#0000FF, L≈0.072) → white.
 func TestForegroundForPureBlueIsWhite(t *testing.T) {
+	t.Parallel()
+
 	fg := foregroundForBackground("#0000FF")
 	if fg != "255" {
 		t.Fatalf("expected white for pure blue #0000FF (L=0.072<0.179), got %q", fg)
@@ -33,6 +39,8 @@ func TestForegroundForPureBlueIsWhite(t *testing.T) {
 
 // Cycle 3b: boundary — light yellow (#FFFF00, L≈0.93) → black.
 func TestForegroundForYellowIsBlack(t *testing.T) {
+	t.Parallel()
+
 	fg := foregroundForBackground("#FFFF00")
 	if fg != "0" {
 		t.Fatalf("expected black for yellow #FFFF00 (L>0.179), got %q", fg)
@@ -41,6 +49,8 @@ func TestForegroundForYellowIsBlack(t *testing.T) {
 
 // Cycle 3c: malformed hex → falls back to white (safe default).
 func TestForegroundForMalformedHexFallsBackToWhite(t *testing.T) {
+	t.Parallel()
+
 	fg := foregroundForBackground("notahex")
 	if fg != "255" {
 		t.Fatalf("expected white fallback for malformed hex, got %q", fg)
@@ -49,6 +59,8 @@ func TestForegroundForMalformedHexFallsBackToWhite(t *testing.T) {
 
 // Cycle 4: pill contains the label name.
 func TestRenderLabelPillContainsName(t *testing.T) {
+	t.Parallel()
+
 	pill := renderLabelPill("bug", "#EE0701")
 	if !strings.Contains(pill, "bug") {
 		t.Fatalf("expected pill to contain label name 'bug', got %q", pill)
@@ -57,6 +69,8 @@ func TestRenderLabelPillContainsName(t *testing.T) {
 
 // Cycle 5: labels are cached in model after projectFinishedMsg.
 func TestProjectLabelsStoredAfterProjectLoad(t *testing.T) {
+	t.Parallel()
+
 	labels := []mr.Label{
 		{Name: "bug", Color: "#EE0701"},
 		{Name: "frontend", Color: "#0075CA"},
@@ -83,6 +97,8 @@ func TestProjectLabelsStoredAfterProjectLoad(t *testing.T) {
 
 // Cycle 6: Summary renders label pills when MR has labels and labels are cached.
 func TestSummaryRendersLabelPillWithCachedColor(t *testing.T) {
+	t.Parallel()
+
 	items := []mr.MergeRequest{{
 		IID: 42, Title: "Fix login", State: "opened",
 		SourceBranch: "feat", TargetBranch: "main",
@@ -104,6 +120,8 @@ func TestSummaryRendersLabelPillWithCachedColor(t *testing.T) {
 
 // Cycle 7: MR without labels hides labels line.
 func TestSummaryHidesLabelsLineWhenNoLabels(t *testing.T) {
+	t.Parallel()
+
 	items := []mr.MergeRequest{{
 		IID: 42, Title: "Fix login", State: "opened",
 		SourceBranch: "feat", TargetBranch: "main",

@@ -157,6 +157,8 @@ func (f *fakeProjects) ListProjects(opt *glab.ListProjectsOptions, options ...gl
 }
 
 func TestListProjectsReturnsProjectPaths(t *testing.T) {
+	t.Parallel()
+
 	projects := &fakeProjects{projects: []*glab.Project{
 		{PathWithNamespace: "group/new"},
 		{PathWithNamespace: "team/old"},
@@ -178,6 +180,8 @@ func TestListProjectsReturnsProjectPaths(t *testing.T) {
 }
 
 func TestListProjectsReturnsEmptyList(t *testing.T) {
+	t.Parallel()
+
 	client := NewClientWithProjects(&fakeProjects{})
 
 	paths, err := client.ListProjects(context.Background(), 10)
@@ -191,6 +195,8 @@ func TestListProjectsReturnsEmptyList(t *testing.T) {
 }
 
 func TestListProjectsReturnsAPIError(t *testing.T) {
+	t.Parallel()
+
 	apiErr := errors.New("api failed")
 	client := NewClientWithProjects(&fakeProjects{err: apiErr})
 
@@ -202,6 +208,8 @@ func TestListProjectsReturnsAPIError(t *testing.T) {
 }
 
 func TestOpenMergeRequestsMapsAllPages(t *testing.T) {
+	t.Parallel()
+
 	fake := &fakeMergeRequests{pages: [][]*glab.BasicMergeRequest{
 		{{IID: 1, Title: "First", State: "opened", SourceBranch: "feature/a", TargetBranch: "main", Author: &glab.BasicUser{Username: "alice"}}},
 		{{IID: 2, Title: "Second", State: "opened", SourceBranch: "feature/b", TargetBranch: "main", Author: &glab.BasicUser{Name: "Bob"}}},
@@ -231,6 +239,8 @@ func TestOpenMergeRequestsMapsAllPages(t *testing.T) {
 }
 
 func TestListProjectIssuesPassesStateAndMapsItems(t *testing.T) {
+	t.Parallel()
+
 	issues := &fakeIssues{items: []*glab.Issue{{
 		IID:            79,
 		Title:          "Issues API",
@@ -259,6 +269,8 @@ func TestListProjectIssuesPassesStateAndMapsItems(t *testing.T) {
 }
 
 func TestListProjectIssuesReturnsEmptyList(t *testing.T) {
+	t.Parallel()
+
 	client := NewClientWithIssues(&fakeIssues{})
 
 	items, err := client.ListProjectIssues(context.Background(), "group/project", "closed", "")
@@ -272,6 +284,8 @@ func TestListProjectIssuesReturnsEmptyList(t *testing.T) {
 }
 
 func TestListIssueDiscussionsMapsComments(t *testing.T) {
+	t.Parallel()
+
 	discussions := &fakeDiscussions{items: []*glab.Discussion{{
 		ID:    "issue-discussion-1",
 		Notes: []*glab.Note{{Author: glab.NoteAuthor{Name: "Alice", Username: "alice"}, Body: "Looks good"}},
@@ -297,6 +311,8 @@ func TestListIssueDiscussionsMapsComments(t *testing.T) {
 }
 
 func TestIssueUpdateActionsMapOptions(t *testing.T) {
+	t.Parallel()
+
 	issues := &fakeIssues{}
 	client := NewClientWithIssues(issues)
 
@@ -330,6 +346,8 @@ func TestIssueUpdateActionsMapOptions(t *testing.T) {
 }
 
 func TestCloseAndReopenIssueUpdateStateEvent(t *testing.T) {
+	t.Parallel()
+
 	issues := &fakeIssues{}
 	client := NewClientWithIssues(issues)
 
@@ -351,6 +369,8 @@ func TestCloseAndReopenIssueUpdateStateEvent(t *testing.T) {
 }
 
 func TestAddIssueCommentCreatesIssueDiscussion(t *testing.T) {
+	t.Parallel()
+
 	discussions := &fakeDiscussions{}
 	client := NewClientWithDiscussions(discussions)
 
@@ -364,6 +384,8 @@ func TestAddIssueCommentCreatesIssueDiscussion(t *testing.T) {
 }
 
 func TestOpenMergeRequestsAddsApprovalCounts(t *testing.T) {
+	t.Parallel()
+
 	client := NewClientWithServices(&fakeMergeRequests{pages: [][]*glab.BasicMergeRequest{{{IID: 3, Title: "MR"}}}}, fakeApprovals{
 		configs: map[int64]*glab.MergeRequestApprovals{3: {ApprovalsRequired: 2, ApprovalsLeft: 1}},
 	})
@@ -379,6 +401,8 @@ func TestOpenMergeRequestsAddsApprovalCounts(t *testing.T) {
 }
 
 func TestMapDiscussionMapsNotesAndResolution(t *testing.T) {
+	t.Parallel()
+
 	resolved := true
 	item := MapDiscussion(&glab.Discussion{
 		ID: "abc123",
@@ -407,6 +431,8 @@ func TestMapDiscussionMapsNotesAndResolution(t *testing.T) {
 }
 
 func TestMapDiscussionExcludesSystemNotes(t *testing.T) {
+	t.Parallel()
+
 	item := MapDiscussion(&glab.Discussion{
 		ID: "sys1",
 		Notes: []*glab.Note{
@@ -424,6 +450,8 @@ func TestMapDiscussionExcludesSystemNotes(t *testing.T) {
 }
 
 func TestMapChangedFileMapsPathMarkersAndLineCounts(t *testing.T) {
+	t.Parallel()
+
 	item := MapChangedFile(&glab.MergeRequestDiff{
 		NewPath:     "internal/tui/model.go",
 		OldPath:     "internal/tui/model.go",
@@ -450,6 +478,8 @@ func TestMapChangedFileMapsPathMarkersAndLineCounts(t *testing.T) {
 }
 
 func TestMapChangedFileMarksNewAndDeletedFiles(t *testing.T) {
+	t.Parallel()
+
 	newFile := MapChangedFile(&glab.MergeRequestDiff{NewPath: "new.go", NewFile: true, Diff: "@@ -0,0 +1 @@\n+hello\n"})
 	if !newFile.IsNew {
 		t.Fatal("expected IsNew=true")
@@ -494,6 +524,8 @@ func (f *fakeMergeRequestEdit) UpdateMergeRequest(pid any, mergeRequest int64, o
 }
 
 func TestMapMergeRequestFillsLabelsAndDraft(t *testing.T) {
+	t.Parallel()
+
 	item := MapMergeRequest(&glab.BasicMergeRequest{
 		IID:    10,
 		Title:  "Draft: My MR",
@@ -526,6 +558,8 @@ func TestMapMergeRequestFillsLabelsAndDraft(t *testing.T) {
 }
 
 func TestListProjectLabelsReturnsMappedLabels(t *testing.T) {
+	t.Parallel()
+
 	fake := &fakeLabels{labels: []*glab.Label{
 		{Name: "backend", Color: "#e11d48"},
 		{Name: "bug", Color: "#dc2626"},
@@ -551,6 +585,8 @@ func TestListProjectLabelsReturnsMappedLabels(t *testing.T) {
 }
 
 func TestListProjectLabelsReturnsAPIError(t *testing.T) {
+	t.Parallel()
+
 	apiErr := errors.New("labels api failed")
 	client := NewClientWithLabels(&fakeLabels{err: apiErr})
 
@@ -561,6 +597,8 @@ func TestListProjectLabelsReturnsAPIError(t *testing.T) {
 }
 
 func TestUpdateMRLabelsSetsLabelsOnMR(t *testing.T) {
+	t.Parallel()
+
 	fake := &fakeMergeRequestEdit{}
 	client := NewClientWithMergeRequestEdit(fake)
 
@@ -584,6 +622,8 @@ func TestUpdateMRLabelsSetsLabelsOnMR(t *testing.T) {
 }
 
 func TestUpdateMRLabelsReturnsAPIError(t *testing.T) {
+	t.Parallel()
+
 	apiErr := errors.New("update failed")
 	client := NewClientWithMergeRequestEdit(&fakeMergeRequestEdit{err: apiErr})
 
@@ -594,6 +634,8 @@ func TestUpdateMRLabelsReturnsAPIError(t *testing.T) {
 }
 
 func TestToggleDraftMRAddsDraftPrefix(t *testing.T) {
+	t.Parallel()
+
 	fake := &fakeMergeRequestEdit{}
 	client := NewClientWithMergeRequestEdit(fake)
 
@@ -612,6 +654,8 @@ func TestToggleDraftMRAddsDraftPrefix(t *testing.T) {
 }
 
 func TestToggleDraftMRRemovesDraftPrefix(t *testing.T) {
+	t.Parallel()
+
 	fake := &fakeMergeRequestEdit{}
 	client := NewClientWithMergeRequestEdit(fake)
 
@@ -630,6 +674,8 @@ func TestToggleDraftMRRemovesDraftPrefix(t *testing.T) {
 }
 
 func TestToggleDraftMRDoesNotDoublePrefixAlreadyDraft(t *testing.T) {
+	t.Parallel()
+
 	fake := &fakeMergeRequestEdit{}
 	client := NewClientWithMergeRequestEdit(fake)
 
@@ -644,6 +690,8 @@ func TestToggleDraftMRDoesNotDoublePrefixAlreadyDraft(t *testing.T) {
 }
 
 func TestToggleDraftMRReturnsAPIError(t *testing.T) {
+	t.Parallel()
+
 	apiErr := errors.New("edit failed")
 	client := NewClientWithMergeRequestEdit(&fakeMergeRequestEdit{err: apiErr})
 
@@ -654,6 +702,8 @@ func TestToggleDraftMRReturnsAPIError(t *testing.T) {
 }
 
 func TestMapMergeRequestKeepsPreviousMRInfo(t *testing.T) {
+	t.Parallel()
+
 	item := MapMergeRequest(&glab.BasicMergeRequest{
 		IID:                 3,
 		Title:               "MR",

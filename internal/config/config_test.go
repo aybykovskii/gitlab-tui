@@ -9,6 +9,8 @@ import (
 )
 
 func TestPathUsesOverride(t *testing.T) {
+	t.Parallel()
+
 	path, err := (Paths{Env: []string{FileOverrideEnv + "=/tmp/custom.yaml", "XDG_CONFIG_HOME=/tmp/xdg"}}).Path()
 	if err != nil {
 		t.Fatalf("expected no error, got %v", err)
@@ -20,6 +22,8 @@ func TestPathUsesOverride(t *testing.T) {
 }
 
 func TestPathUsesXDGConfigHome(t *testing.T) {
+	t.Parallel()
+
 	path, err := (Paths{Env: []string{"XDG_CONFIG_HOME=/tmp/xdg"}}).Path()
 	if err != nil {
 		t.Fatalf("expected no error, got %v", err)
@@ -32,6 +36,8 @@ func TestPathUsesXDGConfigHome(t *testing.T) {
 }
 
 func TestPathFallsBackToHome(t *testing.T) {
+	t.Parallel()
+
 	path, err := (Paths{Env: []string{"HOME=/tmp/home"}}).Path()
 	if err != nil {
 		t.Fatalf("expected no error, got %v", err)
@@ -44,6 +50,8 @@ func TestPathFallsBackToHome(t *testing.T) {
 }
 
 func TestSaveAndLoad(t *testing.T) {
+	t.Parallel()
+
 	path := filepath.Join(t.TempDir(), "config.yaml")
 	cfg := Default()
 
@@ -75,6 +83,8 @@ func TestSaveAndLoad(t *testing.T) {
 }
 
 func TestLoadDefaultsRecentProjectsLimitWhenMissing(t *testing.T) {
+	t.Parallel()
+
 	path := filepath.Join(t.TempDir(), "config.yaml")
 	data := []byte(`default_account: default
 accounts:
@@ -98,6 +108,8 @@ accounts:
 }
 
 func TestSavePersistsRecentProjectsLimit(t *testing.T) {
+	t.Parallel()
+
 	path := filepath.Join(t.TempDir(), "config.yaml")
 	cfg := Default()
 	cfg.RecentProjectsLimit = 0
@@ -117,6 +129,8 @@ func TestSavePersistsRecentProjectsLimit(t *testing.T) {
 }
 
 func TestInitDoesNotOverwriteExistingConfig(t *testing.T) {
+	t.Parallel()
+
 	path := filepath.Join(t.TempDir(), "config.yaml")
 	if err := Save(path, Default()); err != nil {
 		t.Fatalf("save config: %v", err)
@@ -133,6 +147,8 @@ func TestInitDoesNotOverwriteExistingConfig(t *testing.T) {
 }
 
 func TestValidateRequiresDefaultAccountToExist(t *testing.T) {
+	t.Parallel()
+
 	cfg := Default()
 	cfg.DefaultAccount = "missing"
 
@@ -142,6 +158,8 @@ func TestValidateRequiresDefaultAccountToExist(t *testing.T) {
 }
 
 func TestRecentProjectsReturnsMixedAccountsSortedAndLimited(t *testing.T) {
+	t.Parallel()
+
 	cfg := Default()
 	oldest := time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC)
 	middle := oldest.Add(time.Hour)
@@ -165,6 +183,8 @@ func TestRecentProjectsReturnsMixedAccountsSortedAndLimited(t *testing.T) {
 }
 
 func TestRecentProjectsReturnsEmptyWhenLimitIsZero(t *testing.T) {
+	t.Parallel()
+
 	cfg := Default()
 	cfg.RecentProjectsLimit = 0
 	cfg.RecentProjectHistory = []RecentProject{{Account: "default", Path: "group/project", LastUsedAt: time.Now()}}
@@ -177,6 +197,8 @@ func TestRecentProjectsReturnsEmptyWhenLimitIsZero(t *testing.T) {
 }
 
 func TestRecentProjectsReturnsAllWhenLimitExceedsList(t *testing.T) {
+	t.Parallel()
+
 	cfg := Default()
 	cfg.RecentProjectsLimit = 10
 	cfg.RecentProjectHistory = []RecentProject{
@@ -192,6 +214,8 @@ func TestRecentProjectsReturnsAllWhenLimitExceedsList(t *testing.T) {
 }
 
 func TestRecentProjectsForAccountSortsByLastUsed(t *testing.T) {
+	t.Parallel()
+
 	cfg := Default()
 	older := time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC)
 	newer := older.Add(time.Hour)
@@ -213,6 +237,8 @@ func TestRecentProjectsForAccountSortsByLastUsed(t *testing.T) {
 }
 
 func TestRememberProjectUpdatesExistingEntry(t *testing.T) {
+	t.Parallel()
+
 	cfg := Default()
 	older := time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC)
 	newer := older.Add(time.Hour)
@@ -229,6 +255,8 @@ func TestRememberProjectUpdatesExistingEntry(t *testing.T) {
 }
 
 func TestAccountTokenReadsConfiguredEnv(t *testing.T) {
+	t.Parallel()
+
 	account := Account{ID: "work", Host: "https://gitlab.example.com", TokenEnv: "GITLAB_WORK_TOKEN"}
 
 	token, err := account.Token([]string{"GITLAB_WORK_TOKEN=secret"})
@@ -242,6 +270,8 @@ func TestAccountTokenReadsConfiguredEnv(t *testing.T) {
 }
 
 func TestAccountTokenErrorsWhenEnvMissing(t *testing.T) {
+	t.Parallel()
+
 	account := Account{ID: "work", Host: "https://gitlab.example.com", TokenEnv: "GITLAB_WORK_TOKEN"}
 	if _, err := account.Token([]string{"OTHER=secret"}); err == nil {
 		t.Fatal("expected missing env error")

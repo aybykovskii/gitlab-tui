@@ -7,6 +7,8 @@ import (
 )
 
 func TestEmojiConfigResolveReturnsDefaultsWhenEnabled(t *testing.T) {
+	t.Parallel()
+
 	cfg := EmojiConfig{Enabled: true}
 	icons := cfg.Resolve()
 
@@ -28,6 +30,8 @@ func TestEmojiConfigResolveReturnsDefaultsWhenEnabled(t *testing.T) {
 }
 
 func TestEmojiConfigResolveReturnsEmptyWhenDisabled(t *testing.T) {
+	t.Parallel()
+
 	cfg := EmojiConfig{Enabled: false}
 	icons := cfg.Resolve()
 
@@ -37,6 +41,8 @@ func TestEmojiConfigResolveReturnsEmptyWhenDisabled(t *testing.T) {
 }
 
 func TestEmojiConfigResolvePartialOverrideMergesDefaults(t *testing.T) {
+	t.Parallel()
+
 	cfg := EmojiConfig{
 		Enabled: true,
 		Icons:   EmojiMap{Author: "X", Draft: "D"},
@@ -61,6 +67,8 @@ func TestEmojiConfigResolvePartialOverrideMergesDefaults(t *testing.T) {
 }
 
 func TestLoadParsesEmojiSection(t *testing.T) {
+	t.Parallel()
+
 	path := filepath.Join(t.TempDir(), "config.yaml")
 	data := []byte(`default_account: default
 accounts:
@@ -102,6 +110,8 @@ emoji:
 }
 
 func TestLoadEmojiAbsentDefaultsToDisabled(t *testing.T) {
+	t.Parallel()
+
 	path := filepath.Join(t.TempDir(), "config.yaml")
 	data := []byte(`default_account: default
 accounts:

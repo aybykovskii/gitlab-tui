@@ -63,6 +63,8 @@ var testDiscussion = mr.Discussion{
 
 // Cycle 1 — tracer bullet: Thread Panel appears when cursor is on a Discussion line.
 func TestThreadPanelShowsDiscussionAtCursorLine(t *testing.T) {
+	t.Parallel()
+
 	items := []mr.MergeRequest{{IID: 42, Title: "Test MR"}}
 	model := makeFileDiffModel(items, testFile, []mr.Discussion{testDiscussion}, nil)
 	model.diffCursor = 2 // row index 2 → NewLine 3
@@ -80,6 +82,8 @@ func TestThreadPanelShowsDiscussionAtCursorLine(t *testing.T) {
 
 // Cycle 2 — no panel when cursor is on a line without a thread.
 func TestThreadPanelAbsentOnNonCommentedLine(t *testing.T) {
+	t.Parallel()
+
 	items := []mr.MergeRequest{{IID: 42, Title: "Test MR"}}
 	model := makeFileDiffModel(items, testFile, []mr.Discussion{testDiscussion}, nil)
 	model.diffCursor = 0 // row 0 → NewLine 1, no discussion
@@ -93,6 +97,8 @@ func TestThreadPanelAbsentOnNonCommentedLine(t *testing.T) {
 
 // Cycle 3 — `t` hides Thread Panel; gutter marker ○ remains visible.
 func TestToggleTHidesThreadPanelButKeepsGutterMarker(t *testing.T) {
+	t.Parallel()
+
 	items := []mr.MergeRequest{{IID: 42, Title: "Test MR"}}
 	model := makeFileDiffModel(items, testFile, []mr.Discussion{testDiscussion}, nil)
 	model.diffCursor = 2
@@ -113,6 +119,8 @@ func TestToggleTHidesThreadPanelButKeepsGutterMarker(t *testing.T) {
 
 // Cycle 4 — `t` twice restores the Thread Panel.
 func TestToggleTTwiceRestoresThreadPanel(t *testing.T) {
+	t.Parallel()
+
 	items := []mr.MergeRequest{{IID: 42, Title: "Test MR"}}
 	model := makeFileDiffModel(items, testFile, []mr.Discussion{testDiscussion}, nil)
 	model.diffCursor = 2
@@ -130,6 +138,8 @@ func TestToggleTTwiceRestoresThreadPanel(t *testing.T) {
 
 // Cycle 5 — Resolved discussion renders with resolved indicator.
 func TestResolvedDiscussionShowsResolvedIndicator(t *testing.T) {
+	t.Parallel()
+
 	items := []mr.MergeRequest{{IID: 42, Title: "Test MR"}}
 	resolved := mr.Discussion{
 		ID:       "d2",
@@ -149,6 +159,8 @@ func TestResolvedDiscussionShowsResolvedIndicator(t *testing.T) {
 
 // Cycle 6 — Draft comment shows draft indicator in Thread Panel.
 func TestDraftCommentShowsDraftIndicatorInThreadPanel(t *testing.T) {
+	t.Parallel()
+
 	items := []mr.MergeRequest{{IID: 42, Title: "Test MR"}}
 	draft := mr.DraftComment{
 		LocalID:  "local-1",
@@ -171,6 +183,8 @@ func TestDraftCommentShowsDraftIndicatorInThreadPanel(t *testing.T) {
 
 // Cycle 7 — `r` key opens reply input when cursor is on a Discussion line.
 func TestFileDiffRKeyOpensReplyInputAtCursorDiscussion(t *testing.T) {
+	t.Parallel()
+
 	items := []mr.MergeRequest{{IID: 42, Title: "Test MR"}}
 	model := makeFileDiffModel(items, testFile, []mr.Discussion{testDiscussion}, nil)
 	model.diffCursor = 2
@@ -189,6 +203,8 @@ func TestFileDiffRKeyOpensReplyInputAtCursorDiscussion(t *testing.T) {
 
 // Cycle 8 — `x` key toggles resolved on the discussion at cursor.
 func TestFileDiffXKeyTogglesResolveAtCursorRow(t *testing.T) {
+	t.Parallel()
+
 	items := []mr.MergeRequest{{IID: 42, Title: "Test MR"}}
 	model := makeFileDiffModel(items, testFile, []mr.Discussion{testDiscussion}, nil)
 	model.resolveDiscussion = nil // no async fn — model resolves locally

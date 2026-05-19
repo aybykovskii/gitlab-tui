@@ -6,7 +6,8 @@ go-build:
 	go build ./cmd/gitlab-tui
 
 go-test:
-	go test $(GO_PACKAGES)
+	@go clean -testcache
+	CGO_ENABLED=1 go test -race $(GO_PACKAGES)
 
 go-fmt:
 	gofumpt -w cmd internal

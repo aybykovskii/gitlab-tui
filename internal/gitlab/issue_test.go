@@ -8,6 +8,8 @@ import (
 )
 
 func TestMapIssueKeepsIssueFields(t *testing.T) {
+	t.Parallel()
+
 	dueDate := glab.ISOTime(time.Date(2026, time.May, 20, 0, 0, 0, 0, time.UTC))
 
 	item := MapIssue(&glab.Issue{

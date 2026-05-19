@@ -9,6 +9,8 @@ import (
 )
 
 func TestGolangCILintConfigUsesV2WithExpandedLintersAndFormatters(t *testing.T) {
+	t.Parallel()
+
 	data, err := os.ReadFile(".golangci.yml")
 	if err != nil {
 		t.Fatalf("read .golangci.yml: %v", err)

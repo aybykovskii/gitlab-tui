@@ -7,6 +7,8 @@ import (
 )
 
 func TestProjectDiscussionsAttachesToMatchingRow(t *testing.T) {
+	t.Parallel()
+
 	rows := []mr.DiffRow{
 		{OldLine: 10, NewLine: 10, OldText: "ctx", NewText: "ctx"},
 		{OldLine: 0, NewLine: 11, NewText: "new line"},
@@ -37,6 +39,8 @@ func TestProjectDiscussionsAttachesToMatchingRow(t *testing.T) {
 }
 
 func TestParseUnifiedDiffRows(t *testing.T) {
+	t.Parallel()
+
 	rows := Parse(`@@ -10,3 +10,4 @@
  context
 -old

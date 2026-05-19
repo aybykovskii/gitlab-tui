@@ -7,6 +7,8 @@ import (
 )
 
 func TestParseCLIProjectOverride(t *testing.T) {
+	t.Parallel()
+
 	intent, err := ParseCLI([]string{"--project", "group/project", "pipeline"})
 	if err != nil {
 		t.Fatalf("expected no error, got %v", err)
@@ -22,6 +24,8 @@ func TestParseCLIProjectOverride(t *testing.T) {
 }
 
 func TestParseCLIRejectsPositionalProjectPath(t *testing.T) {
+	t.Parallel()
+
 	_, err := ParseCLI([]string{"group/project"})
 	if err == nil {
 		t.Fatal("expected positional project path to be rejected")
@@ -29,6 +33,8 @@ func TestParseCLIRejectsPositionalProjectPath(t *testing.T) {
 }
 
 func TestParseCLISectionEntityIntent(t *testing.T) {
+	t.Parallel()
+
 	intent, err := ParseCLI([]string{"mr", "123"})
 	if err != nil {
 		t.Fatalf("expected no error, got %v", err)
@@ -48,6 +54,8 @@ func TestParseCLISectionEntityIntent(t *testing.T) {
 }
 
 func TestParseCLIProjectWithoutValueErrors(t *testing.T) {
+	t.Parallel()
+
 	_, err := ParseCLI([]string{"--project"})
 	if err == nil {
 		t.Fatal("expected error for --project without value")

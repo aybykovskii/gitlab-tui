@@ -1,0 +1,10 @@
+[
+  {
+    "id": 7900,
+    "iid": 79,
+    "title": "Issues API",
+    "state": "opened",
+    "author": {"id": 1, "name": "Alice", "username": "alice"},
+    "user_notes_count": 2
+  }
+]

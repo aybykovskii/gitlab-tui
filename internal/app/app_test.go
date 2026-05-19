@@ -84,6 +84,8 @@ func (f *fakeGitLabClient) UpdateMRLabels(ctx context.Context, projectPath strin
 }
 
 func TestBuildProjectOptionsUsesAccountsAndLimitedRecentProjects(t *testing.T) {
+	t.Parallel()
+
 	cfg := config.Default()
 	cfg.Accounts = append(cfg.Accounts, config.Account{ID: "work", Host: "https://gitlab.example.com", TokenEnv: "WORK_TOKEN"})
 	cfg.RecentProjectsLimit = 2
@@ -135,6 +137,8 @@ func TestBuildProjectOptionsUsesAccountsAndLimitedRecentProjects(t *testing.T) {
 }
 
 func TestRunVersion(t *testing.T) {
+	t.Parallel()
+
 	var stdout bytes.Buffer
 
 	var stderr bytes.Buffer
@@ -155,6 +159,8 @@ func TestRunVersion(t *testing.T) {
 }
 
 func TestRunInitCreatesConfig(t *testing.T) {
+	t.Parallel()
+
 	var stdout bytes.Buffer
 
 	var stderr bytes.Buffer
@@ -177,6 +183,8 @@ func TestRunInitCreatesConfig(t *testing.T) {
 }
 
 func TestRunSectionAliasIsNotUnknownCommand(t *testing.T) {
+	t.Parallel()
+
 	var stdout bytes.Buffer
 
 	var stderr bytes.Buffer
@@ -193,6 +201,8 @@ func TestRunSectionAliasIsNotUnknownCommand(t *testing.T) {
 }
 
 func TestRunUnknownCommand(t *testing.T) {
+	t.Parallel()
+
 	var stdout bytes.Buffer
 
 	var stderr bytes.Buffer
@@ -222,6 +232,8 @@ func (f *fakeGitLabClientWithLabels) UpdateMRLabels(_ context.Context, _ string,
 }
 
 func TestLoadProjectIncludesLabelsInProjectData(t *testing.T) {
+	t.Parallel()
+
 	expectedLabels := []mr.Label{
 		{Name: "bug", Color: "#EE0701"},
 		{Name: "feature", Color: "#0075CA"},

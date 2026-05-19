@@ -3,6 +3,8 @@ package mr
 import "testing"
 
 func TestFilterMatchesTitleAndBranches(t *testing.T) {
+	t.Parallel()
+
 	items := []MergeRequest{
 		{Title: "Add config", SourceBranch: "go/config", TargetBranch: "main", Author: "alice"},
 		{Title: "Render diff", SourceBranch: "go/diff", TargetBranch: "main", Author: "bob"},
@@ -20,6 +22,8 @@ func TestFilterMatchesTitleAndBranches(t *testing.T) {
 }
 
 func TestFilterReturnsAllForEmptyQuery(t *testing.T) {
+	t.Parallel()
+
 	items := []MergeRequest{{Title: "A"}, {Title: "B"}}
 
 	filtered := Filter(items, "   ")

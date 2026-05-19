@@ -11,6 +11,8 @@ import (
 )
 
 func TestEnterOnIssuesSectionOpensIssueList(t *testing.T) {
+	t.Parallel()
+
 	model := NewModelWithProject(FakeMergeRequests(), ProjectOptions{Path: "group/project"})
 
 	updated, _ := model.Update(tea.KeyMsg{Type: tea.KeyDown})
@@ -32,6 +34,8 @@ func TestEnterOnIssuesSectionOpensIssueList(t *testing.T) {
 }
 
 func TestIssuesEntityListRendersTwoLineRows(t *testing.T) {
+	t.Parallel()
+
 	model := NewModelWithProject(nil, ProjectOptions{Path: "group/project", Section: SectionIssues})
 	model.mode = ModeEntityList
 	model.issueItems = []issue.Issue{{
@@ -66,6 +70,8 @@ func TestIssuesEntityListRendersTwoLineRows(t *testing.T) {
 }
 
 func TestIssueStateFilterCyclesAndUpdatesTitle(t *testing.T) {
+	t.Parallel()
+
 	model := NewModelWithProject(nil, ProjectOptions{
 		Path:       "group/project",
 		Section:    SectionIssues,
@@ -92,6 +98,8 @@ func TestIssueStateFilterCyclesAndUpdatesTitle(t *testing.T) {
 }
 
 func TestIssueDetailSummaryRendersMetadata(t *testing.T) {
+	t.Parallel()
+
 	model := NewModelWithProject(nil, ProjectOptions{Path: "group/project", Section: SectionIssues})
 	model.mode = ModeEntityList
 	model.issueItems = []issue.Issue{{
@@ -120,6 +128,8 @@ func TestIssueDetailSummaryRendersMetadata(t *testing.T) {
 }
 
 func TestIssueDetailHidesUnsetWeight(t *testing.T) {
+	t.Parallel()
+
 	model := NewModelWithProject(nil, ProjectOptions{Path: "group/project", Section: SectionIssues})
 	model.mode = ModeDetail
 	model.issueItems = []issue.Issue{{IID: 82, Title: "No Estimate", State: "closed"}}
@@ -135,6 +145,8 @@ func TestIssueDetailHidesUnsetWeight(t *testing.T) {
 }
 
 func TestIssueDetailTabsStayWithinSummaryAndDiscussions(t *testing.T) {
+	t.Parallel()
+
 	model := NewModelWithProject(nil, ProjectOptions{Path: "group/project", Section: SectionIssues})
 	model.mode = ModeDetail
 	model.issueItems = []issue.Issue{{IID: 81, Title: "Issue Detail"}}
@@ -150,6 +162,8 @@ func TestIssueDetailTabsStayWithinSummaryAndDiscussions(t *testing.T) {
 }
 
 func TestIssueDetailKeyBarUsesIssueKeys(t *testing.T) {
+	t.Parallel()
+
 	model := NewModelWithProject(nil, ProjectOptions{Path: "group/project", Section: SectionIssues})
 	model.mode = ModeDetail
 	model.issueItems = []issue.Issue{{IID: 81, Title: "Issue Detail"}}
@@ -161,6 +175,8 @@ func TestIssueDetailKeyBarUsesIssueKeys(t *testing.T) {
 }
 
 func TestIssueEditOpenAssignAndLabelsActions(t *testing.T) {
+	t.Parallel()
+
 	edited := false
 	assigned := false
 	openedURL := ""
@@ -242,6 +258,8 @@ func TestIssueEditOpenAssignAndLabelsActions(t *testing.T) {
 }
 
 func TestIssueCloseReopenActionUsesStateAndUpdatesModel(t *testing.T) {
+	t.Parallel()
+
 	closed := false
 	reopened := false
 	model := NewModelWithProject(nil, ProjectOptions{
@@ -293,6 +311,8 @@ func TestIssueCloseReopenActionUsesStateAndUpdatesModel(t *testing.T) {
 }
 
 func TestIssueDiscussionsTabRendersCommentsAndReplyInput(t *testing.T) {
+	t.Parallel()
+
 	model := NewModelWithProject(nil, ProjectOptions{Path: "group/project", Section: SectionIssues})
 	model.mode = ModeDetail
 	model.activeTab = TabDiscussions
@@ -313,6 +333,8 @@ func TestIssueDiscussionsTabRendersCommentsAndReplyInput(t *testing.T) {
 }
 
 func TestIssueGeneralCommentInputCallsPostIssueComment(t *testing.T) {
+	t.Parallel()
+
 	called := false
 	model := NewModelWithProject(nil, ProjectOptions{
 		Path:    "group/project",
@@ -351,6 +373,8 @@ func TestIssueGeneralCommentInputCallsPostIssueComment(t *testing.T) {
 }
 
 func TestIssueDiscussionsIgnoreResolveAndDraftKeys(t *testing.T) {
+	t.Parallel()
+
 	model := NewModelWithProject(nil, ProjectOptions{Path: "group/project", Section: SectionIssues})
 	model.mode = ModeDetail
 	model.activeTab = TabDiscussions
@@ -373,6 +397,8 @@ func TestIssueDiscussionsIgnoreResolveAndDraftKeys(t *testing.T) {
 }
 
 func TestIssueFilterNarrowsByTitleAndAuthor(t *testing.T) {
+	t.Parallel()
+
 	model := NewModelWithProject(nil, ProjectOptions{Path: "group/project", Section: SectionIssues})
 	model.mode = ModeEntityList
 	model.issueItems = []issue.Issue{{Title: "Render issues", Author: "Alice"}, {Title: "Other", Author: "Bob"}}
