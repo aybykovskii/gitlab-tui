@@ -44,8 +44,8 @@ func (s *DiffViewState) Update(msg tea.Msg) tea.Cmd {
 }
 
 func (s *DiffViewState) View(layout LayoutState) string {
-	s.Width = layout.Width
-	s.Height = max(1, layout.Height)
+	s.Width = layout.Width - 4
+	s.Height = max(1, layout.Height-2)
 	s.SetContent(s.content(layout))
 
 	return s.Model.View()
@@ -60,7 +60,7 @@ func (s DiffViewState) content(layout LayoutState) string {
 	lines := []string{fmt.Sprintf("Diff %s", file.Path), ""}
 	annotated := diff.ProjectDiscussions(file.Diff, s.diffDiscussions, file.Path)
 
-	colWidth := max(10, (max(20, layout.Width)-22)/2)
+	colWidth := max(10, (max(20, layout.Width-4)-22)/2)
 	rowFmt := fmt.Sprintf("%%s │ %%-%ds │ %%s │ %%-%ds", colWidth, colWidth)
 
 	for i, arow := range annotated {
