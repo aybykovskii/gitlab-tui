@@ -9,9 +9,9 @@ import (
 	glab "gitlab.com/gitlab-org/api/client-go"
 
 	"github.com/aybykovskii/gitlab-tui/internal/config"
-	"github.com/aybykovskii/gitlab-tui/internal/diff"
 	"github.com/aybykovskii/gitlab-tui/internal/issue"
 	"github.com/aybykovskii/gitlab-tui/internal/mr"
+	"github.com/aybykovskii/gitlab-tui/pkg/diff"
 )
 
 type MergeRequestClient interface {

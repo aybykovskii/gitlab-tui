@@ -1,6 +1,10 @@
 package mr
 
-import "strings"
+import (
+	"strings"
+
+	"github.com/aybykovskii/gitlab-tui/pkg/diff"
+)
 
 type MergeRequest struct {
 	IID            int
@@ -25,39 +29,15 @@ type Label struct {
 	Color string
 }
 
-type DiffRow struct {
-	OldLine int
-	NewLine int
-	OldText string
-	NewText string
-}
+type DiffRow = diff.Row
 
-type Note struct {
-	Author   string
-	Body     string
-	Resolved bool
-}
+type Note = diff.Note
 
-type DiffPosition struct {
-	NewPath string
-	NewLine int
-	OldPath string
-	OldLine int
-}
+type DiffPosition = diff.Position
 
-type Discussion struct {
-	ID       string
-	Resolved bool
-	Notes    []Note
-	Position *DiffPosition
-}
+type Discussion = diff.Discussion
 
-type DraftComment struct {
-	LocalID  string
-	Body     string
-	Position *DiffPosition
-	EndLine  int
-}
+type DraftComment = diff.DraftComment
 
 type ChangedFile struct {
 	Path         string

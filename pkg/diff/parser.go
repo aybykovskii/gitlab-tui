@@ -4,14 +4,46 @@ import (
 	"regexp"
 	"strconv"
 	"strings"
-
-	"github.com/aybykovskii/gitlab-tui/internal/mr"
 )
 
 var hunkHeaderPattern = regexp.MustCompile(`^@@ -(\d+)(?:,\d+)? \+(\d+)(?:,\d+)? @@`)
 
-func Parse(raw string) []mr.DiffRow {
-	rows := []mr.DiffRow{}
+type Row struct {
+	OldLine int
+	NewLine int
+	OldText string
+	NewText string
+}
+
+type Note struct {
+	Author   string
+	Body     string
+	Resolved bool
+}
+
+type Position struct {
+	NewPath string
+	NewLine int
+	OldPath string
+	OldLine int
+}
+
+type Discussion struct {
+	ID       string
+	Resolved bool
+	Notes    []Note
+	Position *Position
+}
+
+type DraftComment struct {
+	LocalID  string
+	Body     string
+	Position *Position
+	EndLine  int
+}
+
+func Parse(raw string) []Row {
+	rows := []Row{}
 	oldLine := 0
 	newLine := 0
 
@@ -44,14 +76,14 @@ func Parse(raw string) []mr.DiffRow {
 
 		switch prefix {
 		case ' ':
-			rows = append(rows, mr.DiffRow{OldLine: oldLine, NewLine: newLine, OldText: text, NewText: text})
+			rows = append(rows, Row{OldLine: oldLine, NewLine: newLine, OldText: text, NewText: text})
 			oldLine++
 			newLine++
 		case '-':
-			rows = append(rows, mr.DiffRow{OldLine: oldLine, OldText: text})
+			rows = append(rows, Row{OldLine: oldLine, OldText: text})
 			oldLine++
 		case '+':
-			rows = append(rows, mr.DiffRow{NewLine: newLine, NewText: text})
+			rows = append(rows, Row{NewLine: newLine, NewText: text})
 			newLine++
 		}
 	}
@@ -60,14 +92,14 @@ func Parse(raw string) []mr.DiffRow {
 }
 
 type AnnotatedRow struct {
-	mr.DiffRow
-	Discussions []mr.Discussion
+	Row
+	Discussions []Discussion
 }
 
-func ProjectDiscussions(rows []mr.DiffRow, discussions []mr.Discussion, path string) []AnnotatedRow {
+func ProjectDiscussions(rows []Row, discussions []Discussion, path string) []AnnotatedRow {
 	annotated := make([]AnnotatedRow, len(rows))
 	for i, row := range rows {
-		annotated[i] = AnnotatedRow{DiffRow: row}
+		annotated[i] = AnnotatedRow{Row: row}
 
 		for _, d := range discussions {
 			if d.Position == nil || d.Position.NewPath != path {

@@ -1,22 +1,18 @@
 package diff
 
-import (
-	"testing"
-
-	"github.com/aybykovskii/gitlab-tui/internal/mr"
-)
+import "testing"
 
 func TestProjectDiscussionsAttachesToMatchingRow(t *testing.T) {
 	t.Parallel()
 
-	rows := []mr.DiffRow{
+	rows := []Row{
 		{OldLine: 10, NewLine: 10, OldText: "ctx", NewText: "ctx"},
 		{OldLine: 0, NewLine: 11, NewText: "new line"},
 	}
-	discussions := []mr.Discussion{
-		{ID: "d1", Notes: []mr.Note{{Author: "alice", Body: "fix this"}}, Position: &mr.DiffPosition{NewPath: "main.go", NewLine: 11}},
-		{ID: "d2", Notes: []mr.Note{{Author: "bob", Body: "LGTM"}}, Position: &mr.DiffPosition{NewPath: "other.go", NewLine: 11}},
-		{ID: "d3", Notes: []mr.Note{{Author: "carol", Body: "general"}}, Position: nil},
+	discussions := []Discussion{
+		{ID: "d1", Notes: []Note{{Author: "alice", Body: "fix this"}}, Position: &Position{NewPath: "main.go", NewLine: 11}},
+		{ID: "d2", Notes: []Note{{Author: "bob", Body: "LGTM"}}, Position: &Position{NewPath: "other.go", NewLine: 11}},
+		{ID: "d3", Notes: []Note{{Author: "carol", Body: "general"}}, Position: nil},
 	}
 
 	annotated := ProjectDiscussions(rows, discussions, "main.go")

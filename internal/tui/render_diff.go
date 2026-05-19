@@ -7,8 +7,8 @@ import (
 
 	"github.com/charmbracelet/lipgloss"
 
-	"github.com/aybykovskii/gitlab-tui/internal/diff"
 	"github.com/aybykovskii/gitlab-tui/internal/mr"
+	"github.com/aybykovskii/gitlab-tui/pkg/diff"
 )
 
 type DiscussionListOptions struct {
