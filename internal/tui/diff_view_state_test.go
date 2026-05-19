@@ -39,6 +39,7 @@ func TestDiffViewStateViewShowsAndHidesThreadPanel(t *testing.T) {
 
 	state.threadPanelVisible = false
 	hidden := state.View(LayoutState{Width: 100, Height: 20})
+
 	if strings.Contains(hidden, "Needs work") {
 		t.Fatalf("expected thread panel hidden, got:\n%s", hidden)
 	}

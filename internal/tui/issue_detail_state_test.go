@@ -8,6 +8,18 @@ import (
 	"github.com/aybykovskii/gitlab-tui/internal/mr"
 )
 
+func TestIssueDetailStateHandlesDiscussionsFinished(t *testing.T) {
+	t.Parallel()
+
+	discussions := []issue.Discussion{{ID: "d1", Notes: []mr.Note{{Author: "alice", Body: "good"}}}}
+	s := NewIssueDetailState()
+	s.Update(issueDiscussionsFinishedMsg{iid: 9, discussions: discussions})
+
+	if len(s.discussions[9]) != 1 {
+		t.Fatalf("expected 1 discussion stored, got %d", len(s.discussions[9]))
+	}
+}
+
 func TestIssueDetailStateViewRendersActiveTabs(t *testing.T) {
 	t.Parallel()
 

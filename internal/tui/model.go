@@ -22,9 +22,6 @@ type Model struct {
 	ProjectPickerState
 	LabelSelectorState
 	InputState
-	projectPath          string
-	recentProjects       []string
-	gitlabProjects       []string
 	projectList          []string
 	section              Section
 	sectionCursor        int
@@ -52,15 +49,10 @@ type Model struct {
 	projectLabels        []mr.Label
 	submitDrafts         SubmitDraftsFunc
 	discardDrafts        DiscardDraftsFunc
-	discussionCursor     int
 	replyToDiscussion    ReplyToDiscussionFunc
 	draftReply           DraftReplyFunc
 	resolveDiscussion    ResolveDiscussionFunc
 	unresolveDiscussion  UnresolveDiscussionFunc
-	discussionsLoading   bool
-	filesLoading         bool
-	discussionsError     string
-	filesError           string
 	loadDiscussions      LoadDiscussionsFunc
 	loadFiles            LoadFilesFunc
 	refresh              RefreshFunc
@@ -102,9 +94,6 @@ func NewModelWithProject(items []mr.MergeRequest, options ProjectOptions) Model 
 		focus:                FocusDetail,
 		width:                100,
 		height:               30,
-		projectPath:          options.Path,
-		recentProjects:       options.Recents,
-		gitlabProjects:       options.Projects,
 		projectList:          buildProjectList(options.Path, projectListRecents, options.Projects),
 		section:              options.Section,
 		entityID:             options.EntityID,
@@ -143,6 +132,7 @@ func NewModelWithProject(items []mr.MergeRequest, options ProjectOptions) Model 
 		globals:              newGlobalKeys(),
 		projectListKeys:      newProjectListKeys(),
 	}
+	model.EntityListState.projectPath = options.Path
 	model.rebuildProjectRows()
 
 	if model.projectPath == "" {

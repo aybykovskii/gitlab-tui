@@ -18,9 +18,7 @@ func (m Model) renderEntityListPane() string {
 	height := m.paneHeight()
 	style := paneStyle(width, height, true)
 
-	state := m.EntityListState
-	state.projectPath = m.projectPath
-	return style.Render(state.View(LayoutState{Width: width, Height: height, Focus: m.focus, Mode: m.mode}, EntityListViewData{
+	return style.Render(m.EntityListState.View(LayoutState{Width: width, Height: height, Focus: m.focus, Mode: m.mode}, EntityListViewData{
 		Section:         m.section,
 		IssueStateLabel: m.issueStateLabel(),
 		ProjectLoading:  m.projectLoading,

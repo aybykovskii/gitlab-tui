@@ -75,20 +75,22 @@ func (m Model) updateDetailKeys(msg tea.KeyMsg) (Model, tea.Cmd) {
 		}
 
 	case msg.String() == "up" || msg.String() == "k":
-		if m.mode == ModeDetail && m.section == SectionMergeRequests {
+		switch {
+		case m.mode == ModeDetail && m.section == SectionMergeRequests:
 			m.MRDetailState.YOffset = max(0, m.MRDetailState.YOffset-1)
-		} else if m.mode == ModeDetail && m.section == SectionIssues {
+		case m.mode == ModeDetail && m.section == SectionIssues:
 			m.IssueDetailState.YOffset = max(0, m.IssueDetailState.YOffset-1)
-		} else if m.mode != ModeDetail {
+		case m.mode != ModeDetail:
 			m.moveSelection(-1)
 		}
 
 	case msg.String() == "down" || msg.String() == "j":
-		if m.mode == ModeDetail && m.section == SectionMergeRequests {
+		switch {
+		case m.mode == ModeDetail && m.section == SectionMergeRequests:
 			m.MRDetailState.YOffset++
-		} else if m.mode == ModeDetail && m.section == SectionIssues {
+		case m.mode == ModeDetail && m.section == SectionIssues:
 			m.IssueDetailState.YOffset++
-		} else if m.mode != ModeDetail {
+		case m.mode != ModeDetail:
 			m.moveSelection(1)
 		}
 

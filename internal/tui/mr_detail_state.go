@@ -19,6 +19,11 @@ type MRDetailState struct {
 	reviewSummaryInput bool
 	reviewSummary      string
 	drafts             map[int][]mr.DraftComment
+	discussionsLoading bool
+	discussionsError   string
+	filesLoading       bool
+	filesError         string
+	discussionCursor   int
 }
 
 func NewMRDetailState() MRDetailState {
@@ -31,6 +36,41 @@ func NewMRDetailState() MRDetailState {
 }
 
 func (s *MRDetailState) Update(msg tea.Msg) tea.Cmd {
+	switch msg := msg.(type) {
+	case discussionsStartedMsg:
+		s.discussionsLoading = true
+		s.discussionsError = ""
+
+		return nil
+	case discussionsFinishedMsg:
+		s.discussionsLoading = false
+		if msg.err != nil {
+			s.discussionsError = msg.err.Error()
+
+			return nil
+		}
+
+		s.discussions[msg.iid] = msg.discussions
+
+		return nil
+	case filesStartedMsg:
+		s.filesLoading = true
+		s.filesError = ""
+
+		return nil
+	case filesFinishedMsg:
+		s.filesLoading = false
+		if msg.err != nil {
+			s.filesError = msg.err.Error()
+
+			return nil
+		}
+
+		s.changedFiles[msg.iid] = msg.files
+
+		return nil
+	}
+
 	var cmd tea.Cmd
 	s.Model, cmd = s.Model.Update(msg)
 
@@ -110,6 +150,7 @@ func (s MRDetailState) reviewContent(item mr.MergeRequest) string {
 	}
 
 	lines := []string{"Draft comments", ""}
+
 	for i, draft := range drafts {
 		prefix := "  "
 		if i == s.reviewCursor && !s.reviewSummaryInput {
@@ -118,6 +159,7 @@ func (s MRDetailState) reviewContent(item mr.MergeRequest) string {
 
 		path := "unknown"
 		line := 0
+
 		if draft.Position != nil {
 			path = draft.Position.NewPath
 			line = draft.Position.NewLine

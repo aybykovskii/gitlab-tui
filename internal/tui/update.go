@@ -18,15 +18,19 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.height = msg.Height
 	case tea.KeyMsg:
 		next, cmd := m.updateKey(msg)
+
 		if next.mode == ModeDetail && next.section == SectionMergeRequests {
 			cmd = batchCommands(cmd, next.MRDetailState.Update(msg))
 		}
+
 		if next.mode == ModeDetail && next.section == SectionIssues {
 			cmd = batchCommands(cmd, next.IssueDetailState.Update(msg))
 		}
+
 		if next.mode == ModeFileDiff {
 			cmd = batchCommands(cmd, next.DiffViewState.Update(msg))
 		}
+
 		next.syncGlobalKeys()
 
 		return next, cmd
@@ -122,26 +126,8 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.focus = FocusDetail
 
 		return m, nil
-	case discussionsStartedMsg:
-		m.discussionsLoading = true
-		m.discussionsError = ""
-
-		return m, nil
-	case discussionsFinishedMsg:
-		m.discussionsLoading = false
-		if msg.err != nil {
-			m.discussionsError = msg.err.Error()
-			return m, nil
-		}
-
-		m.discussions[msg.iid] = msg.discussions
-
-		return m, nil
-	case filesStartedMsg:
-		m.filesLoading = true
-		m.filesError = ""
-
-		return m, nil
+	case discussionsStartedMsg, discussionsFinishedMsg, filesStartedMsg:
+		return m, m.MRDetailState.Update(msg)
 	case approveMRFinishedMsg:
 		if msg.err != nil {
 			m.actionError = msg.err.Error()
@@ -310,15 +296,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.drafts[msg.iid] = nil
 		return m, nil
 	case filesFinishedMsg:
-		m.filesLoading = false
-		if msg.err != nil {
-			m.filesError = msg.err.Error()
-			return m, nil
-		}
-
-		m.changedFiles[msg.iid] = msg.files
-
-		return m, nil
+		return m, m.MRDetailState.Update(msg)
 	case refreshStartedMsg:
 		m.loading = true
 		m.errorMessage = ""
@@ -349,14 +327,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 		return m, nil
 	case issueDiscussionsFinishedMsg:
-		if msg.err != nil {
-			m.discussionsError = msg.err.Error()
-			return m, nil
-		}
-
-		m.IssueDetailState.discussions[msg.iid] = msg.discussions
-
-		return m, nil
+		return m, m.IssueDetailState.Update(msg)
 	}
 
 	return m, nil

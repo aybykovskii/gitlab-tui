@@ -1,3 +1,4 @@
+//nolint:mnd // Visible row count heuristics are intentional UI page-size constants.
 package tui
 
 import (
@@ -48,6 +49,7 @@ func (s EntityListState) filteredIssues() []issue.Issue {
 	}
 
 	filtered := make([]issue.Issue, 0, len(s.issueItems))
+
 	for _, item := range s.issueItems {
 		text := strings.ToLower(item.Title + " " + item.Author)
 		if strings.Contains(text, query) {
@@ -77,6 +79,7 @@ func (s EntityListState) mrLines(height int, data EntityListViewData) []string {
 
 	visible := max(1, height-5)
 	end := min(len(items), s.listTop+visible)
+
 	for i := s.listTop; i < end; i++ {
 		prefix := "  "
 		if i == s.selected {
@@ -108,6 +111,7 @@ func (s EntityListState) issueLines(height int, data EntityListViewData) []strin
 
 	visible := max(1, (height-5)/2)
 	end := min(len(items), s.listTop+visible)
+
 	for i := s.listTop; i < end; i++ {
 		prefix := "  "
 		if i == s.selected {

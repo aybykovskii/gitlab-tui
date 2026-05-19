@@ -21,6 +21,7 @@ func TestInputStateIsActiveWhenAnyFlagSet(t *testing.T) {
 
 	for _, name := range []string{"comment", "mrComment", "issueComment", "edit", "reply"} {
 		state := NewInputState()
+
 		switch name {
 		case "comment":
 			state.commentInput = true

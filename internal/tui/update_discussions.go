@@ -24,11 +24,13 @@ func (m Model) focusedIssueDiscussion() (issue.Discussion, bool) {
 	}
 
 	discussions := m.IssueDetailState.discussions[item.IID]
-	if m.discussionCursor < 0 || m.discussionCursor >= len(discussions) {
+	cursor := m.IssueDetailState.discussionCursor
+
+	if cursor < 0 || cursor >= len(discussions) {
 		return issue.Discussion{}, false
 	}
 
-	return discussions[m.discussionCursor], true
+	return discussions[cursor], true
 }
 
 func (m Model) focusedDiscussion() (mr.Discussion, bool) {
@@ -69,10 +71,10 @@ func (m Model) updateIssueDiscussionsTab(msg tea.KeyMsg) (Model, tea.Cmd) {
 	case msg.String() == "j" || msg.String() == "down":
 		if item, ok := m.selectedIssue(); ok {
 			count := len(m.IssueDetailState.discussions[item.IID])
-			m.discussionCursor = clamp(m.discussionCursor+1, 0, max(0, count-1))
+			m.IssueDetailState.discussionCursor = clamp(m.IssueDetailState.discussionCursor+1, 0, max(0, count-1))
 		}
 	case msg.String() == "k" || msg.String() == "up":
-		m.discussionCursor = clamp(m.discussionCursor-1, 0, max(0, m.discussionCursor))
+		m.IssueDetailState.discussionCursor = clamp(m.IssueDetailState.discussionCursor-1, 0, max(0, m.IssueDetailState.discussionCursor))
 	case msg.String() == "r":
 		if discussion, ok := m.focusedIssueDiscussion(); ok {
 			m.replyInput = true

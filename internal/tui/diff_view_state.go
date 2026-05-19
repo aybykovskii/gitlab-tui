@@ -1,3 +1,4 @@
+//nolint:mnd // Diff column widths and gutter sizes are intentional UI layout constants.
 package tui
 
 import (
@@ -75,8 +76,7 @@ func (s DiffViewState) content(layout LayoutState) string {
 
 		discussionMarker := s.discussionGutterMarker(arow.Discussions)
 
-		var oldNum, newNum, oldContent, newContent string
-		rowColor := "240"
+		var oldNum, newNum, oldContent, newContent, rowColor string
 
 		switch {
 		case arow.OldLine == 0 && arow.NewLine > 0:
@@ -105,6 +105,7 @@ func (s DiffViewState) content(layout LayoutState) string {
 
 	discussion, draft := s.threadAtCursor()
 	allDiscussions := s.discussionsAtCursor()
+
 	if (discussion != nil || draft != nil) && s.threadPanelVisible {
 		lines = append(lines, s.threadPanelLines(discussion, draft, len(allDiscussions), layout.Width-4)...)
 	}
@@ -128,6 +129,7 @@ func (s DiffViewState) draftGutterMarker(path string, newLine int) string {
 
 		startLine := dr.Position.NewLine
 		endLine := dr.EndLine
+
 		if endLine == 0 {
 			endLine = startLine
 		}
@@ -192,6 +194,7 @@ func (s DiffViewState) discussionsAtCursor() []mr.Discussion {
 	}
 
 	var result []mr.Discussion
+
 	for _, discussion := range s.diffDiscussions {
 		if discussion.Position != nil && discussion.Position.NewPath == file.Path && discussion.Position.NewLine == row.NewLine {
 			result = append(result, discussion)
@@ -230,6 +233,7 @@ func (s DiffViewState) threadPanelLines(discussion *mr.Discussion, draft *mr.Dra
 	dimStyle := lipgloss.NewStyle().Foreground(lipgloss.Color("240"))
 
 	lines := []string{sep}
+
 	if discussion != nil {
 		header := "Discussion"
 		if total > 1 {

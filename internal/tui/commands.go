@@ -4,6 +4,7 @@ import tea "github.com/charmbracelet/bubbletea"
 
 func batchCommands(cmds ...tea.Cmd) tea.Cmd {
 	present := make([]tea.Cmd, 0, len(cmds))
+
 	for _, cmd := range cmds {
 		if cmd != nil {
 			present = append(present, cmd)

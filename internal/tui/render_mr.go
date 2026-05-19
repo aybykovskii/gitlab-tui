@@ -13,9 +13,7 @@ func (m Model) renderList() string {
 	height := m.paneHeight()
 	style := paneStyle(width, height, m.focus == FocusList || m.focus == FocusFilter)
 
-	state := m.EntityListState
-	state.projectPath = m.projectPath
-	return style.Render(state.View(LayoutState{Width: width, Height: height, Focus: m.focus, Mode: m.mode}, EntityListViewData{
+	return style.Render(m.EntityListState.View(LayoutState{Width: width, Height: height, Focus: m.focus, Mode: m.mode}, EntityListViewData{
 		Section:        SectionMergeRequests,
 		ProjectLoading: m.projectLoading,
 		Loading:        m.loading,

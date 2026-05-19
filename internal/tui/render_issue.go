@@ -58,11 +58,10 @@ func (m Model) renderIssueDiscussions(item issue.Issue) string {
 		return "No discussions"
 	}
 
-	output := renderDiscussionList(discussions, m.discussionCursor, DiscussionListOptions{})
+	output := renderDiscussionList(discussions, m.IssueDetailState.discussionCursor, DiscussionListOptions{})
 	if m.replyInput {
 		output += "\n\nReply: " + m.Value() + "█"
 	}
 
 	return output
 }
-

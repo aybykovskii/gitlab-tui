@@ -22,6 +22,7 @@ func (s LabelSelectorState) View(layout LayoutState) string {
 
 	for i, label := range s.labels {
 		marker := "○"
+
 		for _, sel := range s.pending {
 			if sel == label.Name {
 				marker = "●"

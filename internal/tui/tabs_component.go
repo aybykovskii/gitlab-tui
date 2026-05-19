@@ -19,6 +19,7 @@ type TabsComponent struct {
 
 func (t TabsComponent) View() string {
 	parts := make([]string, 0, len(t.Labels))
+
 	for i, label := range t.Labels {
 		if i == t.Active {
 			parts = append(parts, fmt.Sprintf("[>%s<]", label))

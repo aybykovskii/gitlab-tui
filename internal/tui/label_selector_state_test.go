@@ -72,6 +72,7 @@ func TestLabelSelectorStateViewMarksCursorRow(t *testing.T) {
 
 	lines := strings.Split(view, "\n")
 	found := false
+
 	for _, line := range lines {
 		if strings.HasPrefix(line, "> ") && strings.Contains(line, "enhancement") {
 			found = true

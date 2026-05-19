@@ -67,6 +67,7 @@ func (m Model) updateProjectSelect(msg tea.KeyMsg) (Model, tea.Cmd) {
 
 func (m Model) updateProjectInput(msg tea.KeyMsg) (Model, tea.Cmd) {
 	pp := &m.ProjectPickerState
+
 	switch msg.Type {
 	case tea.KeyEnter:
 		if trimmed := strings.TrimSpace(pp.projectInput); trimmed != "" {
@@ -119,6 +120,7 @@ func (m Model) updateSections(msg tea.KeyMsg) (Model, tea.Cmd) {
 
 func (m Model) updateFilter(msg tea.KeyMsg) (Model, tea.Cmd) {
 	el := &m.EntityListState
+
 	switch msg.Type {
 	case tea.KeyEsc, tea.KeyEnter:
 		m.focus = FocusDetail
@@ -144,6 +146,7 @@ func (m Model) updateEntityList(msg tea.KeyMsg) (Model, tea.Cmd) {
 	case "enter":
 		m.mode = ModeDetail
 		m.focus = FocusDetail
+
 		if m.section == SectionIssues {
 			m.IssueDetailState.activeTab = TabSummary
 		} else {

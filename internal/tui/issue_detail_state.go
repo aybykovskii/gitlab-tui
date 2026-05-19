@@ -12,8 +12,10 @@ import (
 
 type IssueDetailState struct {
 	viewport.Model
-	activeTab   DetailTab
-	discussions map[int][]issue.Discussion
+	activeTab        DetailTab
+	discussions      map[int][]issue.Discussion
+	discussionCursor int
+	discussionsError string
 }
 
 func NewIssueDetailState() IssueDetailState {
@@ -24,6 +26,18 @@ func NewIssueDetailState() IssueDetailState {
 }
 
 func (s *IssueDetailState) Update(msg tea.Msg) tea.Cmd {
+	if msg, ok := msg.(issueDiscussionsFinishedMsg); ok {
+		if msg.err != nil {
+			s.discussionsError = msg.err.Error()
+
+			return nil
+		}
+
+		s.discussions[msg.iid] = msg.discussions
+
+		return nil
+	}
+
 	var cmd tea.Cmd
 	s.Model, cmd = s.Model.Update(msg)
 

@@ -68,6 +68,7 @@ func (s *ProjectPickerState) rebuildRows() {
 
 	if filtered := s.filteredRecents(); len(filtered) > 0 {
 		s.projectRows = append(s.projectRows, projectListRow{label: "Recent"}, projectListRow{})
+
 		for _, recent := range filtered {
 			label := recent.Path
 			if recent.Account != "" {

@@ -117,17 +117,22 @@ func (m Model) renderFileDiffPane() string {
 	m.DiffViewState.emoji = m.emoji
 
 	view := m.DiffViewState.View(LayoutState{Width: width, Height: height, Focus: m.focus, Mode: m.mode})
+
 	var inputLines []string
+
 	if m.commentError != "" {
 		inputLines = append(inputLines, "", "Error: "+m.commentError)
 	}
+
 	if m.commentInput {
 		prompt := "Comment"
 		if m.commentInstant {
 			prompt = "Instant comment"
 		}
+
 		inputLines = append(inputLines, "", prompt+": "+m.Value()+"█")
 	}
+
 	if len(inputLines) > 0 {
 		view += "\n" + strings.Join(inputLines, "\n")
 	}
@@ -170,8 +175,6 @@ func (m Model) discussionsAtCursor() []mr.Discussion {
 
 	return result
 }
-
-
 
 func renderDiscussionBlock(discussion mr.Discussion, header string, cursor string, dimResolved bool, authorInFirstNote bool) []string {
 	dimStyle := lipgloss.NewStyle().Foreground(lipgloss.Color("240"))
