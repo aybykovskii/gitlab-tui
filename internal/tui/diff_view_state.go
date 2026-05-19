@@ -60,8 +60,8 @@ func (s DiffViewState) content(layout LayoutState) string {
 	lines := []string{fmt.Sprintf("Diff %s", file.Path), ""}
 	annotated := diff.ProjectDiscussions(file.Diff, s.diffDiscussions, file.Path)
 
-	colWidth := max(10, (max(20, layout.Width)-20)/2)
-	rowFmt := fmt.Sprintf("%%s │ %%-%ds │ %%s │ %%s", colWidth)
+	colWidth := max(10, (max(20, layout.Width)-22)/2)
+	rowFmt := fmt.Sprintf("%%s │ %%-%ds │ %%s │ %%-%ds", colWidth, colWidth)
 
 	for i, arow := range annotated {
 		cursor := "  "
@@ -97,6 +97,14 @@ func (s DiffViewState) content(layout LayoutState) string {
 			oldContent = "  " + arow.OldText
 			newContent = "  " + arow.NewText
 			rowColor = "240"
+		}
+
+		if runes := []rune(oldContent); len(runes) > colWidth {
+			oldContent = string(runes[:colWidth])
+		}
+
+		if runes := []rune(newContent); len(runes) > colWidth {
+			newContent = string(runes[:colWidth])
 		}
 
 		lineContent := fmt.Sprintf(rowFmt, oldNum, oldContent, newNum, newContent)
