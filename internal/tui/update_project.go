@@ -27,7 +27,7 @@ func (m Model) selectProject(path string) (Model, tea.Cmd) {
 	m.focus = FocusDetail
 	m.selected = 0
 	m.listTop = 0
-	m.rightTop = 0
+	m.MRDetailState.GotoTop()
 	m.projectLoaded = false
 	m.items = nil
 	found := false
@@ -52,7 +52,7 @@ func (m Model) openProjectCommand(path string) (Model, tea.Cmd) {
 	m.focus = FocusDetail
 	m.selected = 0
 	m.listTop = 0
-	m.rightTop = 0
+	m.MRDetailState.GotoTop()
 
 	if m.loadProject == nil {
 		return m, nil

@@ -232,14 +232,14 @@ func TestKeyboardSelectionAndDiffNavigation(t *testing.T) {
 	t.Parallel()
 
 	model := NewFakeModel()
-	model.rightTop = 2
+	model.MRDetailState.YOffset = 2
 
 	// In ModeDetail, Down scrolls the right panel rather than moving selection
 	updated, _ := model.Update(tea.KeyMsg{Type: tea.KeyDown})
 
 	model = updated.(Model)
-	if model.rightTop != 3 {
-		t.Fatalf("expected rightTop=3 after Down in ModeDetail, got %d", model.rightTop)
+	if model.MRDetailState.YOffset != 3 {
+		t.Fatalf("expected MR detail viewport offset=3 after Down in ModeDetail, got %d", model.MRDetailState.YOffset)
 	}
 
 	if model.selected != 0 {
@@ -3241,13 +3241,13 @@ func TestDownScrollsRightPanelInModeDetail(t *testing.T) {
 
 	model := NewModelWithProject(FakeMergeRequests(), ProjectOptions{Path: "group/project", Section: SectionMergeRequests})
 	initialSelected := model.selected
-	model.rightTop = 5
+	model.MRDetailState.YOffset = 5
 
 	updated, _ := model.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'j'}})
 	model = updated.(Model)
 
-	if model.rightTop != 6 {
-		t.Fatalf("expected rightTop=6 after j in ModeDetail, got %d", model.rightTop)
+	if model.MRDetailState.YOffset != 6 {
+		t.Fatalf("expected MR detail viewport offset=6 after j in ModeDetail, got %d", model.MRDetailState.YOffset)
 	}
 
 	if model.selected != initialSelected {
@@ -3260,13 +3260,13 @@ func TestUpScrollsRightPanelInModeDetail(t *testing.T) {
 
 	model := NewModelWithProject(FakeMergeRequests(), ProjectOptions{Path: "group/project", Section: SectionMergeRequests})
 	initialSelected := model.selected
-	model.rightTop = 5
+	model.MRDetailState.YOffset = 5
 
 	updated, _ := model.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'k'}})
 	model = updated.(Model)
 
-	if model.rightTop != 4 {
-		t.Fatalf("expected rightTop=4 after k in ModeDetail, got %d", model.rightTop)
+	if model.MRDetailState.YOffset != 4 {
+		t.Fatalf("expected MR detail viewport offset=4 after k in ModeDetail, got %d", model.MRDetailState.YOffset)
 	}
 
 	if model.selected != initialSelected {
@@ -3274,17 +3274,17 @@ func TestUpScrollsRightPanelInModeDetail(t *testing.T) {
 	}
 }
 
-func TestRightTopFloorAtZeroInModeDetail(t *testing.T) {
+func TestMRDetailViewportOffsetFloorAtZeroInModeDetail(t *testing.T) {
 	t.Parallel()
 
 	model := NewModelWithProject(FakeMergeRequests(), ProjectOptions{Path: "group/project", Section: SectionMergeRequests})
-	model.rightTop = 0
+	model.MRDetailState.YOffset = 0
 
 	updated, _ := model.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'k'}})
 	model = updated.(Model)
 
-	if model.rightTop != 0 {
-		t.Fatalf("expected rightTop to stay 0 (floor), got %d", model.rightTop)
+	if model.MRDetailState.YOffset != 0 {
+		t.Fatalf("expected MR detail viewport offset to stay 0 (floor), got %d", model.MRDetailState.YOffset)
 	}
 }
 
@@ -3292,20 +3292,20 @@ func TestArrowKeysScrollRightPanelInModeDetail(t *testing.T) {
 	t.Parallel()
 
 	model := NewModelWithProject(FakeMergeRequests(), ProjectOptions{Path: "group/project", Section: SectionMergeRequests})
-	model.rightTop = 3
+	model.MRDetailState.YOffset = 3
 
 	updated, _ := model.Update(tea.KeyMsg{Type: tea.KeyDown})
 
 	model = updated.(Model)
-	if model.rightTop != 4 {
-		t.Fatalf("expected rightTop=4 after ↓ in ModeDetail, got %d", model.rightTop)
+	if model.MRDetailState.YOffset != 4 {
+		t.Fatalf("expected MR detail viewport offset=4 after ↓ in ModeDetail, got %d", model.MRDetailState.YOffset)
 	}
 
 	updated, _ = model.Update(tea.KeyMsg{Type: tea.KeyUp})
 
 	model = updated.(Model)
-	if model.rightTop != 3 {
-		t.Fatalf("expected rightTop=3 after ↑ in ModeDetail, got %d", model.rightTop)
+	if model.MRDetailState.YOffset != 3 {
+		t.Fatalf("expected MR detail viewport offset=3 after ↑ in ModeDetail, got %d", model.MRDetailState.YOffset)
 	}
 }
 
@@ -3315,7 +3315,7 @@ func TestUpDownInModeEntityListStillMovesSelection(t *testing.T) {
 	model := NewModelWithProject(FakeMergeRequests(), ProjectOptions{Path: "group/project", Section: SectionMergeRequests})
 	model.mode = ModeEntityList
 	initialSelected := model.selected
-	initialRightTop := model.rightTop
+	initialMRDetailViewportOffset := model.MRDetailState.YOffset
 
 	updated, _ := model.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'j'}})
 	model = updated.(Model)
@@ -3324,8 +3324,8 @@ func TestUpDownInModeEntityListStillMovesSelection(t *testing.T) {
 		t.Fatalf("expected selected to increment in ModeEntityList, got %d", model.selected)
 	}
 
-	if model.rightTop != initialRightTop {
-		t.Fatalf("expected rightTop unchanged in ModeEntityList, got %d", model.rightTop)
+	if model.MRDetailState.YOffset != initialMRDetailViewportOffset {
+		t.Fatalf("expected MR detail viewport offset unchanged in ModeEntityList, got %d", model.MRDetailState.YOffset)
 	}
 }
 

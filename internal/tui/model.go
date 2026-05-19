@@ -12,15 +12,15 @@ import (
 )
 
 type Model struct {
-	items                []mr.MergeRequest
-	query                string
-	selected             int
-	mode                 Mode
-	focus                Focus
-	width                int
-	height               int
-	listTop              int
-	rightTop             int
+	items    []mr.MergeRequest
+	query    string
+	selected int
+	mode     Mode
+	focus    Focus
+	width    int
+	height   int
+	listTop  int
+	MRDetailState
 	projectPath          string
 	recentProjects       []string
 	recentProjectOptions []RecentProjectOption
@@ -33,18 +33,12 @@ type Model struct {
 	sectionCursor        int
 	entityID             string
 	projectLoaded        bool
-	activeTab            DetailTab
-	discussions          map[int][]mr.Discussion
 	issueDiscussions     map[int][]issue.Discussion
-	changedFiles         map[int][]mr.ChangedFile
 	selectedFile         int
 	fileDiffTop          int
 	diffCursor           int
 	fileDiffReturnTab    DetailTab
 	rangeStart           int
-	reviewCursor         int
-	reviewSummaryInput   bool
-	reviewSummary        string
 	commentInput         bool
 	commentInstant       bool
 	commentBuffer        string
@@ -81,7 +75,6 @@ type Model struct {
 	projectLabels        []mr.Label
 	labelCursor          int
 	labelPending         []string
-	drafts               map[int][]mr.DraftComment
 	submitDrafts         SubmitDraftsFunc
 	discardDrafts        DiscardDraftsFunc
 	discussionCursor     int
@@ -153,10 +146,7 @@ func NewModelWithProject(items []mr.MergeRequest, options ProjectOptions) Model 
 		loadProject:          options.LoadProject,
 		loadDiscussions:      options.LoadDiscussions,
 		loadFiles:            options.LoadFiles,
-		discussions:          map[int][]mr.Discussion{},
 		issueDiscussions:     map[int][]issue.Discussion{},
-		changedFiles:         map[int][]mr.ChangedFile{},
-		drafts:               map[int][]mr.DraftComment{},
 		rangeStart:           -1,
 		submitDrafts:         options.SubmitDrafts,
 		discardDrafts:        options.DiscardDrafts,
@@ -168,6 +158,7 @@ func NewModelWithProject(items []mr.MergeRequest, options ProjectOptions) Model 
 		postMRComment:        options.PostMRComment,
 		postIssueComment:     options.PostIssueComment,
 		loadIssueDiscussions: options.LoadIssueDiscussions,
+		MRDetailState:        NewMRDetailState(),
 		closeIssue:           options.CloseIssue,
 		reopenIssue:          options.ReopenIssue,
 		editIssue:            options.EditIssue,

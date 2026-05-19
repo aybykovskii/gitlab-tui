@@ -75,16 +75,16 @@ func (m Model) updateDetailKeys(msg tea.KeyMsg) (Model, tea.Cmd) {
 		}
 
 	case msg.String() == "up" || msg.String() == "k":
-		if m.mode == ModeDetail {
-			m.rightTop = max(0, m.rightTop-1)
-		} else {
+		if m.mode == ModeDetail && m.section == SectionMergeRequests {
+			m.MRDetailState.YOffset = max(0, m.MRDetailState.YOffset-1)
+		} else if m.mode != ModeDetail {
 			m.moveSelection(-1)
 		}
 
 	case msg.String() == "down" || msg.String() == "j":
-		if m.mode == ModeDetail {
-			m.rightTop = max(0, m.rightTop+1)
-		} else {
+		if m.mode == ModeDetail && m.section == SectionMergeRequests {
+			m.MRDetailState.YOffset++
+		} else if m.mode != ModeDetail {
 			m.moveSelection(1)
 		}
 
@@ -108,7 +108,7 @@ func (m Model) handleBack() (Model, tea.Cmd) {
 	if m.mode == ModeDetail {
 		m.mode = ModeEntityList
 		m.focus = FocusDetail
-		m.rightTop = 0
+		m.MRDetailState.GotoTop()
 	}
 
 	return m, nil

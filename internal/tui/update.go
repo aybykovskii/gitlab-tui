@@ -18,6 +18,9 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.height = msg.Height
 	case tea.KeyMsg:
 		next, cmd := m.updateKey(msg)
+		if next.mode == ModeDetail && next.section == SectionMergeRequests {
+			cmd = tea.Batch(cmd, next.MRDetailState.Update(msg))
+		}
 		next.syncGlobalKeys()
 
 		return next, cmd
@@ -95,7 +98,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.selected = clampSelection(0, len(m.filtered()))
 		m.selectEntity()
 		m.listTop = 0
-		m.rightTop = 0
+		m.MRDetailState.GotoTop()
 
 		switch m.section {
 		case SectionMergeRequests:
