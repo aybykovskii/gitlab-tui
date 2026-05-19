@@ -57,7 +57,7 @@ A GitLab merge request thread with one or more notes, optional diff position, an
 _Avoid_: comment, note thread
 
 **Changed Files**:
-The merge-request context level that lists files changed by the selected merge request.
+The merge-request context level that lists files changed by the selected merge request, rendered as an always-expanded ASCII directory tree. New files are green, deleted files are red, renamed files are yellow (single node at the new path). The currently selected file is highlighted with a background color; directories are non-selectable headers.
 _Avoid_: diff file picker, file sidebar
 
 **Thread Panel**:

@@ -340,6 +340,10 @@ func (m Model) updateKey(msg tea.KeyMsg) (Model, tea.Cmd) {
 		return m, nil
 	}
 
+	if !m.inputActive() && key.Matches(msg, m.globals.Quit) {
+		return m, tea.Quit
+	}
+
 	switch m.mode {
 	case ModeLabelSelect:
 		return m.updateLabelSelect(msg)

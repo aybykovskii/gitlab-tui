@@ -81,20 +81,149 @@ func (m Model) currentFiles() []mr.ChangedFile {
 	return m.changedFiles[item.IID]
 }
 
+type fileTreeNode struct {
+	name     string
+	children []*fileTreeNode
+	fileIdx  int // -1 for directories, ≥0 for leaf files
+}
+
+func buildFileTree(files []mr.ChangedFile) *fileTreeNode {
+	root := &fileTreeNode{fileIdx: -1}
+
+	for i, file := range files {
+		parts := strings.Split(file.Path, "/")
+		cur := root
+
+		for j, part := range parts {
+			isFile := j == len(parts)-1
+
+			var child *fileTreeNode
+			for _, c := range cur.children {
+				if c.name == part {
+					child = c
+					break
+				}
+			}
+
+			if child == nil {
+				idx := -1
+				if isFile {
+					idx = i
+				}
+				child = &fileTreeNode{name: part, fileIdx: idx}
+				cur.children = append(cur.children, child)
+			}
+
+			cur = child
+		}
+	}
+
+	return root
+}
+
+func fileStatusColor(file mr.ChangedFile) string {
+	switch {
+	case file.IsNew:
+		return "2"
+	case file.IsDeleted:
+		return "1"
+	case file.IsRenamed:
+		return "3"
+	default:
+		return ""
+	}
+}
+
+func renderFileTreeLines(node *fileTreeNode, prefix string, isLast bool, files []mr.ChangedFile, selectedFile int, innerWidth int) []string {
+	var lines []string
+
+	if node.name != "" {
+		connector := "├── "
+		if isLast {
+			connector = "└── "
+		}
+
+		linePrefix := prefix + connector
+		prefixWidth := len([]rune(linePrefix))
+		name := truncateRunes(node.name, max(1, innerWidth-prefixWidth))
+
+		if node.fileIdx >= 0 {
+			if node.fileIdx == selectedFile {
+				lines = append(lines, ansiSelected(linePrefix+name))
+			} else {
+				color := fileStatusColor(files[node.fileIdx])
+				if color != "" {
+					lines = append(lines, linePrefix+ansiColor(color, name))
+				} else {
+					lines = append(lines, linePrefix+name)
+				}
+			}
+		} else {
+			lines = append(lines, linePrefix+name)
+		}
+	}
+
+	childPrefix := prefix
+	if node.name != "" {
+		if isLast {
+			childPrefix += "    "
+		} else {
+			childPrefix += "│   "
+		}
+	}
+
+	for i, child := range node.children {
+		lines = append(lines, renderFileTreeLines(child, childPrefix, i == len(node.children)-1, files, selectedFile, innerWidth)...)
+	}
+
+	return lines
+}
+
+// findSelectedFileLine returns the 0-based line index of selectedFile in the tree output,
+// matching the DFS traversal order of renderFileTreeLines. Returns -1 if not found.
+func findSelectedFileLine(node *fileTreeNode, selectedFile int) int {
+	count := 0
+	return dfsCountTo(node, selectedFile, &count)
+}
+
+func dfsCountTo(node *fileTreeNode, target int, count *int) int {
+	if node.name != "" {
+		if node.fileIdx == target {
+			return *count
+		}
+
+		(*count)++
+	}
+
+	for _, child := range node.children {
+		if pos := dfsCountTo(child, target, count); pos >= 0 {
+			return pos
+		}
+	}
+
+	return -1
+}
+
 func (m Model) renderChangedFilesPane() string {
 	width := m.leftWidth()
 	height := m.paneHeight()
 	style := paneStyle(width, height, false)
 	files := m.currentFiles()
+	innerWidth := width - 4 // border (1+1) + padding (1+1)
 	lines := []string{"Changed Files", ""}
 
-	for i, file := range files {
-		prefix := "  "
-		if i == m.selectedFile {
-			prefix = "> "
+	if len(files) > 0 {
+		tree := buildFileTree(files)
+		treeLines := renderFileTreeLines(tree, "", false, files, m.selectedFile, innerWidth)
+
+		treeHeight := max(1, height-4) // pane inner area minus 2 header lines
+		if len(treeLines) > treeHeight {
+			selectedLine := findSelectedFileLine(tree, m.selectedFile)
+			offset := clamp(selectedLine-treeHeight/2, 0, len(treeLines)-treeHeight)
+			treeLines = treeLines[offset:min(offset+treeHeight, len(treeLines))]
 		}
 
-		lines = append(lines, prefix+file.Path)
+		lines = append(lines, treeLines...)
 	}
 
 	return style.Render(strings.Join(lines, "\n"))
@@ -116,8 +245,6 @@ func (m Model) renderFileDiffPane() string {
 	m.DiffViewState.diffDrafts = m.drafts[item.IID]
 	m.DiffViewState.emoji = m.emoji
 
-	view := m.DiffViewState.View(LayoutState{Width: width, Height: height, Focus: m.focus, Mode: m.mode})
-
 	var inputLines []string
 
 	if m.commentError != "" {
@@ -132,6 +259,9 @@ func (m Model) renderFileDiffPane() string {
 
 		inputLines = append(inputLines, "", prompt+": "+m.Value()+"█")
 	}
+
+	diffHeight := height - len(inputLines)
+	view := m.DiffViewState.View(LayoutState{Width: width, Height: diffHeight, Focus: m.focus, Mode: m.mode})
 
 	if len(inputLines) > 0 {
 		view += "\n" + strings.Join(inputLines, "\n")

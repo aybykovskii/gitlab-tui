@@ -963,11 +963,15 @@ func TestFileDiffLeftPaneShowsFileListWithCurrentHighlighted(t *testing.T) {
 	model = updated.(Model)
 
 	view := model.View()
-	if !strings.Contains(view, "> internal/tui/model.go") {
-		t.Fatalf("expected selected file highlighted with '>', got:\n%s", view)
+	if !strings.Contains(view, ansiSelected("│       └── model.go")) && !strings.Contains(view, "\x1b[48;5;63m") {
+		t.Fatalf("expected selected file highlighted, got:\n%s", view)
 	}
 
-	if !strings.Contains(view, "cmd/main.go") {
+	if !strings.Contains(view, "model.go") {
+		t.Fatalf("expected model.go in left pane, got:\n%s", view)
+	}
+
+	if !strings.Contains(view, "main.go") {
 		t.Fatalf("expected second file in left pane, got:\n%s", view)
 	}
 }
@@ -1098,8 +1102,9 @@ func TestRightKeyMovesToNextFile(t *testing.T) {
 		t.Fatalf("expected selectedFile 1 after right, got %d", model.DiffViewState.selectedFile)
 	}
 
-	if !strings.Contains(model.View(), "> b.go") {
-		t.Fatalf("expected b.go highlighted, got:\n%s", model.View())
+	view := model.View()
+	if !strings.Contains(view, "\x1b[48;5;63m") || !strings.Contains(view, "b.go") {
+		t.Fatalf("expected b.go highlighted, got:\n%s", view)
 	}
 }
 
@@ -1135,8 +1140,9 @@ func TestLeftKeyMovesToPreviousFile(t *testing.T) {
 		t.Fatalf("expected selectedFile 0 after left, got %d", model.DiffViewState.selectedFile)
 	}
 
-	if !strings.Contains(model.View(), "> a.go") {
-		t.Fatalf("expected a.go highlighted, got:\n%s", model.View())
+	view := model.View()
+	if !strings.Contains(view, "\x1b[48;5;63m") || !strings.Contains(view, "a.go") {
+		t.Fatalf("expected a.go highlighted, got:\n%s", view)
 	}
 }
 

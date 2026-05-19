@@ -49,7 +49,10 @@ func (m Model) renderRight() string {
 	case TabDiscussions:
 		return style.Render(header + "\n\n" + m.renderDiscussions(item))
 	case TabFiles:
-		return style.Render(header + "\n\n" + m.renderFiles(item))
+		// height-2: pane inner area; minus 3 for title + tabs + blank separator
+		filesHeight := max(1, height-5)
+		innerWidth := max(1, width-4)
+		return style.Render(header + "\n\n" + m.renderFiles(item, filesHeight, innerWidth))
 	case TabReview:
 		return style.Render(header + "\n\n" + m.renderReview(item))
 	default:
@@ -129,7 +132,7 @@ func (m Model) renderRight() string {
 	}
 }
 
-func (m Model) renderFiles(item mr.MergeRequest) string {
+func (m Model) renderFiles(item mr.MergeRequest, visHeight int, innerWidth int) string {
 	if m.filesLoading {
 		return "Loading files…"
 	}
@@ -147,7 +150,7 @@ func (m Model) renderFiles(item mr.MergeRequest) string {
 		return "No changed files"
 	}
 
-	lines := []string{}
+	lines := make([]string, 0, len(files))
 
 	for _, file := range files {
 		marker := " "
@@ -159,10 +162,14 @@ func (m Model) renderFiles(item mr.MergeRequest) string {
 			marker = "R"
 		}
 
-		lines = append(lines, fmt.Sprintf("%s %s  +%d -%d", marker, file.Path, file.AddedLines, file.RemovedLines))
+		line := fmt.Sprintf("%s %s  +%d -%d", marker, file.Path, file.AddedLines, file.RemovedLines)
+		lines = append(lines, truncateRunes(line, innerWidth))
 	}
 
-	return strings.Join(lines, "\n")
+	offset := clamp(m.MRDetailState.YOffset, 0, max(0, len(lines)-visHeight))
+	end := min(offset+visHeight, len(lines))
+
+	return strings.Join(lines[offset:end], "\n")
 }
 
 func (m Model) renderReview(item mr.MergeRequest) string {

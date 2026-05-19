@@ -64,6 +64,19 @@ func truncateLine(line string, width int) string {
 	return line[:width-1] + "…"
 }
 
+func truncateRunes(s string, maxLen int) string {
+	runes := []rune(s)
+	if len(runes) <= maxLen {
+		return s
+	}
+
+	if maxLen <= 1 {
+		return "…"
+	}
+
+	return string(runes[:maxLen-1]) + "…"
+}
+
 func (m Model) renderKeyBar() string {
 	width := max(20, m.width)
 	inner := max(1, width-4)
@@ -205,5 +218,5 @@ func paneStyle(width int, height int, focused bool) lipgloss.Style {
 		color = lipgloss.Color("63")
 	}
 
-	return lipgloss.NewStyle().Width(width-2).Height(height-2).Border(lipgloss.RoundedBorder()).BorderForeground(color).Padding(0, 1)
+	return lipgloss.NewStyle().Width(width-2).Height(height-2).MaxHeight(height).Border(lipgloss.RoundedBorder()).BorderForeground(color).Padding(0, 1)
 }

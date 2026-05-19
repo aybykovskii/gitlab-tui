@@ -48,6 +48,15 @@ func (s *DiffViewState) View(layout LayoutState) string {
 	s.Height = max(1, layout.Height-2)
 	s.SetContent(s.content(layout))
 
+	// Keep the cursor line visible regardless of which key was used to move it.
+	// The viewport only auto-scrolls for arrow keys, not j/k.
+	cursorLine := s.diffCursor + 2 // 2 header lines: "Diff <filename>\n\n"
+	if cursorLine < s.YOffset {
+		s.YOffset = cursorLine
+	} else if s.Height > 0 && cursorLine >= s.YOffset+s.Height {
+		s.YOffset = cursorLine - s.Height + 1
+	}
+
 	return s.Model.View()
 }
 
@@ -123,6 +132,10 @@ func (s DiffViewState) content(layout LayoutState) string {
 
 func ansiColor(color string, text string) string {
 	return "\x1b[38;5;" + color + "m" + text + "\x1b[0m"
+}
+
+func ansiSelected(text string) string {
+	return "\x1b[48;5;63m\x1b[38;5;15m" + text + "\x1b[0m"
 }
 
 func (s DiffViewState) draftGutterMarker(path string, newLine int) string {

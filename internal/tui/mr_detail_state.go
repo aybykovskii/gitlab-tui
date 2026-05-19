@@ -71,6 +71,12 @@ func (s *MRDetailState) Update(msg tea.Msg) tea.Cmd {
 		return nil
 	}
 
+	// Key messages are handled by update_detail.go via direct YOffset manipulation.
+	// Delegating them to the viewport would cause double-scroll.
+	if _, ok := msg.(tea.KeyMsg); ok {
+		return nil
+	}
+
 	var cmd tea.Cmd
 	s.Model, cmd = s.Model.Update(msg)
 
