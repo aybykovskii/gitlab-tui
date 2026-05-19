@@ -43,15 +43,15 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 		return m, nil
 	case accountProjectsStartedMsg:
-		state := m.accountProjectStates[msg.accountID]
+		state := m.ProjectPickerState.accountProjectStates[msg.accountID]
 		state.loading = true
 		state.err = ""
-		m.accountProjectStates[msg.accountID] = state
+		m.ProjectPickerState.accountProjectStates[msg.accountID] = state
 		m.rebuildProjectRows()
 
 		return m, nil
 	case accountProjectsFinishedMsg:
-		state := m.accountProjectStates[msg.accountID]
+		state := m.ProjectPickerState.accountProjectStates[msg.accountID]
 		state.loading = false
 		state.projects = msg.projects
 		state.err = ""
@@ -61,9 +61,9 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			state.projects = nil
 		}
 
-		m.accountProjectStates[msg.accountID] = state
+		m.ProjectPickerState.accountProjectStates[msg.accountID] = state
 		m.rebuildProjectRows()
-		m.selected = m.nearestSelectable(m.selected)
+		m.ProjectPickerState.selected = m.ProjectPickerState.nearestSelectable(m.ProjectPickerState.selected)
 
 		return m, nil
 	case projectFinishedMsg:
@@ -101,7 +101,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.editIssue = msg.data.EditIssue
 		m.assignSelfIssue = msg.data.AssignSelfIssue
 		m.unassignSelfIssue = msg.data.UnassignSelfIssue
-		m.selected = clampSelection(0, len(m.filtered()))
+		m.EntityListState.selected = clampSelection(0, len(m.filtered()))
 		m.selectEntity()
 		m.listTop = 0
 		m.MRDetailState.GotoTop()
@@ -332,7 +332,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		}
 
 		m.items = msg.items
-		m.selected = clampSelection(m.selected, len(m.filtered()))
+		m.EntityListState.selected = clampSelection(m.EntityListState.selected, len(m.filtered()))
 		m.listTop = 0
 
 		return m, nil
@@ -344,7 +344,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		}
 
 		m.issueItems = msg.items
-		m.selected = clampSelection(m.selected, len(m.filteredIssues()))
+		m.EntityListState.selected = clampSelection(m.EntityListState.selected, len(m.filteredIssues()))
 		m.listTop = 0
 
 		return m, nil
@@ -440,7 +440,7 @@ func (m *Model) selectEntity() {
 
 	for i, item := range m.filtered() {
 		if item.IID == iid {
-			m.selected = i
+			m.EntityListState.selected = i
 			return
 		}
 	}
@@ -453,24 +453,24 @@ func (m *Model) moveSelection(delta int) {
 	}
 
 	if count == 0 {
-		m.selected = 0
+		m.EntityListState.selected = 0
 		return
 	}
 
-	m.selected = clamp(m.selected+delta, 0, count-1)
+	m.EntityListState.selected = clamp(m.EntityListState.selected+delta, 0, count-1)
 	visible := max(1, m.height-4)
 
-	if m.selected < m.listTop {
-		m.listTop = m.selected
+	if m.EntityListState.selected < m.listTop {
+		m.listTop = m.EntityListState.selected
 	}
 
-	if m.selected >= m.listTop+visible {
-		m.listTop = m.selected - visible + 1
+	if m.EntityListState.selected >= m.listTop+visible {
+		m.listTop = m.EntityListState.selected - visible + 1
 	}
 }
 
 func (m Model) inputActive() bool {
-	return m.projectFilterActive || m.mode == ModeProjectInput || m.commentInput || m.mrCommentInput || m.issueCommentInput || m.editInput || m.replyInput || m.focus == FocusFilter
+	return m.ProjectPickerState.projectFilterActive || m.mode == ModeProjectInput || m.commentInput || m.mrCommentInput || m.issueCommentInput || m.editInput || m.replyInput || m.focus == FocusFilter
 }
 
 func (m *Model) syncGlobalKeys() {
@@ -531,7 +531,7 @@ func (m Model) selectedItem() (mr.MergeRequest, bool) {
 		return mr.MergeRequest{}, false
 	}
 
-	return items[clampSelection(m.selected, len(items))], true
+	return items[clampSelection(m.EntityListState.selected, len(items))], true
 }
 
 func (m Model) leftWidth() int {

@@ -95,39 +95,6 @@ func filteredProjectPaths(projects []string, query string) []string {
 	return filtered
 }
 
-func (m Model) nextSelectable(from int, delta int) int {
-	if len(m.projectRows) == 0 {
-		return 0
-	}
-
-	for i := clamp(from+delta, 0, len(m.projectRows)-1); i >= 0 && i < len(m.projectRows); i += delta {
-		if m.projectRows[i].selectable {
-			return i
-		}
-
-		if i == 0 && delta < 0 || i == len(m.projectRows)-1 && delta > 0 {
-			break
-		}
-	}
-
-	return from
-}
-
-func (m Model) nearestSelectable(index int) int {
-	if len(m.projectRows) == 0 {
-		return 0
-	}
-
-	if index >= 0 && index < len(m.projectRows) && m.projectRows[index].selectable {
-		return index
-	}
-
-	if next := m.nextSelectable(index, 1); next != index {
-		return next
-	}
-
-	return m.nextSelectable(index, -1)
-}
 
 func oneLinePreview(text string) string {
 	fields := strings.Fields(text)

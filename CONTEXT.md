@@ -84,6 +84,14 @@ _Avoid_: sidebar, left navigation
 A bordered strip fixed at the bottom of the screen, always visible, showing two lines: local keys for the active **Navigation Level** and global keys available everywhere. Pressing `h` expands the Key Bar upward to show the full key list for the current level; the main panes shrink by the same amount. Pressing `h` again collapses it.
 _Avoid_: hint bar, status bar, help line, action bar
 
+**View Component**:
+A sub-struct of the top-level BubbleTea `Model` that owns a logical slice of UI state and renders it via a `View(layout LayoutState) string` method. When a View Component embeds a `bubbles` component (e.g. `viewport.Model`), it also implements `Update(msg tea.Msg) tea.Cmd` to delegate message handling — but never owns business logic.
+_Avoid_: sub-model, child model, widget
+
+**Layout State**:
+The shared rendering context passed into every **View Component**: terminal width, height, active focus, and current mode. Allows each component to size itself without reaching into the parent `Model`.
+_Avoid_: render context, screen state, window state
+
 **Local Keys**:
 The key bindings that are active only in the current **Navigation Level**. Shown on the first line of the **Key Bar**. Input modes (comment, reply, filter) disable global keys and replace the local line with input-specific hints.
 _Avoid_: context keys, mode keys
@@ -117,6 +125,7 @@ _Avoid_: universal keys, shared keys
 - The **Thread Panel** shows the **Discussion** or **Draft Comment** for the cursor line; `t` toggles its visibility while keeping gutter markers visible.
 - When a line has multiple **Discussions**, `[` and `]` switch between them; a `[1/3]` counter is shown in the **Thread Panel** header.
 - The **Review Tab** lists **Draft Comments** with file and line context; `Enter` on a draft navigates to Diff View at that location, `Esc` returns to the **Review Tab**.
+- The top-level `Model` is decomposed into **View Components**: `layout`, `projectPicker`, `entityList`, `mrDetail`, `issueDetail`, `diffView`, `labelSelector`, and `input`. Each component owns its own state and renders via `View(LayoutState) string`.
 - The application runs in AltScreen mode — it occupies the full terminal height and restores the terminal on exit.
 - The **Key Bar** is always visible and spans the full width of the screen below both panes.
 - The **Key Bar** has two lines in collapsed state: **Local Keys** (line 1) and **Global Keys** (line 2).

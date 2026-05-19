@@ -242,8 +242,8 @@ func TestKeyboardSelectionAndDiffNavigation(t *testing.T) {
 		t.Fatalf("expected MR detail viewport offset=3 after Down in ModeDetail, got %d", model.MRDetailState.YOffset)
 	}
 
-	if model.selected != 0 {
-		t.Fatalf("expected selected unchanged in ModeDetail, got %d", model.selected)
+	if model.EntityListState.selected != 0 {
+		t.Fatalf("expected selected unchanged in ModeDetail, got %d", model.EntityListState.selected)
 	}
 
 	// Enter on Summary tab no longer opens diff — it is a no-op
@@ -292,8 +292,8 @@ func TestDirectMRDeepLinkSelectsLoadedMergeRequest(t *testing.T) {
 	}}})
 	model = updated.(Model)
 
-	if model.selected != 1 {
-		t.Fatalf("expected loaded target MR selected, got %d", model.selected)
+	if model.EntityListState.selected != 1 {
+		t.Fatalf("expected loaded target MR selected, got %d", model.EntityListState.selected)
 	}
 
 	if !strings.Contains(model.View(), "!123 Loaded target") {
@@ -309,8 +309,8 @@ func TestDirectMRDeepLinkSelectsMatchingMergeRequest(t *testing.T) {
 		{IID: 123, Title: "Target MR", Description: "Deep linked"},
 	}, ProjectOptions{Path: "group/project", Section: SectionMergeRequests, EntityID: "123"})
 
-	if model.selected != 1 {
-		t.Fatalf("expected selected MR index 1, got %d", model.selected)
+	if model.EntityListState.selected != 1 {
+		t.Fatalf("expected selected MR index 1, got %d", model.EntityListState.selected)
 	}
 
 	view := model.View()
@@ -1094,8 +1094,8 @@ func TestRightKeyMovesToNextFile(t *testing.T) {
 	updated, _ := model.Update(tea.KeyMsg{Type: tea.KeyRight})
 	model = updated.(Model)
 
-	if model.selectedFile != 1 {
-		t.Fatalf("expected selectedFile 1 after right, got %d", model.selectedFile)
+	if model.DiffViewState.selectedFile != 1 {
+		t.Fatalf("expected selectedFile 1 after right, got %d", model.DiffViewState.selectedFile)
 	}
 
 	if !strings.Contains(model.View(), "> b.go") {
@@ -1113,8 +1113,8 @@ func TestRightKeyDoesNotExceedLastFile(t *testing.T) {
 	updated, _ := model.Update(tea.KeyMsg{Type: tea.KeyRight})
 	model = updated.(Model)
 
-	if model.selectedFile != 0 {
-		t.Fatalf("expected selectedFile to stay at 0 (last file), got %d", model.selectedFile)
+	if model.DiffViewState.selectedFile != 0 {
+		t.Fatalf("expected selectedFile to stay at 0 (last file), got %d", model.DiffViewState.selectedFile)
 	}
 }
 
@@ -1131,8 +1131,8 @@ func TestLeftKeyMovesToPreviousFile(t *testing.T) {
 	updated, _ = model.Update(tea.KeyMsg{Type: tea.KeyLeft})
 	model = updated.(Model)
 
-	if model.selectedFile != 0 {
-		t.Fatalf("expected selectedFile 0 after left, got %d", model.selectedFile)
+	if model.DiffViewState.selectedFile != 0 {
+		t.Fatalf("expected selectedFile 0 after left, got %d", model.DiffViewState.selectedFile)
 	}
 
 	if !strings.Contains(model.View(), "> a.go") {
@@ -1150,8 +1150,8 @@ func TestLeftKeyDoesNotGoBelowFirstFile(t *testing.T) {
 	updated, _ := model.Update(tea.KeyMsg{Type: tea.KeyLeft})
 	model = updated.(Model)
 
-	if model.selectedFile != 0 {
-		t.Fatalf("expected selectedFile to stay at 0, got %d", model.selectedFile)
+	if model.DiffViewState.selectedFile != 0 {
+		t.Fatalf("expected selectedFile to stay at 0, got %d", model.DiffViewState.selectedFile)
 	}
 }
 
@@ -3034,12 +3034,12 @@ func TestProjectSelectShowsRecentSectionBeforeAccounts(t *testing.T) {
 		}
 	}
 
-	if model.projectRows[0].selectable {
-		t.Fatalf("expected Recent header to be non-selectable: %+v", model.projectRows[0])
+	if model.ProjectPickerState.projectRows[0].selectable {
+		t.Fatalf("expected Recent header to be non-selectable: %+v", model.ProjectPickerState.projectRows[0])
 	}
 
-	if model.selected != 2 {
-		t.Fatalf("expected cursor to skip Recent header and spacer, selected=%d rows=%+v", model.selected, model.projectRows)
+	if model.ProjectPickerState.selected != 2 {
+		t.Fatalf("expected cursor to skip Recent header and spacer, selected=%d rows=%+v", model.ProjectPickerState.selected, model.ProjectPickerState.projectRows)
 	}
 }
 
@@ -3100,8 +3100,8 @@ func TestProjectSelectFilterMatchesRecentAndAccountProjects(t *testing.T) {
 		}
 	}
 
-	if model.selected != 2 {
-		t.Fatalf("expected cursor on first filtered result, got %d rows %+v", model.selected, model.projectRows)
+	if model.ProjectPickerState.selected != 2 {
+		t.Fatalf("expected cursor on first filtered result, got %d rows %+v", model.ProjectPickerState.selected, model.ProjectPickerState.projectRows)
 	}
 }
 
@@ -3188,18 +3188,18 @@ func TestProjectSelectShowsLoadedAccountProjectsAndSkipsHeaders(t *testing.T) {
 	updated, _ := model.Update(accountProjectsFinishedMsg{accountID: "default", projects: projects})
 	model = updated.(Model)
 
-	if model.projectRows[0].selectable {
-		t.Fatalf("expected account header to be non-selectable: %+v", model.projectRows[0])
+	if model.ProjectPickerState.projectRows[0].selectable {
+		t.Fatalf("expected account header to be non-selectable: %+v", model.ProjectPickerState.projectRows[0])
 	}
 
-	if model.selected != 1 {
-		t.Fatalf("expected first project row selected, got %d rows %+v", model.selected, model.projectRows)
+	if model.ProjectPickerState.selected != 1 {
+		t.Fatalf("expected first project row selected, got %d rows %+v", model.ProjectPickerState.selected, model.ProjectPickerState.projectRows)
 	}
 
 	updated, _ = model.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'j'}})
 
 	model = updated.(Model)
-	if got, ok := model.selectedProject(); !ok || got != "group/two" {
+	if got, ok := model.ProjectPickerState.selectedProject(); !ok || got != "group/two" {
 		t.Fatalf("expected second project selected, got %q ok=%t", got, ok)
 	}
 }
@@ -3240,7 +3240,7 @@ func TestDownScrollsRightPanelInModeDetail(t *testing.T) {
 	t.Parallel()
 
 	model := NewModelWithProject(FakeMergeRequests(), ProjectOptions{Path: "group/project", Section: SectionMergeRequests})
-	initialSelected := model.selected
+	initialSelected := model.ProjectPickerState.selected
 	model.MRDetailState.YOffset = 5
 
 	updated, _ := model.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'j'}})
@@ -3250,8 +3250,8 @@ func TestDownScrollsRightPanelInModeDetail(t *testing.T) {
 		t.Fatalf("expected MR detail viewport offset=6 after j in ModeDetail, got %d", model.MRDetailState.YOffset)
 	}
 
-	if model.selected != initialSelected {
-		t.Fatalf("expected selected to be unchanged, got %d", model.selected)
+	if model.ProjectPickerState.selected != initialSelected {
+		t.Fatalf("expected selected to be unchanged, got %d", model.ProjectPickerState.selected)
 	}
 }
 
@@ -3259,7 +3259,7 @@ func TestUpScrollsRightPanelInModeDetail(t *testing.T) {
 	t.Parallel()
 
 	model := NewModelWithProject(FakeMergeRequests(), ProjectOptions{Path: "group/project", Section: SectionMergeRequests})
-	initialSelected := model.selected
+	initialSelected := model.ProjectPickerState.selected
 	model.MRDetailState.YOffset = 5
 
 	updated, _ := model.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'k'}})
@@ -3269,8 +3269,8 @@ func TestUpScrollsRightPanelInModeDetail(t *testing.T) {
 		t.Fatalf("expected MR detail viewport offset=4 after k in ModeDetail, got %d", model.MRDetailState.YOffset)
 	}
 
-	if model.selected != initialSelected {
-		t.Fatalf("expected selected to be unchanged, got %d", model.selected)
+	if model.ProjectPickerState.selected != initialSelected {
+		t.Fatalf("expected selected to be unchanged, got %d", model.ProjectPickerState.selected)
 	}
 }
 
@@ -3314,14 +3314,14 @@ func TestUpDownInModeEntityListStillMovesSelection(t *testing.T) {
 
 	model := NewModelWithProject(FakeMergeRequests(), ProjectOptions{Path: "group/project", Section: SectionMergeRequests})
 	model.mode = ModeEntityList
-	initialSelected := model.selected
+	initialSelected := model.EntityListState.selected
 	initialMRDetailViewportOffset := model.MRDetailState.YOffset
 
 	updated, _ := model.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'j'}})
 	model = updated.(Model)
 
-	if model.selected != initialSelected+1 {
-		t.Fatalf("expected selected to increment in ModeEntityList, got %d", model.selected)
+	if model.EntityListState.selected != initialSelected+1 {
+		t.Fatalf("expected selected to increment in ModeEntityList, got %d", model.EntityListState.selected)
 	}
 
 	if model.MRDetailState.YOffset != initialMRDetailViewportOffset {
@@ -3598,7 +3598,7 @@ func TestProjectSelectEnterOpensSelectedLoadedProjectSections(t *testing.T) {
 	})
 	updated, _ := model.Update(accountProjectsFinishedMsg{accountID: "default", projects: []string{"group/project"}})
 	model = updated.(Model)
-	model.selected = 1
+	model.ProjectPickerState.selected = 1
 
 	updated, cmd := model.Update(tea.KeyMsg{Type: tea.KeyEnter})
 	model = updated.(Model)

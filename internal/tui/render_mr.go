@@ -38,7 +38,7 @@ func (m Model) renderRight() string {
 		return style.Render("No MR selected")
 	}
 
-	item := items[clampSelection(m.selected, len(items))]
+	item := items[clampSelection(m.EntityListState.selected, len(items))]
 	tabs := TabsComponent{
 		Labels: []string{"Summary", "Discussions", "Files", m.reviewTabLabel(item)},
 		Active: int(m.activeTab),

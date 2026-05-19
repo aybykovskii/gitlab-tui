@@ -19,15 +19,12 @@ type Model struct {
 	MRDetailState
 	IssueDetailState IssueDetailState
 	DiffViewState
-	projectPath          string
-	recentProjects       []string
-	recentProjectOptions []RecentProjectOption
-	gitlabProjects       []string
-	projectList          []string
-	projectRows          []projectListRow
-	loadProjects         []AccountProjectLoader
-	accountProjectStates map[string]accountProjectState
-	section              Section
+	ProjectPickerState
+	projectPath    string
+	recentProjects []string
+	gitlabProjects []string
+	projectList    []string
+	section        Section
 	sectionCursor        int
 	entityID             string
 	projectLoaded        bool
@@ -115,18 +112,20 @@ func NewModelWithProject(items []mr.MergeRequest, options ProjectOptions) Model 
 	}
 
 	model := Model{
-		EntityListState:      NewEntityListState(items, options.Issues),
-		focus:                FocusDetail,
-		width:                100,
-		height:               30,
-		projectPath:          options.Path,
-		recentProjects:       options.Recents,
-		recentProjectOptions: buildRecentProjectOptions(options.Recents, options.RecentProjects),
-		gitlabProjects:       options.Projects,
-		projectList:          buildProjectList(options.Path, projectListRecents, options.Projects),
-		loadProjects:         options.LoadProjects,
-		accountProjectStates: initialAccountProjectStates(options.LoadProjects),
-		section:              options.Section,
+		EntityListState: NewEntityListState(items, options.Issues),
+		ProjectPickerState: NewProjectPickerState(
+			buildRecentProjectOptions(options.Recents, options.RecentProjects),
+			options.LoadProjects,
+			buildProjectList(options.Path, projectListRecents, options.Projects)...,
+		),
+		focus:          FocusDetail,
+		width:          100,
+		height:         30,
+		projectPath:    options.Path,
+		recentProjects: options.Recents,
+		gitlabProjects: options.Projects,
+		projectList:    buildProjectList(options.Path, projectListRecents, options.Projects),
+		section:        options.Section,
 		entityID:             options.EntityID,
 		refresh:              options.Refresh,
 		issueState:           "opened",
@@ -166,9 +165,9 @@ func NewModelWithProject(items []mr.MergeRequest, options ProjectOptions) Model 
 	model.rebuildProjectRows()
 
 	if model.projectPath == "" {
-		if len(model.projectList) > 0 || len(model.recentProjectOptions) > 0 || len(model.loadProjects) > 0 {
+		if len(model.projectList) > 0 || len(model.ProjectPickerState.recentProjectOptions) > 0 || len(model.ProjectPickerState.loadProjects) > 0 {
 			model.mode = ModeProjectSelect
-			model.selected = model.nextSelectable(-1, 1)
+			model.ProjectPickerState.selected = model.ProjectPickerState.nextSelectable(-1, 1)
 		} else {
 			model.mode = ModeProjectInput
 			model.focus = FocusFilter
@@ -208,9 +207,9 @@ func (m Model) Init() tea.Cmd {
 		return cmd
 	}
 
-	if m.mode == ModeProjectSelect && len(m.loadProjects) > 0 {
-		cmds := make([]tea.Cmd, 0, len(m.loadProjects))
-		for _, loader := range m.loadProjects {
+	if m.mode == ModeProjectSelect && len(m.ProjectPickerState.loadProjects) > 0 {
+		cmds := make([]tea.Cmd, 0, len(m.ProjectPickerState.loadProjects))
+		for _, loader := range m.ProjectPickerState.loadProjects {
 			cmds = append(cmds, loadAccountProjectsCommand(loader))
 		}
 

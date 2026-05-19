@@ -78,36 +78,8 @@ func (m Model) renderAppContextPane() string {
 
 func (m Model) renderProjectPicker() string {
 	width := max(20, m.width-m.leftWidth())
+	height := m.paneHeight()
+	style := paneStyle(width, height, true)
 
-	style := paneStyle(width, m.paneHeight(), true)
-	if m.mode == ModeProjectInput {
-		return style.Render(strings.Join([]string{
-			"Open GitLab project",
-			"",
-			"Project path:",
-			m.projectInput,
-		}, "\n"))
-	}
-
-	lines := []string{"Projects", ""}
-	if m.projectFilterActive || m.query != "" {
-		lines = append(lines, "Filter: "+m.query, "")
-	}
-
-	if len(m.projectRows) == 0 {
-		lines = append(lines, "No matching projects")
-	}
-
-	for i, row := range m.projectRows {
-		prefix := "  "
-		if i == m.selected && row.selectable {
-			prefix = "> "
-		}
-
-		lines = append(lines, prefix+row.label)
-	}
-
-	lines = append(lines, "", "Enter/click: open  i: manual input  r: retry")
-
-	return style.Render(strings.Join(lines, "\n"))
+	return style.Render(m.ProjectPickerState.View(LayoutState{Width: width, Height: height, Mode: m.mode}))
 }

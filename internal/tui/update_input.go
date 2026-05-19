@@ -262,5 +262,5 @@ func (m *Model) cycleIssueState() {
 		m.issueState = "opened"
 	}
 
-	m.query = ""
+	m.EntityListState.query = ""
 }

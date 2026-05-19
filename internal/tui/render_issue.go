@@ -14,7 +14,7 @@ func (m Model) renderIssueDetail() string {
 		return "No issue selected"
 	}
 
-	item := items[clampSelection(m.selected, len(items))]
+	item := items[clampSelection(m.EntityListState.selected, len(items))]
 	if !m.editInput && !m.issueCommentInput && !m.replyInput {
 		return m.IssueDetailState.View(LayoutState{Width: m.width, Height: m.height, Focus: m.focus, Mode: m.mode}, item)
 	}
@@ -67,7 +67,7 @@ func (m Model) renderIssueDiscussions(item issue.Issue) string {
 }
 
 func (m Model) issueListLines(height int) []string {
-	lines := []string{"Project: " + m.projectPath, "Issues [" + m.issueStateLabel() + "]", "Filter: " + m.query}
+	lines := []string{"Project: " + m.projectPath, "Issues [" + m.issueStateLabel() + "]", "Filter: " + m.EntityListState.query}
 	if m.loading {
 		lines = append(lines, "Refreshing…")
 	}
@@ -87,7 +87,7 @@ func (m Model) issueListLines(height int) []string {
 	end := min(len(items), m.listTop+visible)
 	for i := m.listTop; i < end; i++ {
 		prefix := "  "
-		if i == m.selected {
+		if i == m.EntityListState.selected {
 			prefix = "> "
 		}
 

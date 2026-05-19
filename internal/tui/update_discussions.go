@@ -14,7 +14,7 @@ func (m Model) selectedIssue() (issue.Issue, bool) {
 		return issue.Issue{}, false
 	}
 
-	return items[clampSelection(m.selected, len(items))], true
+	return items[clampSelection(m.EntityListState.selected, len(items))], true
 }
 
 func (m Model) focusedIssueDiscussion() (issue.Discussion, bool) {

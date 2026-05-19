@@ -8,27 +8,28 @@ import (
 )
 
 func (m Model) updateProjectSelect(msg tea.KeyMsg) (Model, tea.Cmd) {
-	if m.projectFilterActive {
+	pp := &m.ProjectPickerState
+	if pp.projectFilterActive {
 		switch msg.Type {
 		case tea.KeyEsc:
-			m.query = ""
-			m.projectFilterActive = false
-			m.rebuildProjectRows()
-			m.selected = m.nearestSelectable(0)
+			pp.query = ""
+			pp.projectFilterActive = false
+			pp.rebuildRows()
+			pp.selected = pp.nearestSelectable(0)
 
 			return m, nil
 		case tea.KeyBackspace:
-			if len(m.query) > 0 {
-				m.query = m.query[:len(m.query)-1]
-				m.rebuildProjectRows()
-				m.selected = m.nearestSelectable(0)
+			if len(pp.query) > 0 {
+				pp.query = pp.query[:len(pp.query)-1]
+				pp.rebuildRows()
+				pp.selected = pp.nearestSelectable(0)
 			}
 
 			return m, nil
 		case tea.KeyRunes:
-			m.query += msg.String()
-			m.rebuildProjectRows()
-			m.selected = m.nearestSelectable(0)
+			pp.query += msg.String()
+			pp.rebuildRows()
+			pp.selected = pp.nearestSelectable(0)
 
 			return m, nil
 		}
@@ -36,21 +37,21 @@ func (m Model) updateProjectSelect(msg tea.KeyMsg) (Model, tea.Cmd) {
 
 	switch {
 	case key.Matches(msg, m.projectListKeys.Filter):
-		m.projectFilterActive = true
-		m.query = ""
-		m.rebuildProjectRows()
-		m.selected = m.nearestSelectable(0)
+		pp.projectFilterActive = true
+		pp.query = ""
+		pp.rebuildRows()
+		pp.selected = pp.nearestSelectable(0)
 	case key.Matches(msg, m.globals.Back):
-		m.query = ""
-		m.projectFilterActive = false
-		m.rebuildProjectRows()
-		m.selected = m.nearestSelectable(0)
+		pp.query = ""
+		pp.projectFilterActive = false
+		pp.rebuildRows()
+		pp.selected = pp.nearestSelectable(0)
 	case key.Matches(msg, m.projectListKeys.Up):
-		m.selected = m.nextSelectable(m.selected, -1)
+		pp.selected = pp.nextSelectable(pp.selected, -1)
 	case key.Matches(msg, m.projectListKeys.Down):
-		m.selected = m.nextSelectable(m.selected, 1)
+		pp.selected = pp.nextSelectable(pp.selected, 1)
 	case key.Matches(msg, m.projectListKeys.Open):
-		if project, ok := m.selectedProject(); ok {
+		if project, ok := pp.selectedProject(); ok {
 			return m.selectProject(project)
 		}
 	case key.Matches(msg, m.projectListKeys.Retry):
@@ -58,24 +59,25 @@ func (m Model) updateProjectSelect(msg tea.KeyMsg) (Model, tea.Cmd) {
 	case key.Matches(msg, m.projectListKeys.Input):
 		m.mode = ModeProjectInput
 		m.focus = FocusFilter
-		m.projectInput = ""
+		m.ProjectPickerState.projectInput = ""
 	}
 
 	return m, nil
 }
 
 func (m Model) updateProjectInput(msg tea.KeyMsg) (Model, tea.Cmd) {
+	pp := &m.ProjectPickerState
 	switch msg.Type {
 	case tea.KeyEnter:
-		if trimmed := strings.TrimSpace(m.projectInput); trimmed != "" {
+		if trimmed := strings.TrimSpace(pp.projectInput); trimmed != "" {
 			return m.selectProject(trimmed)
 		}
 	case tea.KeyBackspace:
-		if len(m.projectInput) > 0 {
-			m.projectInput = m.projectInput[:len(m.projectInput)-1]
+		if len(pp.projectInput) > 0 {
+			pp.projectInput = pp.projectInput[:len(pp.projectInput)-1]
 		}
 	case tea.KeyRunes:
-		m.projectInput += msg.String()
+		pp.projectInput += msg.String()
 	}
 
 	return m, nil
@@ -116,17 +118,18 @@ func (m Model) updateSections(msg tea.KeyMsg) (Model, tea.Cmd) {
 }
 
 func (m Model) updateFilter(msg tea.KeyMsg) (Model, tea.Cmd) {
+	el := &m.EntityListState
 	switch msg.Type {
 	case tea.KeyEsc, tea.KeyEnter:
 		m.focus = FocusDetail
 	case tea.KeyBackspace:
-		if len(m.query) > 0 {
-			m.query = m.query[:len(m.query)-1]
-			m.selected = m.clampEntitySelection(m.selected)
+		if len(el.query) > 0 {
+			el.query = el.query[:len(el.query)-1]
+			el.selected = m.clampEntitySelection(el.selected)
 		}
 	case tea.KeyRunes:
-		m.query += msg.String()
-		m.selected = m.clampEntitySelection(m.selected)
+		el.query += msg.String()
+		el.selected = m.clampEntitySelection(el.selected)
 	}
 
 	return m, nil

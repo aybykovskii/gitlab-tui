@@ -2,9 +2,6 @@
 package tui
 
 import (
-	"fmt"
-	"strings"
-
 	tea "github.com/charmbracelet/bubbletea"
 )
 
@@ -25,7 +22,7 @@ func (m Model) selectProject(path string) (Model, tea.Cmd) {
 	m.projectPath = path
 	m.mode = ModeSections
 	m.focus = FocusDetail
-	m.selected = 0
+	m.EntityListState.selected = 0
 	m.listTop = 0
 	m.MRDetailState.GotoTop()
 	m.projectLoaded = false
@@ -50,7 +47,7 @@ func (m Model) openProjectCommand(path string) (Model, tea.Cmd) {
 	m.projectPath = path
 	m.mode = ModeEntityList
 	m.focus = FocusDetail
-	m.selected = 0
+	m.EntityListState.selected = 0
 	m.listTop = 0
 	m.MRDetailState.GotoTop()
 
@@ -200,18 +197,14 @@ func (m Model) loadIssueDiscussionsCommand() tea.Cmd {
 }
 
 func (m Model) selectedProject() (string, bool) {
-	if m.selected < 0 || m.selected >= len(m.projectRows) || !m.projectRows[m.selected].selectable {
-		return "", false
-	}
-
-	return m.projectRows[m.selected].project, true
+	return m.ProjectPickerState.selectedProject()
 }
 
 func (m Model) retryFailedProjectLoads() tea.Cmd {
 	cmds := []tea.Cmd{}
 
-	for _, loader := range m.loadProjects {
-		if state := m.accountProjectStates[loader.ID]; state.err != "" {
+	for _, loader := range m.ProjectPickerState.loadProjects {
+		if state := m.ProjectPickerState.accountProjectStates[loader.ID]; state.err != "" {
 			cmds = append(cmds, loadAccountProjectsCommand(loader))
 		}
 	}
@@ -224,73 +217,5 @@ func (m Model) retryFailedProjectLoads() tea.Cmd {
 }
 
 func (m *Model) rebuildProjectRows() {
-	m.projectRows = nil
-	if len(m.filteredRecentProjects()) > 0 {
-		m.projectRows = append(m.projectRows, projectListRow{label: "Recent"}, projectListRow{})
-		for _, recent := range m.filteredRecentProjects() {
-			label := recent.Path
-			if recent.Account != "" {
-				label += " (" + recent.Account + ")"
-			}
-
-			m.projectRows = append(m.projectRows, projectListRow{project: recent.Path, label: label, selectable: true})
-		}
-	}
-
-	for _, project := range m.projectList {
-		if m.matchesProjectFilter(project) {
-			m.projectRows = append(m.projectRows, projectListRow{project: project, label: project, selectable: true})
-		}
-	}
-
-	if len(m.projectRows) > 0 && len(m.loadProjects) > 0 {
-		m.projectRows = append(m.projectRows, projectListRow{})
-	}
-
-	for _, loader := range m.loadProjects {
-		state := m.accountProjectStates[loader.ID]
-		projects := filteredProjectPaths(state.projects[:min(len(state.projects), 15)], m.query)
-		showStatus := !m.projectFilterActive && len(projects) == 0
-
-		if len(projects) == 0 && !showStatus {
-			continue
-		}
-
-		header := fmt.Sprintf("[%s]  %s", loader.ID, state.host)
-
-		m.projectRows = append(m.projectRows, projectListRow{label: header})
-		if state.loading && showStatus {
-			m.projectRows = append(m.projectRows, projectListRow{label: "Loading…"})
-			continue
-		}
-
-		if state.err != "" && showStatus {
-			m.projectRows = append(m.projectRows, projectListRow{label: "Error: " + state.err + "  r: retry"})
-			continue
-		}
-
-		for _, project := range projects {
-			m.projectRows = append(m.projectRows, projectListRow{project: project, label: project, selectable: true})
-		}
-	}
-}
-
-func (m Model) filteredRecentProjects() []RecentProjectOption {
-	projects := make([]RecentProjectOption, 0, len(m.recentProjectOptions))
-
-	for _, recent := range m.recentProjectOptions {
-		if m.matchesProjectFilter(recent.Path) {
-			projects = append(projects, recent)
-		}
-	}
-
-	return projects
-}
-
-func (m Model) matchesProjectFilter(project string) bool {
-	if strings.TrimSpace(m.query) == "" {
-		return true
-	}
-
-	return strings.Contains(strings.ToLower(project), strings.ToLower(m.query))
+	m.ProjectPickerState.rebuildRows()
 }
