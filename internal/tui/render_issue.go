@@ -16,10 +16,10 @@ func (m Model) renderIssueDetail() string {
 
 	item := items[clampSelection(m.selected, len(items))]
 
-	tabs := "[>Summary<] [Discussions]"
-	if m.activeTab == TabDiscussions {
-		tabs = "[Summary] [>Discussions<]"
-	}
+	tabs := TabsComponent{
+		Labels: []string{"Summary", "Discussions"},
+		Active: int(m.activeTab),
+	}.View()
 
 	header := fmt.Sprintf("#%d %s\n%s", item.IID, item.Title, tabs)
 	if m.activeTab == TabDiscussions {

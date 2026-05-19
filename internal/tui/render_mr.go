@@ -62,20 +62,10 @@ func (m Model) renderRight() string {
 	}
 
 	item := items[clampSelection(m.selected, len(items))]
-	reviewLabel := m.reviewTabLabel(item)
-
-	var tabs string
-
-	switch m.activeTab {
-	case TabDiscussions:
-		tabs = fmt.Sprintf("[Summary] [>Discussions<] [Files] [%s]", reviewLabel)
-	case TabFiles:
-		tabs = fmt.Sprintf("[Summary] [Discussions] [>Files<] [%s]", reviewLabel)
-	case TabReview:
-		tabs = fmt.Sprintf("[Summary] [Discussions] [Files] [>%s<]", reviewLabel)
-	default:
-		tabs = fmt.Sprintf("[>Summary<] [Discussions] [Files] [%s]", reviewLabel)
-	}
+	tabs := TabsComponent{
+		Labels: []string{"Summary", "Discussions", "Files", m.reviewTabLabel(item)},
+		Active: int(m.activeTab),
+	}.View()
 
 	icons := m.emoji.Resolve()
 	header := fmt.Sprintf("%s\n%s", mrTitleLine(item, icons), tabs)
