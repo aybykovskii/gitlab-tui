@@ -8,5 +8,5 @@ import (
 )
 
 func main() {
-	os.Exit(app.New(version.Value).Run(os.Args[1:], os.Stdout, os.Stderr))
+	os.Exit(app.New(version.Info()).Run(os.Args[1:], os.Stdout, os.Stderr))
 }

@@ -1,9 +1,18 @@
-.PHONY: go-build go-test go-lint go-fmt go-check
+.PHONY: go-build go-test go-lint go-fmt go-check distclean
 
 GO_PACKAGES := $(shell go list ./... | grep -v '/node_modules/')
+GIT_COMMIT ?= $(shell { git stash create; git rev-parse HEAD; } | grep -Exm1 '[[:xdigit:]]{40}')
+export SOURCE_DATE_EPOCH ?= $(shell git show -s --format="%ct" $(GIT_COMMIT))
+VERSION ?= $(shell git symbolic-ref -q --short HEAD || git describe --tags --exact-match)
+VERSION_PKG = github.com/aybykovskii/gitlab-tui/internal/version
+export LDFLAGS += -X $(VERSION_PKG).GitCommit=$(GIT_COMMIT)
+export LDFLAGS += -X $(VERSION_PKG).SourceDateEpoch=$(SOURCE_DATE_EPOCH)
+export LDFLAGS += -X $(VERSION_PKG).Version=$(VERSION)
+export LDFLAGS += -s -w
+export CGO_ENABLED ?= 0
 
 go-build:
-	go build ./cmd/gitlab-tui
+	go build -ldflags='$(LDFLAGS)' ./cmd/gitlab-tui
 
 go-test:
 	@go clean -testcache
@@ -19,3 +28,6 @@ go-lint:
 	golangci-lint run ./...
 
 go-check: go-lint go-test go-build
+
+distclean:
+	go clean -x -cache -testcache -modcache ./...
