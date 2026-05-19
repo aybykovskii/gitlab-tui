@@ -38,6 +38,9 @@ linters:
     paths:
       - third_party$
       - builtin$
+    rules:
+      - linters: [staticcheck]
+        text: "QF1008:"
 
 formatters:
   enable:

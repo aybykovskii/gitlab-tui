@@ -120,9 +120,9 @@ func (m Model) renderRight() string {
 		}
 
 		if m.editInput {
-			lines = append(lines, "", fmt.Sprintf("Edit %s: %s█", m.editField, m.editBuffer))
+			lines = append(lines, "", fmt.Sprintf("Edit %s: %s█", m.editField, m.Value()))
 		} else if m.mrCommentInput {
-			lines = append(lines, "", "MR comment: "+m.mrCommentBuffer+"█")
+			lines = append(lines, "", "MR comment: "+m.Value()+"█")
 		} else {
 			lines = append(lines, "", item.Description)
 		}

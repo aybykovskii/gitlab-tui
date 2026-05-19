@@ -206,7 +206,7 @@ func TestIssueEditOpenAssignAndLabelsActions(t *testing.T) {
 		t.Fatal("expected e to open issue edit input")
 	}
 
-	model.editBuffer = "New"
+	model.BeginWithValue("New")
 	updated, cmd := model.Update(tea.KeyMsg{Type: tea.KeyEnter})
 	model = updated.(Model)
 

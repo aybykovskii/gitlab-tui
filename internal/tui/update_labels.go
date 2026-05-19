@@ -10,7 +10,7 @@ func (m Model) updateLabelSelect(msg tea.KeyMsg) (Model, tea.Cmd) {
 	switch msg.Type {
 	case tea.KeyEsc:
 		m.mode = ModeDetail
-		m.LabelSelectorState.pending = nil
+		m.pending = nil
 
 		return m, nil
 	case tea.KeyEnter:
@@ -20,7 +20,7 @@ func (m Model) updateLabelSelect(msg tea.KeyMsg) (Model, tea.Cmd) {
 			return m, nil
 		}
 
-		selected := append([]string(nil), m.LabelSelectorState.pending...)
+		selected := append([]string(nil), m.pending...)
 		prev := append([]string(nil), item.Labels...)
 
 		for i := range m.items {
@@ -31,7 +31,7 @@ func (m Model) updateLabelSelect(msg tea.KeyMsg) (Model, tea.Cmd) {
 		}
 
 		m.mode = ModeDetail
-		m.LabelSelectorState.pending = nil
+		m.pending = nil
 
 		if m.updateMRLabels == nil {
 			return m, nil
@@ -47,23 +47,23 @@ func (m Model) updateLabelSelect(msg tea.KeyMsg) (Model, tea.Cmd) {
 	case tea.KeyRunes:
 		switch msg.String() {
 		case "k", "up":
-			m.LabelSelectorState.cursor = clamp(m.LabelSelectorState.cursor-1, 0, max(0, count-1))
+			m.cursor = clamp(m.cursor-1, 0, max(0, count-1))
 		case "j", "down":
-			m.LabelSelectorState.cursor = clamp(m.LabelSelectorState.cursor+1, 0, max(0, count-1))
+			m.cursor = clamp(m.cursor+1, 0, max(0, count-1))
 		case " ":
 			if count > 0 {
-				name := m.projectLabels[m.LabelSelectorState.cursor].Name
-				m.LabelSelectorState.pending = toggleStringSlice(m.LabelSelectorState.pending, name)
+				name := m.projectLabels[m.cursor].Name
+				m.pending = toggleStringSlice(m.pending, name)
 			}
 		}
 	case tea.KeyUp:
-		m.LabelSelectorState.cursor = clamp(m.LabelSelectorState.cursor-1, 0, max(0, count-1))
+		m.cursor = clamp(m.cursor-1, 0, max(0, count-1))
 	case tea.KeyDown:
-		m.LabelSelectorState.cursor = clamp(m.LabelSelectorState.cursor+1, 0, max(0, count-1))
+		m.cursor = clamp(m.cursor+1, 0, max(0, count-1))
 	case tea.KeySpace:
 		if count > 0 {
-			name := m.projectLabels[m.LabelSelectorState.cursor].Name
-			m.LabelSelectorState.pending = toggleStringSlice(m.LabelSelectorState.pending, name)
+			name := m.projectLabels[m.cursor].Name
+			m.pending = toggleStringSlice(m.pending, name)
 		}
 	}
 

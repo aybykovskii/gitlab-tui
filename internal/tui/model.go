@@ -21,29 +21,16 @@ type Model struct {
 	DiffViewState
 	ProjectPickerState
 	LabelSelectorState
-	projectPath    string
-	recentProjects []string
-	gitlabProjects []string
-	projectList    []string
-	section        Section
+	InputState
+	projectPath          string
+	recentProjects       []string
+	gitlabProjects       []string
+	projectList          []string
+	section              Section
 	sectionCursor        int
 	entityID             string
 	projectLoaded        bool
-	commentInput         bool
-	commentInstant       bool
-	commentBuffer        string
-	commentError         string
-	mrCommentInput       bool
-	mrCommentBuffer      string
-	mrCommentError       string
-	issueCommentInput    bool
-	issueCommentBuffer   string
-	issueCommentError    string
 	mergeConfirmPending  bool
-	editInput            bool
-	editField            string
-	editBuffer           string
-	editTitle            string
 	actionError          string
 	postInlineComment    PostInlineCommentFunc
 	postMRComment        PostMRCommentFunc
@@ -62,14 +49,10 @@ type Model struct {
 	toggleDraftMR        ToggleDraftMRFunc
 	updateMRLabels       UpdateMRLabelsFunc
 	emoji                config.EmojiConfig
-	projectLabels []mr.Label
+	projectLabels        []mr.Label
 	submitDrafts         SubmitDraftsFunc
 	discardDrafts        DiscardDraftsFunc
 	discussionCursor     int
-	replyInput           bool
-	replyDraft           bool
-	replyDiscussionID    string
-	replyBuffer          string
 	replyToDiscussion    ReplyToDiscussionFunc
 	draftReply           DraftReplyFunc
 	resolveDiscussion    ResolveDiscussionFunc
@@ -80,8 +63,6 @@ type Model struct {
 	filesError           string
 	loadDiscussions      LoadDiscussionsFunc
 	loadFiles            LoadFilesFunc
-	projectInput         string
-	projectFilterActive  bool
 	refresh              RefreshFunc
 	issueState           string
 	loadIssues           LoadIssuesFunc
@@ -112,19 +93,20 @@ func NewModelWithProject(items []mr.MergeRequest, options ProjectOptions) Model 
 
 	model := Model{
 		EntityListState: NewEntityListState(items, options.Issues),
+		InputState:      NewInputState(),
 		ProjectPickerState: NewProjectPickerState(
 			buildRecentProjectOptions(options.Recents, options.RecentProjects),
 			options.LoadProjects,
 			buildProjectList(options.Path, projectListRecents, options.Projects)...,
 		),
-		focus:          FocusDetail,
-		width:          100,
-		height:         30,
-		projectPath:    options.Path,
-		recentProjects: options.Recents,
-		gitlabProjects: options.Projects,
-		projectList:    buildProjectList(options.Path, projectListRecents, options.Projects),
-		section:        options.Section,
+		focus:                FocusDetail,
+		width:                100,
+		height:               30,
+		projectPath:          options.Path,
+		recentProjects:       options.Recents,
+		gitlabProjects:       options.Projects,
+		projectList:          buildProjectList(options.Path, projectListRecents, options.Projects),
+		section:              options.Section,
 		entityID:             options.EntityID,
 		refresh:              options.Refresh,
 		issueState:           "opened",

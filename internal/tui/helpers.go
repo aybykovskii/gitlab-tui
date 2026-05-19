@@ -95,7 +95,6 @@ func filteredProjectPaths(projects []string, query string) []string {
 	return filtered
 }
 
-
 func oneLinePreview(text string) string {
 	fields := strings.Fields(text)
 	if len(fields) == 0 {

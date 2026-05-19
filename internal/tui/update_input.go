@@ -9,33 +9,27 @@ func (m Model) updateMREdit(msg tea.KeyMsg) (Model, tea.Cmd) {
 	switch msg.Type {
 	case tea.KeyEsc:
 		m.editInput = false
-		m.editBuffer = ""
+		m.Reset()
 		m.editTitle = ""
-	case tea.KeyBackspace:
-		if len(m.editBuffer) > 0 {
-			m.editBuffer = m.editBuffer[:len(m.editBuffer)-1]
-		}
-	case tea.KeyRunes, tea.KeySpace:
-		m.editBuffer += msg.String()
 	case tea.KeyTab:
 		if m.editField == "title" {
-			m.editTitle = m.editBuffer
+			m.editTitle = m.Value()
 			item, _ := m.selectedItem()
 			m.editField = "description"
-			m.editBuffer = item.Description
+			m.BeginWithValue(item.Description)
 		}
 	case tea.KeyEnter:
 		title := m.editTitle
-		description := m.editBuffer
+		description := m.Value()
 
 		if m.editField == "title" {
-			title = m.editBuffer
+			title = m.Value()
 			item, _ := m.selectedItem()
 			description = item.Description
 		}
 
 		m.editInput = false
-		m.editBuffer = ""
+		m.Reset()
 		m.editTitle = ""
 		item, ok := m.selectedItem()
 
@@ -50,6 +44,10 @@ func (m Model) updateMREdit(msg tea.KeyMsg) (Model, tea.Cmd) {
 			err := callback(iid, title, description)
 			return editMRFinishedMsg{iid: iid, title: title, description: description, err: err}
 		}
+	case tea.KeyBackspace:
+		m.Backspace()
+	case tea.KeyRunes, tea.KeySpace:
+		m.Append(msg.String())
 	}
 
 	return m, nil
@@ -60,33 +58,27 @@ func (m Model) updateIssueEdit(msg tea.KeyMsg) (Model, tea.Cmd) {
 	switch msg.Type {
 	case tea.KeyEsc:
 		m.editInput = false
-		m.editBuffer = ""
+		m.Reset()
 		m.editTitle = ""
-	case tea.KeyBackspace:
-		if len(m.editBuffer) > 0 {
-			m.editBuffer = m.editBuffer[:len(m.editBuffer)-1]
-		}
-	case tea.KeyRunes, tea.KeySpace:
-		m.editBuffer += msg.String()
 	case tea.KeyTab:
 		if m.editField == "title" {
-			m.editTitle = m.editBuffer
+			m.editTitle = m.Value()
 			item, _ := m.selectedIssue()
 			m.editField = "description"
-			m.editBuffer = item.Description
+			m.BeginWithValue(item.Description)
 		}
 	case tea.KeyEnter:
 		title := m.editTitle
-		description := m.editBuffer
+		description := m.Value()
 
 		if m.editField == "title" {
-			title = m.editBuffer
+			title = m.Value()
 			item, _ := m.selectedIssue()
 			description = item.Description
 		}
 
 		m.editInput = false
-		m.editBuffer = ""
+		m.Reset()
 		m.editTitle = ""
 		item, ok := m.selectedIssue()
 
@@ -101,6 +93,10 @@ func (m Model) updateIssueEdit(msg tea.KeyMsg) (Model, tea.Cmd) {
 			err := callback(iid, title, description)
 			return editIssueFinishedMsg{iid: iid, title: title, description: description, err: err}
 		}
+	case tea.KeyBackspace:
+		m.Backspace()
+	case tea.KeyRunes, tea.KeySpace:
+		m.Append(msg.String())
 	}
 
 	return m, nil
@@ -181,17 +177,11 @@ func (m Model) updateIssueCommentInput(msg tea.KeyMsg) (Model, tea.Cmd) {
 	switch msg.Type {
 	case tea.KeyEsc:
 		m.issueCommentInput = false
-		m.issueCommentBuffer = ""
-	case tea.KeyBackspace:
-		if len(m.issueCommentBuffer) > 0 {
-			m.issueCommentBuffer = m.issueCommentBuffer[:len(m.issueCommentBuffer)-1]
-		}
-	case tea.KeyRunes, tea.KeySpace:
-		m.issueCommentBuffer += msg.String()
+		m.Reset()
 	case tea.KeyEnter:
-		body := m.issueCommentBuffer
+		body := m.Value()
 		m.issueCommentInput = false
-		m.issueCommentBuffer = ""
+		m.Reset()
 		item, ok := m.selectedIssue()
 
 		if !ok || m.postIssueComment == nil {
@@ -205,6 +195,10 @@ func (m Model) updateIssueCommentInput(msg tea.KeyMsg) (Model, tea.Cmd) {
 			err := callback(iid, body)
 			return mrCommentFinishedMsg{iid: iid, err: err}
 		}
+	case tea.KeyBackspace:
+		m.Backspace()
+	case tea.KeyRunes, tea.KeySpace:
+		m.Append(msg.String())
 	}
 
 	return m, nil
@@ -215,17 +209,11 @@ func (m Model) updateMRCommentInput(msg tea.KeyMsg) (Model, tea.Cmd) {
 	switch msg.Type {
 	case tea.KeyEsc:
 		m.mrCommentInput = false
-		m.mrCommentBuffer = ""
-	case tea.KeyBackspace:
-		if len(m.mrCommentBuffer) > 0 {
-			m.mrCommentBuffer = m.mrCommentBuffer[:len(m.mrCommentBuffer)-1]
-		}
-	case tea.KeyRunes, tea.KeySpace:
-		m.mrCommentBuffer += msg.String()
+		m.Reset()
 	case tea.KeyEnter:
-		body := m.mrCommentBuffer
+		body := m.Value()
 		m.mrCommentInput = false
-		m.mrCommentBuffer = ""
+		m.Reset()
 		item, ok := m.selectedItem()
 
 		if !ok || m.postMRComment == nil {
@@ -239,6 +227,10 @@ func (m Model) updateMRCommentInput(msg tea.KeyMsg) (Model, tea.Cmd) {
 			err := callback(iid, body)
 			return mrCommentFinishedMsg{iid: iid, err: err}
 		}
+	case tea.KeyBackspace:
+		m.Backspace()
+	case tea.KeyRunes, tea.KeySpace:
+		m.Append(msg.String())
 	}
 
 	return m, nil

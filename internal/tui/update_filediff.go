@@ -26,29 +26,18 @@ func (m Model) updateFileDiffReplyInput(msg tea.KeyMsg) (Model, tea.Cmd) {
 	switch msg.Type {
 	case tea.KeyEsc:
 		m.replyInput = false
-		m.replyBuffer = ""
+		m.Reset()
 		m.replyDiscussionID = ""
 
 		return m, nil
 
-	case tea.KeyBackspace:
-		if len(m.replyBuffer) > 0 {
-			m.replyBuffer = m.replyBuffer[:len(m.replyBuffer)-1]
-		}
-
-		return m, nil
-
-	case tea.KeyRunes, tea.KeySpace:
-		m.replyBuffer += msg.String()
-		return m, nil
-
 	case tea.KeyEnter:
-		body := m.replyBuffer
+		body := m.Value()
 		discussionID := m.replyDiscussionID
 		isDraft := m.replyDraft
 
 		m.replyInput = false
-		m.replyBuffer = ""
+		m.Reset()
 		m.replyDiscussionID = ""
 		m.replyDraft = false
 
@@ -80,6 +69,10 @@ func (m Model) updateFileDiffReplyInput(msg tea.KeyMsg) (Model, tea.Cmd) {
 			err := callback(iid, discussionID, body)
 			return replyFinishedMsg{iid: iid, discussionID: discussionID, body: body, draft: false, err: err}
 		}
+	case tea.KeyBackspace:
+		m.Backspace()
+	case tea.KeyRunes, tea.KeySpace:
+		m.Append(msg.String())
 	}
 
 	return m, nil
@@ -89,28 +82,17 @@ func (m Model) updateFileDiffCommentInput(msg tea.KeyMsg) (Model, tea.Cmd) {
 	switch msg.Type {
 	case tea.KeyEsc:
 		m.commentInput = false
-		m.commentBuffer = ""
+		m.Reset()
 
-		return m, nil
-
-	case tea.KeyBackspace:
-		if len(m.commentBuffer) > 0 {
-			m.commentBuffer = m.commentBuffer[:len(m.commentBuffer)-1]
-		}
-
-		return m, nil
-
-	case tea.KeyRunes, tea.KeySpace:
-		m.commentBuffer += msg.String()
 		return m, nil
 
 	case tea.KeyEnter:
-		body := m.commentBuffer
+		body := m.Value()
 		instant := m.commentInstant
 
 		m.commentInput = false
 		m.commentInstant = false
-		m.commentBuffer = ""
+		m.Reset()
 
 		item, ok := m.selectedItem()
 		if !ok {
@@ -163,6 +145,10 @@ func (m Model) updateFileDiffCommentInput(msg tea.KeyMsg) (Model, tea.Cmd) {
 			EndLine:  endNewLine,
 		}
 		m.drafts[item.IID] = append(m.drafts[item.IID], draft)
+	case tea.KeyBackspace:
+		m.Backspace()
+	case tea.KeyRunes, tea.KeySpace:
+		m.Append(msg.String())
 	}
 
 	return m, nil
@@ -215,13 +201,13 @@ func (m Model) updateFileDiffKeys(msg tea.KeyMsg) (Model, tea.Cmd) {
 	case "i":
 		m.commentInput = true
 		m.commentInstant = true
-		m.commentBuffer = ""
+		m.Begin()
 		m.commentError = ""
 
 	case "c":
 		m.commentInput = true
 		m.commentInstant = false
-		m.commentBuffer = ""
+		m.Begin()
 		m.commentError = ""
 
 	case "r", "d":
@@ -231,7 +217,7 @@ func (m Model) updateFileDiffKeys(msg tea.KeyMsg) (Model, tea.Cmd) {
 			m.replyInput = true
 			m.replyDraft = msg.String() == "d"
 			m.replyDiscussionID = discussions[idx].ID
-			m.replyBuffer = ""
+			m.Begin()
 		}
 
 	case "x":

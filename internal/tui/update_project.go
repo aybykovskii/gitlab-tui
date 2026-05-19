@@ -196,10 +196,6 @@ func (m Model) loadIssueDiscussionsCommand() tea.Cmd {
 	}
 }
 
-func (m Model) selectedProject() (string, bool) {
-	return m.ProjectPickerState.selectedProject()
-}
-
 func (m Model) retryFailedProjectLoads() tea.Cmd {
 	cmds := []tea.Cmd{}
 

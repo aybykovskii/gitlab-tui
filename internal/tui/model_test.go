@@ -163,8 +163,8 @@ func TestInputModeQDoesNotQuit(t *testing.T) {
 		t.Fatal("expected q to be handled as input, not global quit")
 	}
 
-	if model.mrCommentBuffer != "q" {
-		t.Fatalf("expected q in comment buffer, got %q", model.mrCommentBuffer)
+	if model.Value() != "q" {
+		t.Fatalf("expected q in comment buffer, got %q", model.Value())
 	}
 }
 
@@ -1537,8 +1537,8 @@ func TestCKeyEntersCommentInputAndEnterSavesDraft(t *testing.T) {
 		model = updated.(Model)
 	}
 
-	if model.commentBuffer != "My draft comment" {
-		t.Fatalf("expected buffer 'My draft comment', got %q", model.commentBuffer)
+	if model.Value() != "My draft comment" {
+		t.Fatalf("expected buffer 'My draft comment', got %q", model.Value())
 	}
 
 	// Press Enter to save
@@ -2327,8 +2327,8 @@ func TestEscInMRCommentInputCancelsWithoutSending(t *testing.T) {
 		t.Fatal("expected PostMRCommentFunc NOT to be called after Esc")
 	}
 
-	if model.mrCommentBuffer != "" {
-		t.Fatalf("expected buffer cleared after Esc, got %q", model.mrCommentBuffer)
+	if model.Value() != "" {
+		t.Fatalf("expected buffer cleared after Esc, got %q", model.Value())
 	}
 }
 
@@ -2521,8 +2521,8 @@ func TestEKeyOpensEditModeOnTitleField(t *testing.T) {
 		t.Fatalf("expected editField 'title', got %q", model.editField)
 	}
 
-	if model.editBuffer != "Port TUI shell to Bubble Tea" {
-		t.Fatalf("expected buffer pre-filled with current title, got %q", model.editBuffer)
+	if model.Value() != "Port TUI shell to Bubble Tea" {
+		t.Fatalf("expected buffer pre-filled with current title, got %q", model.Value())
 	}
 }
 
@@ -2536,7 +2536,7 @@ func TestTabInEditModeMoveToDescriptionField(t *testing.T) {
 	updated, _ := model.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune("e")})
 	model = updated.(Model)
 	// Clear and type new title
-	model.editBuffer = "New title"
+	model.BeginWithValue("New title")
 	updated, _ = model.Update(tea.KeyMsg{Type: tea.KeyTab})
 	model = updated.(Model)
 
@@ -2573,12 +2573,12 @@ func TestEnterInEditModeSavesAndCallsEditMR(t *testing.T) {
 	// Open edit, move to title field
 	updated, _ := model.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune("e")})
 	model = updated.(Model)
-	model.editBuffer = "New title"
+	model.BeginWithValue("New title")
 
 	// Tab to description
 	updated, _ = model.Update(tea.KeyMsg{Type: tea.KeyTab})
 	model = updated.(Model)
-	model.editBuffer = "New desc"
+	model.BeginWithValue("New desc")
 
 	// Enter to save
 	updated, cmd := model.Update(tea.KeyMsg{Type: tea.KeyEnter})
@@ -3554,8 +3554,8 @@ func TestQInEditInputDoesNotQuit(t *testing.T) {
 		t.Fatal("expected q in edit mode to be treated as input, not global quit")
 	}
 
-	if !strings.HasSuffix(model.editBuffer, "q") {
-		t.Fatalf("expected edit buffer to end with q, got %q", model.editBuffer)
+	if !strings.HasSuffix(model.Value(), "q") {
+		t.Fatalf("expected edit buffer to end with q, got %q", model.Value())
 	}
 }
 

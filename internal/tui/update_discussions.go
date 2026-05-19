@@ -50,18 +50,16 @@ func (m Model) updateIssueDiscussionsTab(msg tea.KeyMsg) (Model, tea.Cmd) {
 		switch msg.Type {
 		case tea.KeyEsc:
 			m.replyInput = false
-			m.replyBuffer = ""
+			m.Reset()
 			m.replyDiscussionID = ""
-		case tea.KeyBackspace:
-			if len(m.replyBuffer) > 0 {
-				m.replyBuffer = m.replyBuffer[:len(m.replyBuffer)-1]
-			}
-		case tea.KeyRunes, tea.KeySpace:
-			m.replyBuffer += msg.String()
 		case tea.KeyEnter:
 			m.replyInput = false
-			m.replyBuffer = ""
+			m.Reset()
 			m.replyDiscussionID = ""
+		case tea.KeyBackspace:
+			m.Backspace()
+		case tea.KeyRunes, tea.KeySpace:
+			m.Append(msg.String())
 		}
 
 		return m, nil
@@ -80,7 +78,7 @@ func (m Model) updateIssueDiscussionsTab(msg tea.KeyMsg) (Model, tea.Cmd) {
 			m.replyInput = true
 			m.replyDraft = false
 			m.replyDiscussionID = discussion.ID
-			m.replyBuffer = ""
+			m.Begin()
 		}
 	}
 
@@ -93,20 +91,14 @@ func (m Model) updateDiscussionsTab(msg tea.KeyMsg) (Model, tea.Cmd) {
 		switch msg.Type {
 		case tea.KeyEsc:
 			m.replyInput = false
-			m.replyBuffer = ""
+			m.Reset()
 			m.replyDiscussionID = ""
-		case tea.KeyBackspace:
-			if len(m.replyBuffer) > 0 {
-				m.replyBuffer = m.replyBuffer[:len(m.replyBuffer)-1]
-			}
-		case tea.KeyRunes, tea.KeySpace:
-			m.replyBuffer += msg.String()
 		case tea.KeyEnter:
-			body := m.replyBuffer
+			body := m.Value()
 			discussionID := m.replyDiscussionID
 			isDraft := m.replyDraft
 			m.replyInput = false
-			m.replyBuffer = ""
+			m.Reset()
 			m.replyDiscussionID = ""
 			m.replyDraft = false
 			item, ok := m.selectedItem()
@@ -138,6 +130,10 @@ func (m Model) updateDiscussionsTab(msg tea.KeyMsg) (Model, tea.Cmd) {
 				err := callback(iid, discussionID, body)
 				return replyFinishedMsg{iid: iid, discussionID: discussionID, body: body, draft: false, err: err}
 			}
+		case tea.KeyBackspace:
+			m.Backspace()
+		case tea.KeyRunes, tea.KeySpace:
+			m.Append(msg.String())
 		}
 
 		return m, nil
@@ -161,14 +157,14 @@ func (m Model) updateDiscussionsTab(msg tea.KeyMsg) (Model, tea.Cmd) {
 			m.replyInput = true
 			m.replyDraft = false
 			m.replyDiscussionID = discussion.ID
-			m.replyBuffer = ""
+			m.Begin()
 		}
 	case msg.String() == "d":
 		if discussion, ok := m.focusedDiscussion(); ok {
 			m.replyInput = true
 			m.replyDraft = true
 			m.replyDiscussionID = discussion.ID
-			m.replyBuffer = ""
+			m.Begin()
 		}
 	case msg.String() == "x":
 		if discussion, ok := m.focusedDiscussion(); ok {

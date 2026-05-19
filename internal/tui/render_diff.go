@@ -126,70 +126,13 @@ func (m Model) renderFileDiffPane() string {
 		if m.commentInstant {
 			prompt = "Instant comment"
 		}
-		inputLines = append(inputLines, "", prompt+": "+m.commentBuffer+"█")
+		inputLines = append(inputLines, "", prompt+": "+m.Value()+"█")
 	}
 	if len(inputLines) > 0 {
 		view += "\n" + strings.Join(inputLines, "\n")
 	}
 
 	return style.Render(view)
-}
-
-func (m Model) draftGutterMarker(path string, newLine int, drafts []mr.DraftComment) string {
-	if newLine == 0 {
-		return " "
-	}
-
-	for _, dr := range drafts {
-		if dr.Position == nil || dr.Position.NewPath != path {
-			continue
-		}
-
-		startLine := dr.Position.NewLine
-		endLine := dr.EndLine
-
-		if endLine == 0 {
-			endLine = startLine
-		}
-
-		if newLine >= startLine && newLine <= endLine {
-			if m.emoji.Enabled {
-				icon := m.emoji.Resolve().Draft
-				if icon != "" {
-					return icon
-				}
-			}
-
-			return "●"
-		}
-	}
-
-	return " "
-}
-
-func (m Model) discussionGutterMarker(discussions []mr.Discussion) string {
-	if len(discussions) == 0 {
-		return " "
-	}
-
-	if m.emoji.Enabled {
-		return "💬"
-	}
-
-	return "○"
-}
-
-func (m Model) isActiveDraftRangeRow(index int) bool {
-	if m.rangeStart < 0 {
-		return false
-	}
-
-	start, end := m.rangeStart, m.diffCursor
-	if start > end {
-		start, end = end, start
-	}
-
-	return index >= start && index <= end
 }
 
 func (m Model) cursorRow() (mr.ChangedFile, mr.DiffRow, bool) {
@@ -228,60 +171,7 @@ func (m Model) discussionsAtCursor() []mr.Discussion {
 	return result
 }
 
-func (m Model) threadAtCursor() (*mr.Discussion, *mr.DraftComment) {
-	discussions := m.discussionsAtCursor()
-	if len(discussions) > 0 {
-		idx := clamp(m.threadPanelCursor, 0, len(discussions)-1)
-		discussion := discussions[idx]
 
-		return &discussion, nil
-	}
-
-	file, row, ok := m.cursorRow()
-	if !ok || row.NewLine == 0 {
-		return nil, nil
-	}
-
-	item, ok := m.selectedItem()
-	if !ok {
-		return nil, nil
-	}
-
-	for i := range m.drafts[item.IID] {
-		draft := &m.drafts[item.IID][i]
-		if draft.Position != nil && draft.Position.NewPath == file.Path && draft.Position.NewLine == row.NewLine {
-			return nil, draft
-		}
-	}
-
-	return nil, nil
-}
-
-func (m Model) renderThreadPanelLines(discussion *mr.Discussion, draft *mr.DraftComment, total int, width int) []string {
-	sep := strings.Repeat("─", max(4, width))
-	dimStyle := lipgloss.NewStyle().Foreground(lipgloss.Color("240"))
-
-	var lines []string
-	lines = append(lines, sep)
-
-	if discussion != nil {
-		header := "Discussion"
-		if total > 1 {
-			header = fmt.Sprintf("Discussion [%d/%d  [/]: switch]", m.threadPanelCursor+1, total)
-		}
-
-		if discussion.Resolved {
-			header = "✅ " + header + " (resolved)"
-		}
-
-		lines = append(lines, renderDiscussionBlock(*discussion, header, "  ", true, true)...)
-	} else if draft != nil {
-		lines = append(lines, dimStyle.Render("📝 Draft"))
-		lines = append(lines, dimStyle.Render("  "+draft.Body))
-	}
-
-	return lines
-}
 
 func renderDiscussionBlock(discussion mr.Discussion, header string, cursor string, dimResolved bool, authorInFirstNote bool) []string {
 	dimStyle := lipgloss.NewStyle().Foreground(lipgloss.Color("240"))

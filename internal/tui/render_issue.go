@@ -42,9 +42,9 @@ func (m Model) renderIssueDetail() string {
 	}
 
 	if m.editInput {
-		lines = append(lines, "", fmt.Sprintf("Edit %s: %s█", m.editField, m.editBuffer))
+		lines = append(lines, "", fmt.Sprintf("Edit %s: %s█", m.editField, m.Value()))
 	} else if m.issueCommentInput {
-		lines = append(lines, "", "Issue comment: "+m.issueCommentBuffer+"█")
+		lines = append(lines, "", "Issue comment: "+m.Value()+"█")
 	} else {
 		lines = append(lines, "", item.Description)
 	}
@@ -60,41 +60,9 @@ func (m Model) renderIssueDiscussions(item issue.Issue) string {
 
 	output := renderDiscussionList(discussions, m.discussionCursor, DiscussionListOptions{})
 	if m.replyInput {
-		output += "\n\nReply: " + m.replyBuffer + "█"
+		output += "\n\nReply: " + m.Value() + "█"
 	}
 
 	return output
 }
 
-func (m Model) issueListLines(height int) []string {
-	lines := []string{"Project: " + m.projectPath, "Issues [" + m.issueStateLabel() + "]", "Filter: " + m.EntityListState.query}
-	if m.loading {
-		lines = append(lines, "Refreshing…")
-	}
-
-	if m.errorMessage != "" {
-		lines = append(lines, "Error: "+m.errorMessage)
-	}
-
-	items := m.filteredIssues()
-	if len(items) == 0 {
-		lines = append(lines, "No issues")
-		return lines
-	}
-
-	visible := max(1, (height-5)/2)
-
-	end := min(len(items), m.listTop+visible)
-	for i := m.listTop; i < end; i++ {
-		prefix := "  "
-		if i == m.EntityListState.selected {
-			prefix = "> "
-		}
-
-		item := items[i]
-		lines = append(lines, fmt.Sprintf("%s#%d %s", prefix, item.IID, item.Title))
-		lines = append(lines, "  "+formatIssueMeta(item))
-	}
-
-	return lines
-}

@@ -122,11 +122,11 @@ func (m Model) handleBack() (Model, tea.Cmd) {
 func (m *Model) openCommentInput() {
 	if m.section == SectionIssues {
 		m.issueCommentInput = true
-		m.issueCommentBuffer = ""
+		m.Begin()
 		m.issueCommentError = ""
 	} else {
 		m.mrCommentInput = true
-		m.mrCommentBuffer = ""
+		m.Begin()
 		m.mrCommentError = ""
 	}
 }
@@ -209,7 +209,7 @@ func (m *Model) openEditInput() {
 
 		m.editInput = true
 		m.editField = "title"
-		m.editBuffer = item.Title
+		m.BeginWithValue(item.Title)
 		m.editTitle = ""
 	} else {
 		item, ok := m.selectedItem()
@@ -219,7 +219,7 @@ func (m *Model) openEditInput() {
 
 		m.editInput = true
 		m.editField = "title"
-		m.editBuffer = item.Title
+		m.BeginWithValue(item.Title)
 		m.editTitle = ""
 	}
 }
@@ -232,11 +232,11 @@ func (m Model) openLabelSelector() (Model, tea.Cmd) {
 		}
 
 		m.mode = ModeLabelSelect
-		m.LabelSelectorState.cursor = 0
-		m.LabelSelectorState.labels = m.projectLabels
+		m.cursor = 0
+		m.labels = m.projectLabels
 		pending := make([]string, len(item.Labels))
 		copy(pending, item.Labels)
-		m.LabelSelectorState.pending = pending
+		m.pending = pending
 
 		return m, nil
 	}
@@ -251,11 +251,11 @@ func (m Model) openLabelSelector() (Model, tea.Cmd) {
 	}
 
 	m.mode = ModeLabelSelect
-	m.LabelSelectorState.cursor = 0
-	m.LabelSelectorState.labels = m.projectLabels
+	m.cursor = 0
+	m.labels = m.projectLabels
 	pending := make([]string, len(item.Labels))
 	copy(pending, item.Labels)
-	m.LabelSelectorState.pending = pending
+	m.pending = pending
 
 	return m, nil
 }
