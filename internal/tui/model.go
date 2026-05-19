@@ -21,7 +21,8 @@ type Model struct {
 	height   int
 	listTop  int
 	MRDetailState
-	IssueDetailState     IssueDetailState
+	IssueDetailState IssueDetailState
+	DiffViewState
 	projectPath          string
 	recentProjects       []string
 	recentProjectOptions []RecentProjectOption
@@ -34,11 +35,6 @@ type Model struct {
 	sectionCursor        int
 	entityID             string
 	projectLoaded        bool
-	selectedFile         int
-	fileDiffTop          int
-	diffCursor           int
-	fileDiffReturnTab    DetailTab
-	rangeStart           int
 	commentInput         bool
 	commentInstant       bool
 	commentBuffer        string
@@ -104,8 +100,6 @@ type Model struct {
 	projectError         bool
 	errorMessage         string
 	keyBarExpanded       bool
-	threadPanelVisible   bool
-	threadPanelCursor    int
 	globals              GlobalKeys
 	projectListKeys      ProjectListKeys
 }
@@ -147,7 +141,7 @@ func NewModelWithProject(items []mr.MergeRequest, options ProjectOptions) Model 
 		loadDiscussions:      options.LoadDiscussions,
 		loadFiles:            options.LoadFiles,
 		IssueDetailState:     NewIssueDetailState(),
-		rangeStart:           -1,
+		DiffViewState:        NewDiffViewState(),
 		submitDrafts:         options.SubmitDrafts,
 		discardDrafts:        options.DiscardDrafts,
 		replyToDiscussion:    options.ReplyToDiscussion,
@@ -172,7 +166,6 @@ func NewModelWithProject(items []mr.MergeRequest, options ProjectOptions) Model 
 		toggleDraftMR:        options.ToggleDraftMR,
 		updateMRLabels:       options.UpdateMRLabels,
 		emoji:                options.Emoji,
-		threadPanelVisible:   true,
 		globals:              newGlobalKeys(),
 		projectListKeys:      newProjectListKeys(),
 	}

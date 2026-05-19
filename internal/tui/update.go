@@ -24,6 +24,9 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		if next.mode == ModeDetail && next.section == SectionIssues {
 			cmd = tea.Batch(cmd, next.IssueDetailState.Update(msg))
 		}
+		if next.mode == ModeFileDiff {
+			cmd = tea.Batch(cmd, next.DiffViewState.Update(msg))
+		}
 		next.syncGlobalKeys()
 
 		return next, cmd

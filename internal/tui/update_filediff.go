@@ -176,14 +176,14 @@ func (m Model) updateFileDiffKeys(msg tea.KeyMsg) (Model, tea.Cmd) {
 	case "right", "l":
 		if m.rangeStart < 0 {
 			m.selectedFile = clamp(m.selectedFile+1, 0, len(files)-1)
-			m.fileDiffTop = 0
+			m.DiffViewState.YOffset = 0
 			m.diffCursor = 0
 		}
 
 	case "left", "h":
 		if m.rangeStart < 0 {
 			m.selectedFile = clamp(m.selectedFile-1, 0, len(files)-1)
-			m.fileDiffTop = 0
+			m.DiffViewState.YOffset = 0
 			m.diffCursor = 0
 		}
 
@@ -268,7 +268,7 @@ func (m Model) updateFileDiffKeys(msg tea.KeyMsg) (Model, tea.Cmd) {
 
 		m.mode = ModeDetail
 		m.activeTab = m.fileDiffReturnTab
-		m.fileDiffTop = 0
+		m.DiffViewState.YOffset = 0
 	}
 
 	return m, nil

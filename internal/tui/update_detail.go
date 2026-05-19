@@ -311,7 +311,7 @@ func (m Model) openFileDiff() (Model, tea.Cmd) {
 	m.mode = ModeFileDiff
 	m.fileDiffReturnTab = TabFiles
 	m.selectedFile = 0
-	m.fileDiffTop = 0
+	m.DiffViewState.YOffset = 0
 	m.diffCursor = 0
 	m.threadPanelCursor = 0
 

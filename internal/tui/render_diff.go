@@ -8,7 +8,6 @@ import (
 	"github.com/charmbracelet/lipgloss"
 
 	"github.com/aybykovskii/gitlab-tui/internal/mr"
-	"github.com/aybykovskii/gitlab-tui/pkg/diff"
 )
 
 type DiscussionListOptions struct {
@@ -111,98 +110,29 @@ func (m Model) renderFileDiffPane() string {
 		return style.Render("No files")
 	}
 
-	file := files[m.selectedFile]
-	lines := []string{fmt.Sprintf("Diff %s", file.Path), ""}
 	item, _ := m.selectedItem()
-	discussions := m.discussions[item.IID]
-	draftsForMR := m.drafts[item.IID]
-	annotated := diff.ProjectDiscussions(file.Diff, discussions, file.Path)
+	m.DiffViewState.diffFiles = files
+	m.DiffViewState.diffDiscussions = m.discussions[item.IID]
+	m.DiffViewState.diffDrafts = m.drafts[item.IID]
+	m.DiffViewState.emoji = m.emoji
 
-	colWidth := max(10, (max(20, m.width-m.leftWidth())-20)/2)
-	addStyle := lipgloss.NewStyle().Foreground(lipgloss.Color("2"))
-	delStyle := lipgloss.NewStyle().Foreground(lipgloss.Color("1"))
-	ctxStyle := lipgloss.NewStyle().Foreground(lipgloss.Color("240"))
-	rowFmt := fmt.Sprintf("%%s │ %%-%ds │ %%s │ %%s", colWidth)
-
-	for i, arow := range annotated {
-		cursor := "  "
-		if i == m.diffCursor {
-			cursor = "> "
-		}
-
-		draftMarker := m.draftGutterMarker(file.Path, arow.NewLine, draftsForMR)
-		if draftMarker == " " && m.isActiveDraftRangeRow(i) {
-			draftMarker = "·"
-		}
-
-		discussionMarker := m.discussionGutterMarker(arow.Discussions)
-
-		var oldNum, newNum, oldContent, newContent string
-
-		var rowStyle lipgloss.Style
-
-		switch {
-		case arow.OldLine == 0 && arow.NewLine > 0: // addition
-			oldNum = "    "
-			newNum = fmt.Sprintf("%4d", arow.NewLine)
-			oldContent = strings.Repeat(" ", colWidth)
-			newContent = "+ " + arow.NewText
-			rowStyle = addStyle
-		case arow.NewLine == 0 && arow.OldLine > 0: // deletion
-			oldNum = fmt.Sprintf("%4d", arow.OldLine)
-			newNum = "    "
-			oldContent = "- " + arow.OldText
-			newContent = ""
-			rowStyle = delStyle
-		default: // context
-			oldNum = fmt.Sprintf("%4d", arow.OldLine)
-			newNum = fmt.Sprintf("%4d", arow.NewLine)
-			oldContent = "  " + arow.OldText
-			newContent = "  " + arow.NewText
-			rowStyle = ctxStyle
-		}
-
-		lineContent := fmt.Sprintf(rowFmt, oldNum, oldContent, newNum, newContent)
-		line := cursor + draftMarker + discussionMarker + " " + rowStyle.Render(lineContent)
-		lines = append(lines, line)
-	}
-
+	view := m.DiffViewState.View(LayoutState{Width: width, Height: height, Focus: m.focus, Mode: m.mode})
 	var inputLines []string
 	if m.commentError != "" {
 		inputLines = append(inputLines, "", "Error: "+m.commentError)
 	}
-
 	if m.commentInput {
 		prompt := "Comment"
 		if m.commentInstant {
 			prompt = "Instant comment"
 		}
-
 		inputLines = append(inputLines, "", prompt+": "+m.commentBuffer+"█")
 	}
-
-	discussion, draft := m.threadAtCursor()
-	allDiscussions := m.discussionsAtCursor()
-
-	var panelLines []string
-
-	if (discussion != nil || draft != nil) && m.threadPanelVisible {
-		panelLines = m.renderThreadPanelLines(discussion, draft, len(allDiscussions), width-4)
+	if len(inputLines) > 0 {
+		view += "\n" + strings.Join(inputLines, "\n")
 	}
 
-	diffHeight := max(1, height-2-len(inputLines)-len(panelLines))
-
-	if m.fileDiffTop >= len(lines) {
-		m.fileDiffTop = max(0, len(lines)-1)
-	}
-
-	end := min(len(lines), m.fileDiffTop+diffHeight)
-	visible := lines[m.fileDiffTop:end]
-
-	all := append(visible, inputLines...)
-	all = append(all, panelLines...)
-
-	return style.Render(strings.Join(all, "\n"))
+	return style.Render(view)
 }
 
 func (m Model) draftGutterMarker(path string, newLine int, drafts []mr.DraftComment) string {

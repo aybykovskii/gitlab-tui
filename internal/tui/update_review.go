@@ -97,7 +97,7 @@ func (m *Model) openDraftInDiff(draft mr.DraftComment) {
 		m.mode = ModeFileDiff
 		m.fileDiffReturnTab = TabReview
 		m.selectedFile = fileIndex
-		m.fileDiffTop = 0
+		m.DiffViewState.YOffset = 0
 		m.diffCursor = 0
 
 		for rowIndex, row := range file.Diff {
