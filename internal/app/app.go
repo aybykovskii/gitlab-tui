@@ -124,7 +124,7 @@ func buildProjectOptions(cfg *config.Config, configPath string, configLoaded boo
 
 		client, err := newClient(account)
 		if err != nil {
-			return tui.ProjectData{}, fmt.Errorf("create GitLab client: %w", err)
+			return tui.ProjectData{}, fmt.Errorf("create GitLab client: %w", gitLabUserError(err))
 		}
 
 		loadMRs := func() ([]mr.MergeRequest, error) {
@@ -178,7 +178,7 @@ func buildProjectOptions(cfg *config.Config, configPath string, configLoaded boo
 
 			issues, issueErr = loadIssues("opened", "")
 			if issueErr != nil {
-				return tui.ProjectData{}, fmt.Errorf("load issues: %w", issueErr)
+				return tui.ProjectData{}, fmt.Errorf("load issues: %w", gitLabUserError(issueErr))
 			}
 		}
 
@@ -196,7 +196,7 @@ func buildProjectOptions(cfg *config.Config, configPath string, configLoaded boo
 
 		mrRes := <-mrCh
 		if mrRes.err != nil {
-			return tui.ProjectData{}, fmt.Errorf("load merge requests: %w", mrRes.err)
+			return tui.ProjectData{}, fmt.Errorf("load merge requests: %w", gitLabUserError(mrRes.err))
 		}
 
 		labelsRes := <-labelsCh
@@ -239,14 +239,36 @@ func buildProjectOptions(cfg *config.Config, configPath string, configLoaded boo
 			Load: func() ([]string, error) {
 				client, err := newClient(account)
 				if err != nil {
-					return nil, fmt.Errorf("create GitLab client: %w", err)
+					return nil, fmt.Errorf("create GitLab client: %w", gitLabUserError(err))
 				}
-				return client.ListProjects(context.Background(), 15)
+				projects, err := client.ListProjects(context.Background(), 15)
+				if err != nil {
+					return nil, gitLabUserError(err)
+				}
+
+				return projects, nil
 			},
 		})
 	}
 
 	return options
+}
+
+func gitLabUserError(err error) error {
+	if err == nil {
+		return nil
+	}
+
+	if errors.Is(err, gitlabclient.ErrClientNotConfigured) {
+		return fmt.Errorf("GitLab client is not configured: %w", err)
+	}
+
+	var unexpected *gitlabclient.ErrUnexpectedResponse
+	if errors.As(err, &unexpected) {
+		return fmt.Errorf("GitLab returned %s: %s: %w", unexpected.Status, unexpected.Body, err)
+	}
+
+	return err
 }
 
 func (a App) runInit(stdout io.Writer, stderr io.Writer) int {
