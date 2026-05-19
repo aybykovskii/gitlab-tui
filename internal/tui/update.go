@@ -19,13 +19,13 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case tea.KeyMsg:
 		next, cmd := m.updateKey(msg)
 		if next.mode == ModeDetail && next.section == SectionMergeRequests {
-			cmd = tea.Batch(cmd, next.MRDetailState.Update(msg))
+			cmd = batchCommands(cmd, next.MRDetailState.Update(msg))
 		}
 		if next.mode == ModeDetail && next.section == SectionIssues {
-			cmd = tea.Batch(cmd, next.IssueDetailState.Update(msg))
+			cmd = batchCommands(cmd, next.IssueDetailState.Update(msg))
 		}
 		if next.mode == ModeFileDiff {
-			cmd = tea.Batch(cmd, next.DiffViewState.Update(msg))
+			cmd = batchCommands(cmd, next.DiffViewState.Update(msg))
 		}
 		next.syncGlobalKeys()
 

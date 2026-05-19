@@ -13,37 +13,14 @@ func (m Model) renderList() string {
 	height := m.paneHeight()
 	style := paneStyle(width, height, m.focus == FocusList || m.focus == FocusFilter)
 
-	lines := []string{"Project: " + m.projectPath, "Merge Requests", "Filter: " + m.query}
-	if m.projectLoading {
-		lines = append(lines, "Loading project…")
-	} else if m.loading {
-		lines = append(lines, "Refreshing…")
-	}
-
-	if m.errorMessage != "" {
-		lines = append(lines, "Error: "+m.errorMessage)
-	}
-
-	items := m.filtered()
-	if len(items) == 0 {
-		lines = append(lines, "No opened MRs")
-	} else {
-		visible := max(1, height-5)
-
-		end := min(len(items), m.listTop+visible)
-		for i := m.listTop; i < end; i++ {
-			prefix := "  "
-			if i == m.selected {
-				prefix = "> "
-			}
-
-			item := items[i]
-			lines = append(lines, fmt.Sprintf("%s%s !%d %s", prefix, pipelineIcon(item.Pipeline), item.IID, item.Title))
-			lines = append(lines, fmt.Sprintf("  %s %s → %s", item.Author, item.SourceBranch, item.TargetBranch))
-		}
-	}
-
-	return style.Render(strings.Join(lines, "\n"))
+	state := m.EntityListState
+	state.projectPath = m.projectPath
+	return style.Render(state.View(LayoutState{Width: width, Height: height, Focus: m.focus, Mode: m.mode}, EntityListViewData{
+		Section:        SectionMergeRequests,
+		ProjectLoading: m.projectLoading,
+		Loading:        m.loading,
+		ErrorMessage:   m.errorMessage,
+	}))
 }
 
 //nolint:gocyclo // MR rendering handles several UI modes in one view.

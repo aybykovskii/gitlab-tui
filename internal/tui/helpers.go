@@ -144,25 +144,11 @@ func oneLinePreview(text string) string {
 }
 
 func (m Model) filtered() []mr.MergeRequest {
-	return mr.Filter(m.items, m.query)
+	return m.EntityListState.filteredMRs()
 }
 
 func (m Model) filteredIssues() []issue.Issue {
-	query := strings.ToLower(strings.TrimSpace(m.query))
-	if query == "" {
-		return m.issueItems
-	}
-
-	filtered := make([]issue.Issue, 0, len(m.issueItems))
-
-	for _, item := range m.issueItems {
-		text := strings.ToLower(item.Title + " " + item.Author)
-		if strings.Contains(text, query) {
-			filtered = append(filtered, item)
-		}
-	}
-
-	return filtered
+	return m.EntityListState.filteredIssues()
 }
 
 func (m Model) clampEntitySelection(selected int) int {

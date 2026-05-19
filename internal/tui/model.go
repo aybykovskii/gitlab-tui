@@ -7,19 +7,15 @@ import (
 	tea "github.com/charmbracelet/bubbletea"
 
 	"github.com/aybykovskii/gitlab-tui/internal/config"
-	"github.com/aybykovskii/gitlab-tui/internal/issue"
 	"github.com/aybykovskii/gitlab-tui/internal/mr"
 )
 
 type Model struct {
-	items    []mr.MergeRequest
-	query    string
-	selected int
-	mode     Mode
-	focus    Focus
-	width    int
-	height   int
-	listTop  int
+	EntityListState
+	mode   Mode
+	focus  Focus
+	width  int
+	height int
 	MRDetailState
 	IssueDetailState IssueDetailState
 	DiffViewState
@@ -91,7 +87,6 @@ type Model struct {
 	projectInput         string
 	projectFilterActive  bool
 	refresh              RefreshFunc
-	issueItems           []issue.Issue
 	issueState           string
 	loadIssues           LoadIssuesFunc
 	loadProject          ProjectLoadFunc
@@ -120,7 +115,7 @@ func NewModelWithProject(items []mr.MergeRequest, options ProjectOptions) Model 
 	}
 
 	model := Model{
-		items:                items,
+		EntityListState:      NewEntityListState(items, options.Issues),
 		focus:                FocusDetail,
 		width:                100,
 		height:               30,
@@ -134,7 +129,6 @@ func NewModelWithProject(items []mr.MergeRequest, options ProjectOptions) Model 
 		section:              options.Section,
 		entityID:             options.EntityID,
 		refresh:              options.Refresh,
-		issueItems:           options.Issues,
 		issueState:           "opened",
 		loadIssues:           options.LoadIssues,
 		loadProject:          options.LoadProject,
