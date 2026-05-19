@@ -1,3 +1,4 @@
+//nolint:mnd // Default terminal dimensions are intentional UI fallbacks.
 package tui
 
 import (
@@ -124,6 +125,7 @@ func NewModel(items []mr.MergeRequest) Model {
 	return NewModelWithProject(items, ProjectOptions{Path: "group/project", Section: SectionMergeRequests})
 }
 
+//nolint:gocritic // Model startup branches are clearer as explicit UI flow.
 func NewModelWithProject(items []mr.MergeRequest, options ProjectOptions) Model {
 	projectListRecents := options.Recents
 	if len(options.RecentProjects) > 0 {

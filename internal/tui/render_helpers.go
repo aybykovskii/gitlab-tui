@@ -1,3 +1,4 @@
+//nolint:mnd // UI layout constants are deliberate minimum dimensions.
 package tui
 
 import (

@@ -1,3 +1,4 @@
+//nolint:mnd,unparam // UI helper constants and generic clamp bounds are intentional.
 package tui
 
 import (

@@ -1,3 +1,4 @@
+//nolint:mnd // Project picker limit is an intentional UI page size.
 package tui
 
 import (

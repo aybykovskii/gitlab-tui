@@ -1,3 +1,4 @@
+//nolint:mnd // Config defaults and file modes are conventional constants.
 package config
 
 import (

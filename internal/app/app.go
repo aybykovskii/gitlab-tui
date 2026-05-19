@@ -1,3 +1,4 @@
+//nolint:errcheck,mnd // CLI output writes and small UI limits are intentional.
 package app
 
 import (

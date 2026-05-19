@@ -21,6 +21,7 @@ func (m Model) updateFileDiff(msg tea.KeyMsg) (Model, tea.Cmd) {
 	return m.updateFileDiffKeys(msg)
 }
 
+//nolint:dupl // File diff reply flow mirrors discussion replies intentionally.
 func (m Model) updateFileDiffReplyInput(msg tea.KeyMsg) (Model, tea.Cmd) {
 	switch msg.Type {
 	case tea.KeyEsc:
@@ -167,6 +168,7 @@ func (m Model) updateFileDiffCommentInput(msg tea.KeyMsg) (Model, tea.Cmd) {
 	return m, nil
 }
 
+//nolint:gocyclo // File diff key handler maps many UI shortcuts explicitly.
 func (m Model) updateFileDiffKeys(msg tea.KeyMsg) (Model, tea.Cmd) {
 	files := m.currentFiles()
 

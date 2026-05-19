@@ -8,6 +8,7 @@ import (
 	"github.com/aybykovskii/gitlab-tui/internal/mr"
 )
 
+//nolint:gocyclo // Review tab key handler maps workflow shortcuts explicitly.
 func (m Model) updateReviewTab(msg tea.KeyMsg) (Model, tea.Cmd) {
 	item, ok := m.selectedItem()
 	if !ok {

@@ -5,6 +5,7 @@ import (
 	tea "github.com/charmbracelet/bubbletea"
 )
 
+//nolint:gocyclo // Detail key handler maps many UI shortcuts explicitly.
 func (m Model) updateDetailKeys(msg tea.KeyMsg) (Model, tea.Cmd) {
 	switch {
 	case key.Matches(msg, m.globals.Quit):

@@ -1,3 +1,4 @@
+//nolint:mnd // Fake data uses distinct fixture IDs.
 package tui
 
 import "github.com/aybykovskii/gitlab-tui/internal/mr"

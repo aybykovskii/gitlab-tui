@@ -1,3 +1,4 @@
+//nolint:mnd,gocritic // Interactive state machine keeps UI constants and branches explicit.
 package tui
 
 import (
@@ -9,6 +10,7 @@ import (
 	"github.com/aybykovskii/gitlab-tui/internal/mr"
 )
 
+//nolint:gocyclo // Bubble Tea update loop centralizes many message types.
 func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	switch msg := msg.(type) {
 	case tea.WindowSizeMsg:
@@ -95,15 +97,16 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.listTop = 0
 		m.rightTop = 0
 
-		if m.section == SectionMergeRequests {
+		switch m.section {
+		case SectionMergeRequests:
 			if m.entityID != "" {
 				m.mode = ModeDetail
 			} else {
 				m.mode = ModeEntityList
 			}
-		} else if m.section == SectionIssues {
+		case SectionIssues:
 			m.mode = ModeEntityList
-		} else {
+		default:
 			m.mode = ModeSections
 		}
 
@@ -350,6 +353,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	return m, nil
 }
 
+//nolint:gocyclo // Keyboard state machine has many intentional shortcuts.
 func (m Model) updateKey(msg tea.KeyMsg) (Model, tea.Cmd) {
 	if key.Matches(msg, m.globals.ToggleKeyBar) && !m.inputActive() {
 		m.keyBarExpanded = !m.keyBarExpanded

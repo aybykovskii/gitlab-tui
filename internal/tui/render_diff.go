@@ -1,3 +1,4 @@
+//nolint:mnd,prealloc,gocritic // UI sizing constants and append composition favor readability.
 package tui
 
 import (

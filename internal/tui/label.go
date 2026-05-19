@@ -1,3 +1,4 @@
+//nolint:mnd // Color conversion constants come from WCAG/sRGB formulas.
 package tui
 
 import (

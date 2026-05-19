@@ -87,6 +87,7 @@ func (m Model) updateIssueDiscussionsTab(msg tea.KeyMsg) (Model, tea.Cmd) {
 	return m, nil
 }
 
+//nolint:gocyclo,dupl // Discussion tab input flow mirrors file diff replies intentionally.
 func (m Model) updateDiscussionsTab(msg tea.KeyMsg) (Model, tea.Cmd) {
 	if m.replyInput {
 		switch msg.Type {

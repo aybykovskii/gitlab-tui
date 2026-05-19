@@ -1,20 +1,52 @@
+version: "2"
+
 run:
   timeout: 5m
 
 linters:
+  default: none
   enable:
+    - bodyclose
+    - dupl
+    - errcheck
+    - gocritic
+    - gocyclo
+    - godot
     - govet
     - ineffassign
+    - mnd
+    - prealloc
+    - revive
     - staticcheck
+    - unparam
     - unused
     - wsl
+  settings:
+    gocyclo:
+      min-complexity: 20
+    mnd:
+      ignored-numbers: ["0", "1", "2", "3"]
+    revive:
+      rules:
+        - name: package-comments
+          disabled: true
+    wsl:
+      allow-assign-and-call: true
+      allow-multiline-assign: true
+  exclusions:
+    generated: lax
+    paths:
+      - third_party$
+      - builtin$
 
-linters-settings:
-  wsl:
-    allow-assign-and-call: true
-    allow-multiline-assign: true
-    enforce-err-cuddling: false
-    force-short-decl-cuddling: false
+formatters:
+  enable:
+    - gofmt
+    - gofumpt
+    - goimports
+  settings:
+    gofmt:
+      simplify: false
 
 issues:
   max-issues-per-linter: 0

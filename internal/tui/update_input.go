@@ -4,6 +4,7 @@ import (
 	tea "github.com/charmbracelet/bubbletea"
 )
 
+//nolint:dupl // MR and issue edit flows intentionally mirror each other.
 func (m Model) updateMREdit(msg tea.KeyMsg) (Model, tea.Cmd) {
 	switch msg.Type {
 	case tea.KeyEsc:
@@ -54,6 +55,7 @@ func (m Model) updateMREdit(msg tea.KeyMsg) (Model, tea.Cmd) {
 	return m, nil
 }
 
+//nolint:dupl // Issue and MR edit flows intentionally mirror each other.
 func (m Model) updateIssueEdit(msg tea.KeyMsg) (Model, tea.Cmd) {
 	switch msg.Type {
 	case tea.KeyEsc:
@@ -174,6 +176,7 @@ func (m Model) closeOrReopenIssueCommand() (Model, tea.Cmd) {
 	}
 }
 
+//nolint:dupl // Issue and MR comment flows intentionally mirror each other.
 func (m Model) updateIssueCommentInput(msg tea.KeyMsg) (Model, tea.Cmd) {
 	switch msg.Type {
 	case tea.KeyEsc:
@@ -207,6 +210,7 @@ func (m Model) updateIssueCommentInput(msg tea.KeyMsg) (Model, tea.Cmd) {
 	return m, nil
 }
 
+//nolint:dupl // MR and issue comment flows intentionally mirror each other.
 func (m Model) updateMRCommentInput(msg tea.KeyMsg) (Model, tea.Cmd) {
 	switch msg.Type {
 	case tea.KeyEsc:

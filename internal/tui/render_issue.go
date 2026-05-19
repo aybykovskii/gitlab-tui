@@ -1,3 +1,4 @@
+//nolint:mnd,gocritic // UI layout branching and dimensions are deliberately explicit.
 package tui
 
 import (

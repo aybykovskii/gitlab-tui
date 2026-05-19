@@ -1,3 +1,4 @@
+//nolint:mnd,gocritic // UI layout branching and dimensions are deliberately explicit.
 package tui
 
 import (
@@ -45,6 +46,7 @@ func (m Model) renderList() string {
 	return style.Render(strings.Join(lines, "\n"))
 }
 
+//nolint:gocyclo // MR rendering handles several UI modes in one view.
 func (m Model) renderRight() string {
 	width := max(20, m.width-m.leftWidth())
 	height := m.paneHeight()

@@ -1,3 +1,4 @@
+//nolint:mnd // GitLab pagination sizes are stable API tuning values.
 package gitlab
 
 import (

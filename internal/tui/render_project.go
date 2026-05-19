@@ -1,3 +1,4 @@
+//nolint:mnd,prealloc // UI sizing and small slice growth are intentional.
 package tui
 
 import (
