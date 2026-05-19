@@ -3853,22 +3853,22 @@ func TestLabelSelectorUpDownMoveCursor(t *testing.T) {
 	updated, _ := model.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune("l")})
 	model = updated.(Model)
 
-	if model.labelCursor != 0 {
-		t.Fatalf("expected cursor at 0, got %d", model.labelCursor)
+	if model.LabelSelectorState.cursor != 0 {
+		t.Fatalf("expected cursor at 0, got %d", model.LabelSelectorState.cursor)
 	}
 
 	updated, _ = model.Update(tea.KeyMsg{Type: tea.KeyDown})
 	model = updated.(Model)
 
-	if model.labelCursor != 1 {
-		t.Fatalf("expected cursor at 1 after down, got %d", model.labelCursor)
+	if model.LabelSelectorState.cursor != 1 {
+		t.Fatalf("expected cursor at 1 after down, got %d", model.LabelSelectorState.cursor)
 	}
 
 	updated, _ = model.Update(tea.KeyMsg{Type: tea.KeyUp})
 	model = updated.(Model)
 
-	if model.labelCursor != 0 {
-		t.Fatalf("expected cursor at 0 after up, got %d", model.labelCursor)
+	if model.LabelSelectorState.cursor != 0 {
+		t.Fatalf("expected cursor at 0 after up, got %d", model.LabelSelectorState.cursor)
 	}
 }
 
@@ -3887,7 +3887,7 @@ func TestLabelSelectorSpaceTogglesSelection(t *testing.T) {
 	updated, _ = model.Update(tea.KeyMsg{Type: tea.KeySpace})
 	model = updated.(Model)
 
-	for _, label := range model.labelPending {
+	for _, label := range model.LabelSelectorState.pending {
 		if label == "bug" {
 			t.Fatal("expected 'bug' to be deselected after Space")
 		}
@@ -3901,7 +3901,7 @@ func TestLabelSelectorSpaceTogglesSelection(t *testing.T) {
 
 	found := false
 
-	for _, label := range model.labelPending {
+	for _, label := range model.LabelSelectorState.pending {
 		if label == "feature" {
 			found = true
 		}
@@ -4056,13 +4056,13 @@ func TestLabelSelectorReopensWithSavedSelection(t *testing.T) {
 
 	featureSelected := false
 
-	for _, label := range model.labelPending {
+	for _, label := range model.LabelSelectorState.pending {
 		if label == "feature" {
 			featureSelected = true
 		}
 	}
 
 	if !featureSelected {
-		t.Fatalf("expected 'feature' in pending after reopen, got %v", model.labelPending)
+		t.Fatalf("expected 'feature' in pending after reopen, got %v", model.LabelSelectorState.pending)
 	}
 }

@@ -232,10 +232,11 @@ func (m Model) openLabelSelector() (Model, tea.Cmd) {
 		}
 
 		m.mode = ModeLabelSelect
-		m.labelCursor = 0
+		m.LabelSelectorState.cursor = 0
+		m.LabelSelectorState.labels = m.projectLabels
 		pending := make([]string, len(item.Labels))
 		copy(pending, item.Labels)
-		m.labelPending = pending
+		m.LabelSelectorState.pending = pending
 
 		return m, nil
 	}
@@ -250,10 +251,11 @@ func (m Model) openLabelSelector() (Model, tea.Cmd) {
 	}
 
 	m.mode = ModeLabelSelect
-	m.labelCursor = 0
+	m.LabelSelectorState.cursor = 0
+	m.LabelSelectorState.labels = m.projectLabels
 	pending := make([]string, len(item.Labels))
 	copy(pending, item.Labels)
-	m.labelPending = pending
+	m.LabelSelectorState.pending = pending
 
 	return m, nil
 }

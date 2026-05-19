@@ -20,6 +20,7 @@ type Model struct {
 	IssueDetailState IssueDetailState
 	DiffViewState
 	ProjectPickerState
+	LabelSelectorState
 	projectPath    string
 	recentProjects []string
 	gitlabProjects []string
@@ -61,9 +62,7 @@ type Model struct {
 	toggleDraftMR        ToggleDraftMRFunc
 	updateMRLabels       UpdateMRLabelsFunc
 	emoji                config.EmojiConfig
-	projectLabels        []mr.Label
-	labelCursor          int
-	labelPending         []string
+	projectLabels []mr.Label
 	submitDrafts         SubmitDraftsFunc
 	discardDrafts        DiscardDraftsFunc
 	discussionCursor     int

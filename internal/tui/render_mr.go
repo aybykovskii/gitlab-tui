@@ -220,29 +220,6 @@ func (m Model) renderLabelSelector() string {
 	width := max(20, m.width-m.leftWidth())
 	height := m.paneHeight()
 	style := paneStyle(width, height, true)
-	lines := []string{"Labels  Space toggle  Enter save  Esc cancel", ""}
 
-	for i, label := range m.projectLabels {
-		marker := "○"
-
-		for _, selected := range m.labelPending {
-			if selected == label.Name {
-				marker = "●"
-				break
-			}
-		}
-
-		cursor := "  "
-		if i == m.labelCursor {
-			cursor = "> "
-		}
-
-		lines = append(lines, fmt.Sprintf("%s%s %s", cursor, marker, renderLabelPill(label.Name, label.Color)))
-	}
-
-	if len(m.projectLabels) == 0 {
-		lines = append(lines, "No project labels")
-	}
-
-	return style.Render(strings.Join(lines, "\n"))
+	return style.Render(m.LabelSelectorState.View(LayoutState{Width: width, Height: height}))
 }
