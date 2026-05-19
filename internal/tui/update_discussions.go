@@ -23,7 +23,7 @@ func (m Model) focusedIssueDiscussion() (issue.Discussion, bool) {
 		return issue.Discussion{}, false
 	}
 
-	discussions := m.issueDiscussions[item.IID]
+	discussions := m.IssueDetailState.discussions[item.IID]
 	if m.discussionCursor < 0 || m.discussionCursor >= len(discussions) {
 		return issue.Discussion{}, false
 	}
@@ -70,7 +70,7 @@ func (m Model) updateIssueDiscussionsTab(msg tea.KeyMsg) (Model, tea.Cmd) {
 	switch {
 	case msg.String() == "j" || msg.String() == "down":
 		if item, ok := m.selectedIssue(); ok {
-			count := len(m.issueDiscussions[item.IID])
+			count := len(m.IssueDetailState.discussions[item.IID])
 			m.discussionCursor = clamp(m.discussionCursor+1, 0, max(0, count-1))
 		}
 	case msg.String() == "k" || msg.String() == "up":

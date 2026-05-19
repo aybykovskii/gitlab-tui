@@ -65,7 +65,7 @@ func (m Model) updateDetailKeys(msg tea.KeyMsg) (Model, tea.Cmd) {
 		}
 
 	case msg.String() == "d":
-		if m.mode == ModeDetail && m.activeTab != TabDiscussions {
+		if m.mode == ModeDetail && m.section == SectionMergeRequests && m.activeTab != TabDiscussions {
 			return m.toggleDraftMRCommand()
 		}
 
@@ -77,6 +77,8 @@ func (m Model) updateDetailKeys(msg tea.KeyMsg) (Model, tea.Cmd) {
 	case msg.String() == "up" || msg.String() == "k":
 		if m.mode == ModeDetail && m.section == SectionMergeRequests {
 			m.MRDetailState.YOffset = max(0, m.MRDetailState.YOffset-1)
+		} else if m.mode == ModeDetail && m.section == SectionIssues {
+			m.IssueDetailState.YOffset = max(0, m.IssueDetailState.YOffset-1)
 		} else if m.mode != ModeDetail {
 			m.moveSelection(-1)
 		}
@@ -84,12 +86,14 @@ func (m Model) updateDetailKeys(msg tea.KeyMsg) (Model, tea.Cmd) {
 	case msg.String() == "down" || msg.String() == "j":
 		if m.mode == ModeDetail && m.section == SectionMergeRequests {
 			m.MRDetailState.YOffset++
+		} else if m.mode == ModeDetail && m.section == SectionIssues {
+			m.IssueDetailState.YOffset++
 		} else if m.mode != ModeDetail {
 			m.moveSelection(1)
 		}
 
 	case msg.String() == "enter":
-		if m.mode == ModeDetail && m.activeTab == TabFiles {
+		if m.mode == ModeDetail && m.section == SectionMergeRequests && m.activeTab == TabFiles {
 			return m.openFileDiff()
 		}
 	}
@@ -109,6 +113,7 @@ func (m Model) handleBack() (Model, tea.Cmd) {
 		m.mode = ModeEntityList
 		m.focus = FocusDetail
 		m.MRDetailState.GotoTop()
+		m.IssueDetailState.GotoTop()
 	}
 
 	return m, nil
@@ -283,7 +288,7 @@ func (m Model) toggleDraftMRCommand() (Model, tea.Cmd) {
 
 func (m Model) cycleTab() (Model, tea.Cmd) {
 	if m.section == SectionIssues {
-		m.activeTab = (m.activeTab + 1) % (TabDiscussions + 1)
+		m.IssueDetailState.activeTab = (m.IssueDetailState.activeTab + 1) % (TabDiscussions + 1)
 		return m, m.loadIssueDiscussionsCommand()
 	}
 

@@ -21,6 +21,9 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		if next.mode == ModeDetail && next.section == SectionMergeRequests {
 			cmd = tea.Batch(cmd, next.MRDetailState.Update(msg))
 		}
+		if next.mode == ModeDetail && next.section == SectionIssues {
+			cmd = tea.Batch(cmd, next.IssueDetailState.Update(msg))
+		}
 		next.syncGlobalKeys()
 
 		return next, cmd
@@ -348,7 +351,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			return m, nil
 		}
 
-		m.issueDiscussions[msg.iid] = msg.discussions
+		m.IssueDetailState.discussions[msg.iid] = msg.discussions
 
 		return m, nil
 	}
@@ -401,7 +404,7 @@ func (m Model) updateKey(msg tea.KeyMsg) (Model, tea.Cmd) {
 			return m.updateMRCommentInput(msg)
 		}
 
-		if m.activeTab == TabReview && msg.String() != "tab" {
+		if m.section == SectionMergeRequests && m.activeTab == TabReview && msg.String() != "tab" {
 			return m.updateReviewTab(msg)
 		}
 
@@ -410,11 +413,11 @@ func (m Model) updateKey(msg tea.KeyMsg) (Model, tea.Cmd) {
 			return m, nil
 		}
 
-		if m.activeTab == TabDiscussions && msg.String() != "tab" {
-			if m.section == SectionIssues {
-				return m.updateIssueDiscussionsTab(msg)
-			}
+		if m.section == SectionIssues && m.IssueDetailState.activeTab == TabDiscussions && msg.String() != "tab" {
+			return m.updateIssueDiscussionsTab(msg)
+		}
 
+		if m.section == SectionMergeRequests && m.activeTab == TabDiscussions && msg.String() != "tab" {
 			return m.updateDiscussionsTab(msg)
 		}
 	}

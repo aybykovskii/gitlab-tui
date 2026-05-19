@@ -15,14 +15,17 @@ func (m Model) renderIssueDetail() string {
 	}
 
 	item := items[clampSelection(m.selected, len(items))]
+	if !m.editInput && !m.issueCommentInput && !m.replyInput {
+		return m.IssueDetailState.View(LayoutState{Width: m.width, Height: m.height, Focus: m.focus, Mode: m.mode}, item)
+	}
 
 	tabs := TabsComponent{
 		Labels: []string{"Summary", "Discussions"},
-		Active: int(m.activeTab),
+		Active: int(m.IssueDetailState.activeTab),
 	}.View()
 
 	header := fmt.Sprintf("#%d %s\n%s", item.IID, item.Title, tabs)
-	if m.activeTab == TabDiscussions {
+	if m.IssueDetailState.activeTab == TabDiscussions {
 		return header + "\n\n" + m.renderIssueDiscussions(item)
 	}
 
@@ -50,7 +53,7 @@ func (m Model) renderIssueDetail() string {
 }
 
 func (m Model) renderIssueDiscussions(item issue.Issue) string {
-	discussions, loaded := m.issueDiscussions[item.IID]
+	discussions, loaded := m.IssueDetailState.discussions[item.IID]
 	if !loaded {
 		return "No discussions"
 	}

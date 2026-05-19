@@ -141,7 +141,11 @@ func (m Model) updateEntityList(msg tea.KeyMsg) (Model, tea.Cmd) {
 	case "enter":
 		m.mode = ModeDetail
 		m.focus = FocusDetail
-		m.activeTab = TabSummary
+		if m.section == SectionIssues {
+			m.IssueDetailState.activeTab = TabSummary
+		} else {
+			m.activeTab = TabSummary
+		}
 	case "esc", "backspace":
 		if m.projectError || (m.projectPath != "" && len(m.items) == 0) {
 			m.errorMessage = ""

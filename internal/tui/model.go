@@ -21,6 +21,7 @@ type Model struct {
 	height   int
 	listTop  int
 	MRDetailState
+	IssueDetailState     IssueDetailState
 	projectPath          string
 	recentProjects       []string
 	recentProjectOptions []RecentProjectOption
@@ -33,7 +34,6 @@ type Model struct {
 	sectionCursor        int
 	entityID             string
 	projectLoaded        bool
-	issueDiscussions     map[int][]issue.Discussion
 	selectedFile         int
 	fileDiffTop          int
 	diffCursor           int
@@ -146,7 +146,7 @@ func NewModelWithProject(items []mr.MergeRequest, options ProjectOptions) Model 
 		loadProject:          options.LoadProject,
 		loadDiscussions:      options.LoadDiscussions,
 		loadFiles:            options.LoadFiles,
-		issueDiscussions:     map[int][]issue.Discussion{},
+		IssueDetailState:     NewIssueDetailState(),
 		rangeStart:           -1,
 		submitDrafts:         options.SubmitDrafts,
 		discardDrafts:        options.DiscardDrafts,

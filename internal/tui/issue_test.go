@@ -155,8 +155,8 @@ func TestIssueDetailTabsStayWithinSummaryAndDiscussions(t *testing.T) {
 		updated, _ := model.Update(tea.KeyMsg{Type: tea.KeyTab})
 
 		model = updated.(Model)
-		if model.activeTab != want {
-			t.Fatalf("expected tab %v, got %v", want, model.activeTab)
+		if model.IssueDetailState.activeTab != want {
+			t.Fatalf("expected tab %v, got %v", want, model.IssueDetailState.activeTab)
 		}
 	}
 }
@@ -315,9 +315,9 @@ func TestIssueDiscussionsTabRendersCommentsAndReplyInput(t *testing.T) {
 
 	model := NewModelWithProject(nil, ProjectOptions{Path: "group/project", Section: SectionIssues})
 	model.mode = ModeDetail
-	model.activeTab = TabDiscussions
+	model.IssueDetailState.activeTab = TabDiscussions
 	model.issueItems = []issue.Issue{{IID: 82, Title: "Issue Discussions"}}
-	model.issueDiscussions = map[int][]issue.Discussion{82: {{ID: "d1", Notes: []mr.Note{{Author: "Alice", Body: "Needs work"}}}}}
+	model.IssueDetailState.discussions = map[int][]issue.Discussion{82: {{ID: "d1", Notes: []mr.Note{{Author: "Alice", Body: "Needs work"}}}}}
 
 	view := model.renderRight()
 	if !strings.Contains(view, "Needs work") {
@@ -377,15 +377,15 @@ func TestIssueDiscussionsIgnoreResolveAndDraftKeys(t *testing.T) {
 
 	model := NewModelWithProject(nil, ProjectOptions{Path: "group/project", Section: SectionIssues})
 	model.mode = ModeDetail
-	model.activeTab = TabDiscussions
+	model.IssueDetailState.activeTab = TabDiscussions
 	model.issueItems = []issue.Issue{{IID: 82, Title: "Issue Discussions"}}
-	model.issueDiscussions = map[int][]issue.Discussion{82: {{ID: "d1", Notes: []mr.Note{{Author: "Alice", Body: "Needs work"}}}}}
+	model.IssueDetailState.discussions = map[int][]issue.Discussion{82: {{ID: "d1", Notes: []mr.Note{{Author: "Alice", Body: "Needs work"}}}}}
 
 	updated, cmd := model.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune("x")})
 	model = updated.(Model)
 
-	if cmd != nil || model.issueDiscussions[82][0].Resolved {
-		t.Fatalf("expected x to be ignored, cmd=%v discussion=%+v", cmd, model.issueDiscussions[82][0])
+	if cmd != nil || model.IssueDetailState.discussions[82][0].Resolved {
+		t.Fatalf("expected x to be ignored, cmd=%v discussion=%+v", cmd, model.IssueDetailState.discussions[82][0])
 	}
 
 	updated, _ = model.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune("d")})

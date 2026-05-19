@@ -181,7 +181,7 @@ func (m Model) loadIssuesCommand() tea.Cmd {
 }
 
 func (m Model) loadIssueDiscussionsCommand() tea.Cmd {
-	if m.activeTab != TabDiscussions || m.loadIssueDiscussions == nil {
+	if m.IssueDetailState.activeTab != TabDiscussions || m.loadIssueDiscussions == nil {
 		return nil
 	}
 
