@@ -91,6 +91,14 @@ func (f *fakeGitLabClient) ToggleDraftMR(ctx context.Context, projectPath string
 	return nil
 }
 
+func (f *fakeGitLabClient) ApproveMergeRequest(ctx context.Context, projectPath string, iid int) error {
+	return nil
+}
+
+func (f *fakeGitLabClient) AcceptMergeRequest(ctx context.Context, projectPath string, iid int) error {
+	return nil
+}
+
 func TestBuildProjectOptionsUsesAccountsAndLimitedRecentProjects(t *testing.T) {
 	t.Parallel()
 

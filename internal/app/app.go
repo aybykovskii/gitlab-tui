@@ -36,6 +36,8 @@ type gitLabClient interface {
 	ListProjectLabels(ctx context.Context, projectPath string) ([]mr.Label, error)
 	UpdateMRLabels(ctx context.Context, projectPath string, iid int, labels []string) error
 	ToggleDraftMR(ctx context.Context, projectPath string, iid int, title string, draft bool) error
+	ApproveMergeRequest(ctx context.Context, projectPath string, iid int) error
+	AcceptMergeRequest(ctx context.Context, projectPath string, iid int) error
 	SearchProjects(ctx context.Context, query string, limit int) ([]string, error)
 }
 
@@ -227,6 +229,12 @@ func buildProjectOptions(cfg *config.Config, configPath string, configLoaded boo
 		toggleDraftMR := func(iid int, title string, draft bool) error { //nolint:unparam
 			return client.ToggleDraftMR(context.Background(), projectPath, iid, title, draft)
 		}
+		approveMR := func(iid int) error {
+			return client.ApproveMergeRequest(context.Background(), projectPath, iid)
+		}
+		mergeMR := func(iid int) error {
+			return client.AcceptMergeRequest(context.Background(), projectPath, iid)
+		}
 
 		return tui.ProjectData{
 			Items: mrRes.items, Issues: issues, Labels: labels,
@@ -236,6 +244,7 @@ func buildProjectOptions(cfg *config.Config, configPath string, configLoaded boo
 			CloseIssue: closeIssue, ReopenIssue: reopenIssue,
 			EditIssue: editIssue, AssignSelfIssue: assignSelfIssue, UnassignSelfIssue: unassignSelfIssue,
 			UpdateMRLabels: updateLabels, ToggleDraftMR: toggleDraftMR,
+			ApproveMR: approveMR, MergeMR: mergeMR,
 		}, nil
 	}
 

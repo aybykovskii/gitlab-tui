@@ -10,8 +10,9 @@ import (
 )
 
 type fakeMergeRequests struct {
-	calls int
-	pages [][]*glab.BasicMergeRequest
+	calls     int
+	pages     [][]*glab.BasicMergeRequest
+	acceptIID int64
 }
 
 type fakeIssues struct {
@@ -37,7 +38,8 @@ type fakeDiscussions struct {
 }
 
 type fakeApprovals struct {
-	configs map[int64]*glab.MergeRequestApprovals
+	configs    map[int64]*glab.MergeRequestApprovals
+	approveIID int64
 }
 
 type fakeProjects struct {
@@ -67,6 +69,11 @@ func (f *fakeMergeRequests) ListProjectMergeRequests(pid any, opt *glab.ListProj
 
 func (f *fakeMergeRequests) ListMergeRequestDiffs(pid any, mergeRequest int64, opt *glab.ListMergeRequestDiffsOptions, options ...glab.RequestOptionFunc) ([]*glab.MergeRequestDiff, *glab.Response, error) {
 	return []*glab.MergeRequestDiff{{Diff: "@@ -1 +1 @@\n-old\n+new"}}, &glab.Response{}, nil
+}
+
+func (f *fakeMergeRequests) AcceptMergeRequest(pid any, mergeRequest int64, opt *glab.AcceptMergeRequestOptions, options ...glab.RequestOptionFunc) (*glab.MergeRequest, *glab.Response, error) {
+	f.acceptIID = mergeRequest
+	return &glab.MergeRequest{}, &glab.Response{}, nil
 }
 
 func (f *fakeIssues) ListProjectIssues(pid any, opt *glab.ListProjectIssuesOptions, options ...glab.RequestOptionFunc) ([]*glab.Issue, *glab.Response, error) {
@@ -131,12 +138,17 @@ func (f *fakeDiscussions) CreateIssueDiscussion(pid any, issue int64, opt *glab.
 	return &glab.Discussion{}, &glab.Response{}, nil
 }
 
-func (f fakeApprovals) GetConfiguration(pid any, mergeRequest int64, options ...glab.RequestOptionFunc) (*glab.MergeRequestApprovals, *glab.Response, error) {
+func (f *fakeApprovals) GetConfiguration(pid any, mergeRequest int64, options ...glab.RequestOptionFunc) (*glab.MergeRequestApprovals, *glab.Response, error) {
 	if f.configs == nil {
 		return nil, &glab.Response{}, nil
 	}
 
 	return f.configs[mergeRequest], &glab.Response{}, nil
+}
+
+func (f *fakeApprovals) ApproveMergeRequest(pid any, mergeRequest int64, opt *glab.ApproveMergeRequestOptions, options ...glab.RequestOptionFunc) (*glab.MergeRequestApprovals, *glab.Response, error) {
+	f.approveIID = mergeRequest
+	return &glab.MergeRequestApprovals{}, &glab.Response{}, nil
 }
 
 func (f *fakeProjects) ListProjects(opt *glab.ListProjectsOptions, options ...glab.RequestOptionFunc) ([]*glab.Project, *glab.Response, error) {
@@ -386,7 +398,7 @@ func TestAddIssueCommentCreatesIssueDiscussion(t *testing.T) {
 func TestOpenMergeRequestsAddsApprovalCounts(t *testing.T) {
 	t.Parallel()
 
-	client := NewClientWithServices(&fakeMergeRequests{pages: [][]*glab.BasicMergeRequest{{{IID: 3, Title: "MR"}}}}, fakeApprovals{
+	client := NewClientWithServices(&fakeMergeRequests{pages: [][]*glab.BasicMergeRequest{{{IID: 3, Title: "MR"}}}}, &fakeApprovals{
 		configs: map[int64]*glab.MergeRequestApprovals{3: {ApprovalsRequired: 2, ApprovalsLeft: 1}},
 	})
 

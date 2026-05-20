@@ -21,10 +21,12 @@ import (
 type MergeRequestClient interface {
 	ListProjectMergeRequests(pid any, opt *glab.ListProjectMergeRequestsOptions, options ...glab.RequestOptionFunc) ([]*glab.BasicMergeRequest, *glab.Response, error)
 	ListMergeRequestDiffs(pid any, mergeRequest int64, opt *glab.ListMergeRequestDiffsOptions, options ...glab.RequestOptionFunc) ([]*glab.MergeRequestDiff, *glab.Response, error)
+	AcceptMergeRequest(pid any, mergeRequest int64, opt *glab.AcceptMergeRequestOptions, options ...glab.RequestOptionFunc) (*glab.MergeRequest, *glab.Response, error)
 }
 
 type MergeRequestApprovalsClient interface {
 	GetConfiguration(pid any, mr int64, options ...glab.RequestOptionFunc) (*glab.MergeRequestApprovals, *glab.Response, error)
+	ApproveMergeRequest(pid any, mr int64, opt *glab.ApproveMergeRequestOptions, options ...glab.RequestOptionFunc) (*glab.MergeRequestApprovals, *glab.Response, error)
 }
 
 type IssuesClient interface {
