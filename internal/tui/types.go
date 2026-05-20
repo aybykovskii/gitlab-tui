@@ -72,6 +72,17 @@ type ProjectData struct {
 	UnassignSelfIssue    IssueStateActionFunc
 	UpdateMRLabels       UpdateMRLabelsFunc
 	ToggleDraftMR        ToggleDraftMRFunc
+	SubmitDrafts         SubmitDraftsFunc
+	DiscardDrafts        DiscardDraftsFunc
+	ReplyToDiscussion    ReplyToDiscussionFunc
+	DraftReply           DraftReplyFunc
+	ResolveDiscussion    ResolveDiscussionFunc
+	UnresolveDiscussion  UnresolveDiscussionFunc
+	PostInlineComment    PostInlineCommentFunc
+	PostMRComment        PostMRCommentFunc
+	ApproveMR            ApproveMRFunc
+	MergeMR              MergeMRFunc
+	EditMR               EditMRFunc
 }
 
 type AccountProjectLoader struct {

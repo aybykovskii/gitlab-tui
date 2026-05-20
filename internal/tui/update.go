@@ -134,6 +134,18 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			m.toggleDraftMR = msg.data.ToggleDraftMR
 		}
 
+		m.submitDrafts = msg.data.SubmitDrafts
+		m.discardDrafts = msg.data.DiscardDrafts
+		m.replyToDiscussion = msg.data.ReplyToDiscussion
+		m.draftReply = msg.data.DraftReply
+		m.resolveDiscussion = msg.data.ResolveDiscussion
+		m.unresolveDiscussion = msg.data.UnresolveDiscussion
+		m.postInlineComment = msg.data.PostInlineComment
+		m.postMRComment = msg.data.PostMRComment
+		m.approveMR = msg.data.ApproveMR
+		m.mergeMR = msg.data.MergeMR
+		m.editMR = msg.data.EditMR
+
 		m.issueItems = msg.data.Issues
 		m.refresh = msg.data.Refresh
 		m.loadIssues = msg.data.LoadIssues
