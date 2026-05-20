@@ -83,6 +83,14 @@ func (f *fakeGitLabClient) UpdateMRLabels(ctx context.Context, projectPath strin
 	return nil
 }
 
+func (f *fakeGitLabClient) SearchProjects(ctx context.Context, query string, limit int) ([]string, error) {
+	return nil, nil
+}
+
+func (f *fakeGitLabClient) ToggleDraftMR(ctx context.Context, projectPath string, iid int, title string, draft bool) error {
+	return nil
+}
+
 func TestBuildProjectOptionsUsesAccountsAndLimitedRecentProjects(t *testing.T) {
 	t.Parallel()
 
@@ -248,7 +256,7 @@ func TestLoadProjectIncludesLabelsInProjectData(t *testing.T) {
 		}, nil
 	})
 
-	data, err := options.LoadProject("group/project")
+	data, err := options.LoadProject("group/project", "")
 	if err != nil {
 		t.Fatalf("loadProject: %v", err)
 	}

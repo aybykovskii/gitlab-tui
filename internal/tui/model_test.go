@@ -372,7 +372,7 @@ func TestProjectSelectionGoesToSectionsImmediately(t *testing.T) {
 
 	model := NewModelWithProject(nil, ProjectOptions{
 		Recents: []string{"group/one", "group/two"},
-		LoadProject: func(path string) (ProjectData, error) {
+		LoadProject: func(path string, _ string) (ProjectData, error) {
 			return ProjectData{Items: []mr.MergeRequest{{IID: 42, Title: "Loaded"}}}, nil
 		},
 	})
@@ -447,7 +447,7 @@ func TestProjectLoadErrorRetryReloadsSameProject(t *testing.T) {
 	calls := 0
 	model := NewModelWithProject(FakeMergeRequests(), ProjectOptions{
 		Recents: []string{"group/project"},
-		LoadProject: func(path string) (ProjectData, error) {
+		LoadProject: func(path string, _ string) (ProjectData, error) {
 			calls++
 			if path != "group/project" {
 				t.Fatalf("expected retry path group/project, got %q", path)
@@ -497,7 +497,7 @@ func TestManualProjectInputGoesToSectionsImmediately(t *testing.T) {
 	t.Parallel()
 
 	model := NewModelWithProject(nil, ProjectOptions{
-		LoadProject: func(path string) (ProjectData, error) {
+		LoadProject: func(path string, _ string) (ProjectData, error) {
 			return ProjectData{Items: []mr.MergeRequest{{IID: 7, Title: "Manual"}}}, nil
 		},
 	})
@@ -2782,7 +2782,7 @@ func TestMRSectionSelectionTriggersLoadingWhenNotLoaded(t *testing.T) {
 	loadCalled := false
 	model := NewModelWithProject(nil, ProjectOptions{
 		Recents: []string{"group/project"},
-		LoadProject: func(path string) (ProjectData, error) {
+		LoadProject: func(path string, _ string) (ProjectData, error) {
 			loadCalled = true
 			return ProjectData{Items: []mr.MergeRequest{{IID: 1, Title: "Loaded MR"}}}, nil
 		},
@@ -2814,7 +2814,7 @@ func TestMRSectionLoadingCompletionShowsMRList(t *testing.T) {
 
 	model := NewModelWithProject(nil, ProjectOptions{
 		Recents:     []string{"group/project"},
-		LoadProject: func(path string) (ProjectData, error) { return ProjectData{}, nil },
+		LoadProject: func(path string, _ string) (ProjectData, error) { return ProjectData{}, nil },
 	})
 
 	// Project selection → sections
@@ -2856,7 +2856,7 @@ func entityListModel(t *testing.T) Model {
 
 	model := NewModelWithProject(nil, ProjectOptions{
 		Recents:     []string{"group/project"},
-		LoadProject: func(path string) (ProjectData, error) { return ProjectData{}, nil },
+		LoadProject: func(path string, _ string) (ProjectData, error) { return ProjectData{}, nil },
 	})
 	updated, _ := model.Update(tea.KeyMsg{Type: tea.KeyEnter}) // select project → ModeSections
 	model = updated.(Model)
@@ -3205,7 +3205,7 @@ func TestProjectSelectShowsLoadedAccountProjectsAndSkipsHeaders(t *testing.T) {
 	updated, _ = model.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'j'}})
 
 	model = updated.(Model)
-	if got, ok := model.ProjectPickerState.selectedProject(); !ok || got != "group/two" {
+	if got, _, ok := model.ProjectPickerState.selectedProject(); !ok || got != "group/two" {
 		t.Fatalf("expected second project selected, got %q ok=%t", got, ok)
 	}
 }
@@ -3646,7 +3646,7 @@ func TestDKeyInModeDetailCallsToggleDraftFunc(t *testing.T) {
 	model := NewModelWithProject(items, ProjectOptions{
 		Path:    "group/project",
 		Section: SectionMergeRequests,
-		ToggleDraftMR: func(iid int) error {
+		ToggleDraftMR: func(iid int, _ string, _ bool) error {
 			calledIID = iid
 			return nil
 		},

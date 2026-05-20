@@ -2,10 +2,18 @@ package tui
 
 import (
 	"strings"
+	"time"
 
 	"github.com/charmbracelet/bubbles/key"
 	tea "github.com/charmbracelet/bubbletea"
 )
+
+func searchDebounceCmd(token int, query string) tea.Cmd {
+	return func() tea.Msg {
+		time.Sleep(time.Second)
+		return searchDebounceMsg{token: token, query: query}
+	}
+}
 
 func (m Model) updateProjectSelect(msg tea.KeyMsg) (Model, tea.Cmd) {
 	pp := &m.ProjectPickerState
@@ -14,6 +22,8 @@ func (m Model) updateProjectSelect(msg tea.KeyMsg) (Model, tea.Cmd) {
 		case tea.KeyEsc:
 			pp.query = ""
 			pp.projectFilterActive = false
+			pp.searchResults = nil
+			pp.searchQuery = ""
 			pp.rebuildRows()
 			pp.selected = pp.nearestSelectable(0)
 
@@ -23,6 +33,15 @@ func (m Model) updateProjectSelect(msg tea.KeyMsg) (Model, tea.Cmd) {
 				pp.query = pp.query[:len(pp.query)-1]
 				pp.rebuildRows()
 				pp.selected = pp.nearestSelectable(0)
+
+				if pp.query == "" {
+					pp.searchResults = nil
+					pp.searchQuery = ""
+					return m, nil
+				}
+
+				pp.searchToken++
+				return m, searchDebounceCmd(pp.searchToken, pp.query)
 			}
 
 			return m, nil
@@ -30,8 +49,9 @@ func (m Model) updateProjectSelect(msg tea.KeyMsg) (Model, tea.Cmd) {
 			pp.query += msg.String()
 			pp.rebuildRows()
 			pp.selected = pp.nearestSelectable(0)
+			pp.searchToken++
 
-			return m, nil
+			return m, searchDebounceCmd(pp.searchToken, pp.query)
 		}
 	}
 
@@ -51,8 +71,8 @@ func (m Model) updateProjectSelect(msg tea.KeyMsg) (Model, tea.Cmd) {
 	case key.Matches(msg, m.projectListKeys.Down):
 		pp.selected = pp.nextSelectable(pp.selected, 1)
 	case key.Matches(msg, m.projectListKeys.Open):
-		if project, ok := pp.selectedProject(); ok {
-			return m.selectProject(project)
+		if project, accountID, ok := pp.selectedProject(); ok {
+			return m.selectProject(project, accountID)
 		}
 	case key.Matches(msg, m.projectListKeys.Retry):
 		return m, m.retryFailedProjectLoads()
@@ -71,7 +91,7 @@ func (m Model) updateProjectInput(msg tea.KeyMsg) (Model, tea.Cmd) {
 	switch msg.Type {
 	case tea.KeyEnter:
 		if trimmed := strings.TrimSpace(pp.projectInput); trimmed != "" {
-			return m.selectProject(trimmed)
+			return m.selectProject(trimmed, "")
 		}
 	case tea.KeyBackspace:
 		if len(pp.projectInput) > 0 {
@@ -101,7 +121,7 @@ func (m Model) updateSections(msg tea.KeyMsg) (Model, tea.Cmd) {
 				return m, nil
 			}
 
-			return m.openProjectCommand(m.projectPath)
+			return m.openProjectCommand(m.projectPath, m.projectAccountID)
 		}
 
 		if sec.available && sec.id == SectionIssues {
@@ -165,7 +185,7 @@ func (m Model) updateEntityList(msg tea.KeyMsg) (Model, tea.Cmd) {
 		m.focus = FocusFilter
 	case "r":
 		if m.projectError && m.projectPath != "" {
-			return m.openProjectCommand(m.projectPath)
+			return m.openProjectCommand(m.projectPath, m.projectAccountID)
 		}
 
 		return m, m.refreshCommand()

@@ -71,12 +71,14 @@ type ProjectData struct {
 	AssignSelfIssue      IssueStateActionFunc
 	UnassignSelfIssue    IssueStateActionFunc
 	UpdateMRLabels       UpdateMRLabelsFunc
+	ToggleDraftMR        ToggleDraftMRFunc
 }
 
 type AccountProjectLoader struct {
-	ID   string
-	Host string
-	Load AccountProjectsLoadFunc
+	ID     string
+	Host   string
+	Load   AccountProjectsLoadFunc
+	Search AccountProjectSearchFunc // optional; nil = local filter only
 }
 
 type RecentProjectOption struct {

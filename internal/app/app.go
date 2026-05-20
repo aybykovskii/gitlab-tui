@@ -33,6 +33,8 @@ type gitLabClient interface {
 	MergeRequestChangedFiles(ctx context.Context, projectPath string, iid int) ([]mr.ChangedFile, error)
 	ListProjectLabels(ctx context.Context, projectPath string) ([]mr.Label, error)
 	UpdateMRLabels(ctx context.Context, projectPath string, iid int, labels []string) error
+	ToggleDraftMR(ctx context.Context, projectPath string, iid int, title string, draft bool) error
+	SearchProjects(ctx context.Context, query string, limit int) ([]string, error)
 }
 
 type gitLabClientFactory func(config.Account) (gitLabClient, error)
@@ -116,10 +118,15 @@ func (a App) runTUI(stdout io.Writer, stderr io.Writer, intent CLIIntent) int {
 }
 
 func buildProjectOptions(cfg *config.Config, configPath string, configLoaded bool, resolution ProjectResolution, intent CLIIntent, newClient gitLabClientFactory) tui.ProjectOptions {
-	loadProject := func(projectPath string) (tui.ProjectData, error) {
-		account, ok := cfg.Account(resolution.Account)
+	loadProject := func(projectPath string, accountID string) (tui.ProjectData, error) {
+		resolvedAccountID := resolution.Account
+		if accountID != "" {
+			resolvedAccountID = accountID
+		}
+
+		account, ok := cfg.Account(resolvedAccountID)
 		if !ok {
-			return tui.ProjectData{}, fmt.Errorf("account %q not found", resolution.Account)
+			return tui.ProjectData{}, fmt.Errorf("account %q not found", resolvedAccountID)
 		}
 
 		client, err := newClient(account)
@@ -213,6 +220,9 @@ func buildProjectOptions(cfg *config.Config, configPath string, configLoaded boo
 		updateLabels := func(iid int, lbls []string) error {
 			return client.UpdateMRLabels(context.Background(), projectPath, iid, lbls)
 		}
+		toggleDraftMR := func(iid int, title string, draft bool) error { //nolint:unparam
+			return client.ToggleDraftMR(context.Background(), projectPath, iid, title, draft)
+		}
 
 		return tui.ProjectData{
 			Items: mrRes.items, Issues: issues, Labels: labels,
@@ -221,7 +231,7 @@ func buildProjectOptions(cfg *config.Config, configPath string, configLoaded boo
 			LoadDiscussions: loadDiscussions, LoadFiles: loadFiles,
 			CloseIssue: closeIssue, ReopenIssue: reopenIssue,
 			EditIssue: editIssue, AssignSelfIssue: assignSelfIssue, UnassignSelfIssue: unassignSelfIssue,
-			UpdateMRLabels: updateLabels,
+			UpdateMRLabels: updateLabels, ToggleDraftMR: toggleDraftMR,
 		}, nil
 	}
 
@@ -242,6 +252,19 @@ func buildProjectOptions(cfg *config.Config, configPath string, configLoaded boo
 					return nil, fmt.Errorf("create GitLab client: %w", gitLabUserError(err))
 				}
 				projects, err := client.ListProjects(context.Background(), 15)
+				if err != nil {
+					return nil, gitLabUserError(err)
+				}
+
+				return projects, nil
+			},
+			Search: func(query string) ([]string, error) {
+				client, err := newClient(account)
+				if err != nil {
+					return nil, fmt.Errorf("create GitLab client: %w", gitLabUserError(err))
+				}
+
+				projects, err := client.SearchProjects(context.Background(), query, 15)
 				if err != nil {
 					return nil, gitLabUserError(err)
 				}

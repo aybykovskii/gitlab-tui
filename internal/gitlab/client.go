@@ -3,12 +3,14 @@ package gitlab
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"strings"
 
 	glab "gitlab.com/gitlab-org/api/client-go"
 
 	"github.com/aybykovskii/gitlab-tui/internal/config"
+	"github.com/aybykovskii/gitlab-tui/internal/debuglog"
 	"github.com/aybykovskii/gitlab-tui/internal/issue"
 	"github.com/aybykovskii/gitlab-tui/internal/mr"
 	"github.com/aybykovskii/gitlab-tui/pkg/diff"
@@ -57,13 +59,17 @@ type Client struct {
 }
 
 func NewClient(account config.Account, env []string) (Client, error) {
+	debuglog.Log("NewClient: account=%s host=%s", account.ID, account.Host)
+
 	token, err := account.Token(env)
 	if err != nil {
+		debuglog.Log("NewClient: token error: %v", err)
 		return Client{}, err
 	}
 
 	client, err := glab.NewClient(token, glab.WithBaseURL(account.Host))
 	if err != nil {
+		debuglog.Log("NewClient: glab.NewClient error: %v", err)
 		return Client{}, err
 	}
 
@@ -135,10 +141,42 @@ func (c Client) ListProjects(ctx context.Context, limit int) ([]string, error) {
 	return paths, nil
 }
 
+func (c Client) SearchProjects(ctx context.Context, query string, limit int) ([]string, error) {
+	if c.projects == nil {
+		return nil, ErrClientNotConfigured
+	}
+
+	membership := true
+
+	items, _, err := c.projects.ListProjects(&glab.ListProjectsOptions{
+		Membership: &membership,
+		Search:     &query,
+		ListOptions: glab.ListOptions{
+			PerPage: int64(limit),
+			Page:    1,
+		},
+	}, glab.WithContext(ctx))
+	if err != nil {
+		return nil, normalizeError(err)
+	}
+
+	paths := make([]string, 0, len(items))
+
+	for _, item := range items {
+		if item != nil {
+			paths = append(paths, item.PathWithNamespace)
+		}
+	}
+
+	return paths, nil
+}
+
 func (c Client) OpenMergeRequests(ctx context.Context, projectPath string) ([]mr.MergeRequest, error) {
 	if c.mergeRequests == nil {
 		return nil, ErrClientNotConfigured
 	}
+
+	debuglog.Log("OpenMergeRequests: project=%s", projectPath)
 
 	state := "opened"
 	options := &glab.ListProjectMergeRequestsOptions{
@@ -154,19 +192,25 @@ func (c Client) OpenMergeRequests(ctx context.Context, projectPath string) ([]mr
 	for {
 		items, response, err := c.mergeRequests.ListProjectMergeRequests(projectPath, options, glab.WithContext(ctx))
 		if err != nil {
+			debuglog.Log("OpenMergeRequests: error listing MRs for %s: %T %v", projectPath, err, err)
+
+			if errors.Is(err, glab.ErrNotFound) {
+				c.debugProjectMRAccess(ctx, projectPath)
+				break
+			}
+
 			return nil, normalizeError(err)
 		}
+
+		debuglog.Log("OpenMergeRequests: page %d — got %d items", options.Page, len(items))
 
 		for _, item := range items {
 			mapped := MapMergeRequest(item)
 
 			if c.approvals != nil && item != nil {
-				approval, _, approvalErr := c.approvals.GetConfiguration(projectPath, item.IID, glab.WithContext(ctx))
-				if approvalErr != nil {
-					return nil, approvalErr
+				if approval, _, approvalErr := c.approvals.GetConfiguration(projectPath, item.IID, glab.WithContext(ctx)); approvalErr == nil {
+					mapped.Approvals = formatApprovals(approval)
 				}
-
-				mapped.Approvals = formatApprovals(approval)
 			}
 
 			result = append(result, mapped)
@@ -641,4 +685,26 @@ func MapChangedFile(item *glab.MergeRequestDiff) mr.ChangedFile {
 		RemovedLines: removed,
 		Diff:         rows,
 	}
+}
+
+type projectDetailClient interface {
+	GetProject(pid any, opt *glab.GetProjectOptions, options ...glab.RequestOptionFunc) (*glab.Project, *glab.Response, error)
+}
+
+// debugProjectMRAccess logs project MR access details when the MR list returns 404.
+func (c Client) debugProjectMRAccess(ctx context.Context, projectPath string) {
+	getter, ok := c.projects.(projectDetailClient)
+	if !ok {
+		debuglog.Log("OpenMergeRequests: 404 — projects client does not support GetProject")
+		return
+	}
+
+	project, _, err := getter.GetProject(projectPath, nil, glab.WithContext(ctx))
+	if err != nil {
+		debuglog.Log("OpenMergeRequests: 404 — could not fetch project details: %v", err)
+		return
+	}
+
+	debuglog.Log("OpenMergeRequests: 404 — project %s: merge_requests_access_level=%s",
+		projectPath, project.MergeRequestsAccessLevel)
 }

@@ -70,6 +70,43 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.ProjectPickerState.selected = m.ProjectPickerState.nearestSelectable(m.ProjectPickerState.selected)
 
 		return m, nil
+	case searchDebounceMsg:
+		pp := &m.ProjectPickerState
+		if msg.token != pp.searchToken || msg.query != pp.query {
+			return m, nil
+		}
+
+		var cmds []tea.Cmd
+		for _, loader := range pp.loadProjects {
+			if loader.Search == nil {
+				continue
+			}
+
+			l := loader
+			q := msg.query
+			cmds = append(cmds, func() tea.Msg {
+				projects, err := l.Search(q)
+				return accountSearchFinishedMsg{accountID: l.ID, projects: projects, query: q, err: err}
+			})
+		}
+
+		return m, tea.Batch(cmds...)
+	case accountSearchFinishedMsg:
+		pp := &m.ProjectPickerState
+		if msg.query != pp.query || msg.err != nil {
+			return m, nil
+		}
+
+		if pp.searchResults == nil {
+			pp.searchResults = map[string][]string{}
+		}
+
+		pp.searchResults[msg.accountID] = msg.projects
+		pp.searchQuery = msg.query
+		m.rebuildProjectRows()
+		pp.selected = pp.nearestSelectable(pp.selected)
+
+		return m, nil
 	case projectFinishedMsg:
 		m.loading = false
 		m.projectLoading = false
@@ -91,6 +128,10 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 		if msg.data.UpdateMRLabels != nil {
 			m.updateMRLabels = msg.data.UpdateMRLabels
+		}
+
+		if msg.data.ToggleDraftMR != nil {
+			m.toggleDraftMR = msg.data.ToggleDraftMR
 		}
 
 		m.issueItems = msg.data.Issues

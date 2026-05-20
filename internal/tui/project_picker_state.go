@@ -19,6 +19,9 @@ type ProjectPickerState struct {
 	selected             int
 	query                string
 	rowList              list.Model
+	searchToken          int
+	searchResults        map[string][]string // accountID → server results (valid only when searchQuery == query)
+	searchQuery          string              // query for which searchResults were fetched
 }
 
 func NewProjectPickerState(recents []RecentProjectOption, loaders []AccountProjectLoader, staticProjects ...string) ProjectPickerState {
@@ -179,6 +182,9 @@ func (s *ProjectPickerState) rebuildRows() {
 
 			return ""
 		})
+		for i := range rows {
+			rows[i].accountID = accountOf[rows[i].project]
+		}
 		s.projectRows = append(s.projectRows, rows...)
 	}
 
@@ -192,7 +198,18 @@ func (s *ProjectPickerState) rebuildRows() {
 
 	for _, loader := range s.loadProjects {
 		state := s.accountProjectStates[loader.ID]
-		projects := filteredProjectPaths(state.projects[:min(len(state.projects), 15)], s.query)
+
+		var projects []string
+		if s.query != "" && s.searchQuery == s.query {
+			if sr, ok := s.searchResults[loader.ID]; ok {
+				projects = sr
+			}
+		}
+
+		if projects == nil {
+			projects = filteredProjectPaths(state.projects[:min(len(state.projects), 15)], s.query)
+		}
+
 		showStatus := !s.projectFilterActive && len(projects) == 0
 
 		if len(projects) == 0 && !showStatus {
@@ -212,7 +229,11 @@ func (s *ProjectPickerState) rebuildRows() {
 			continue
 		}
 
-		s.projectRows = append(s.projectRows, nsGroupedRows(projects, nil)...)
+		accountRows := nsGroupedRows(projects, nil)
+		for i := range accountRows {
+			accountRows[i].accountID = loader.ID
+		}
+		s.projectRows = append(s.projectRows, accountRows...)
 	}
 
 	items := make([]list.Item, len(s.projectRows))
@@ -223,12 +244,14 @@ func (s *ProjectPickerState) rebuildRows() {
 	_ = s.rowList.SetItems(items)
 }
 
-func (s ProjectPickerState) selectedProject() (string, bool) {
+func (s ProjectPickerState) selectedProject() (project string, accountID string, ok bool) {
 	if s.selected < 0 || s.selected >= len(s.projectRows) || !s.projectRows[s.selected].selectable {
-		return "", false
+		return "", "", false
 	}
 
-	return s.projectRows[s.selected].project, true
+	row := s.projectRows[s.selected]
+
+	return row.project, row.accountID, true
 }
 
 func (s ProjectPickerState) nextSelectable(from int, delta int) int {

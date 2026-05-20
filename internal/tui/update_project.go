@@ -18,8 +18,9 @@ func (m *Model) returnToProjectPicker() {
 	m.focus = FocusFilter
 }
 
-func (m Model) selectProject(path string) (Model, tea.Cmd) {
+func (m Model) selectProject(path string, accountID string) (Model, tea.Cmd) {
 	m.projectPath = path
+	m.projectAccountID = accountID
 	m.mode = ModeSections
 	m.focus = FocusDetail
 	m.EntityListState.mrList.Select(0)
@@ -43,8 +44,9 @@ func (m Model) selectProject(path string) (Model, tea.Cmd) {
 	return m, nil
 }
 
-func (m Model) openProjectCommand(path string) (Model, tea.Cmd) {
+func (m Model) openProjectCommand(path string, accountID string) (Model, tea.Cmd) {
 	m.projectPath = path
+	m.projectAccountID = accountID
 	m.mode = ModeEntityList
 	m.focus = FocusDetail
 	m.EntityListState.mrList.Select(0)
@@ -60,7 +62,7 @@ func (m Model) openProjectCommand(path string) (Model, tea.Cmd) {
 	return m, tea.Sequence(
 		func() tea.Msg { return projectStartedMsg{path: path} },
 		func() tea.Msg {
-			data, err := loadProject(path)
+			data, err := loadProject(path, accountID)
 			return projectFinishedMsg{path: path, data: data, err: err}
 		},
 	)

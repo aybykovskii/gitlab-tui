@@ -19,7 +19,7 @@ func (m Model) updateDetailKeys(msg tea.KeyMsg) (Model, tea.Cmd) {
 
 	case msg.String() == "r":
 		if m.projectError && m.projectPath != "" {
-			return m.openProjectCommand(m.projectPath)
+			return m.openProjectCommand(m.projectPath, m.projectAccountID)
 		}
 
 		return m, m.refreshCommand()
@@ -283,9 +283,11 @@ func (m Model) toggleDraftMRCommand() (Model, tea.Cmd) {
 
 	callback := m.toggleDraftMR
 	iid := item.IID
+	title := item.Title
+	newDraft := !prev
 
 	return m, func() tea.Msg {
-		err := callback(iid)
+		err := callback(iid, title, newDraft)
 		return toggleDraftFinishedMsg{iid: iid, prev: prev, err: err}
 	}
 }

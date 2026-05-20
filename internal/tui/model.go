@@ -24,6 +24,7 @@ type Model struct {
 	LabelSelectorState
 	InputState
 	projectList          []string
+	projectAccountID     string
 	section              Section
 	sectionList          list.Model
 	entityID             string
@@ -186,7 +187,7 @@ func programOptions(stdout io.Writer) []tea.ProgramOption {
 
 func (m Model) Init() tea.Cmd {
 	if m.projectPath != "" && m.loadProject != nil && !m.projectLoaded && (m.section == SectionMergeRequests || m.section == SectionIssues) {
-		_, cmd := m.openProjectCommand(m.projectPath)
+		_, cmd := m.openProjectCommand(m.projectPath, m.projectAccountID)
 		return cmd
 	}
 

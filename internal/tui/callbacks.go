@@ -9,8 +9,9 @@ type (
 	RefreshFunc              func() ([]mr.MergeRequest, error)
 	LoadIssuesFunc           func(state string, search string) ([]issue.Issue, error)
 	LoadIssueDiscussionsFunc func(iid int) ([]issue.Discussion, error)
-	ProjectLoadFunc          func(path string) (ProjectData, error)
-	AccountProjectsLoadFunc  func() ([]string, error)
+	ProjectLoadFunc          func(path string, accountID string) (ProjectData, error)
+	AccountProjectsLoadFunc   func() ([]string, error)
+	AccountProjectSearchFunc  func(query string) ([]string, error)
 	LoadDiscussionsFunc      func(iid int) ([]mr.Discussion, error)
 	LoadFilesFunc            func(iid int) ([]mr.ChangedFile, error)
 	SubmitDraftsFunc         func(iid int, drafts []mr.DraftComment) error
@@ -29,6 +30,6 @@ type (
 	EditMRFunc               func(iid int, title, description string) error
 	OpenURLFunc              func(url string) error
 	OpenEditorFunc           func(path string, line int) error
-	ToggleDraftMRFunc        func(iid int) error
+	ToggleDraftMRFunc        func(iid int, title string, draft bool) error
 	UpdateMRLabelsFunc       func(iid int, labels []string) error
 )

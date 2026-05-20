@@ -35,6 +35,7 @@ type projectListRow struct {
 	project    string
 	label      string
 	selectable bool
+	accountID  string
 }
 
 func (r projectListRow) FilterValue() string { return r.project }
@@ -153,6 +154,18 @@ type updateMRLabelsFinishedMsg struct {
 	labels []string
 	prev   []string
 	err    error
+}
+
+type searchDebounceMsg struct {
+	token int
+	query string
+}
+
+type accountSearchFinishedMsg struct {
+	accountID string
+	projects  []string
+	query     string
+	err       error
 }
 
 type refreshStartedMsg struct{}
