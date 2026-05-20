@@ -519,8 +519,10 @@ func (m Model) leftWidth() int {
 		pct = w.EntityList
 	case ModeDetail, ModeLabelSelect:
 		pct = w.Detail
-	default:
+	case ModeSections:
 		pct = w.Sections
+	default: // ModeProjectSelect, ModeProjectInput
+		pct = w.Projects
 	}
 
 	if pct == 0 {

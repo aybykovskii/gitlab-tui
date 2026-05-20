@@ -34,6 +34,7 @@ type LayoutConfig struct {
 // LeftPanelWidthConfig sets the left panel width as a percentage of the terminal width
 // for each navigation level. Valid range: 10–90. Zero values fall back to the default (35).
 type LeftPanelWidthConfig struct {
+	Projects   int `yaml:"projects"`
 	Sections   int `yaml:"sections"`
 	EntityList int `yaml:"entity_list"`
 	Detail     int `yaml:"detail"`
@@ -43,6 +44,7 @@ type LeftPanelWidthConfig struct {
 func DefaultLayoutConfig() LayoutConfig {
 	return LayoutConfig{
 		LeftPanelWidth: LeftPanelWidthConfig{
+			Projects:   35,
 			Sections:   35,
 			EntityList: 35,
 			Detail:     35,
@@ -190,7 +192,7 @@ func (c Config) Validate() error {
 
 	w := c.Layout.LeftPanelWidth
 	for name, v := range map[string]int{
-		"sections": w.Sections, "entity_list": w.EntityList,
+		"projects": w.Projects, "sections": w.Sections, "entity_list": w.EntityList,
 		"detail": w.Detail, "file_diff": w.FileDiff,
 	} {
 		if v != 0 && (v < 10 || v > 90) {

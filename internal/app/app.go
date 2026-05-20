@@ -225,7 +225,7 @@ func buildProjectOptions(cfg *config.Config, configPath string, configLoaded boo
 		}, nil
 	}
 
-	options := tui.ProjectOptions{Path: resolution.Path, Section: intent.Section, EntityID: intent.EntityID, LoadProject: loadProject}
+	options := tui.ProjectOptions{Path: resolution.Path, Section: intent.Section, EntityID: intent.EntityID, LoadProject: loadProject, Emoji: cfg.Emoji, Layout: cfg.Layout}
 	for _, recent := range cfg.RecentProjects() {
 		options.Recents = append(options.Recents, recent.Path)
 		options.RecentProjects = append(options.RecentProjects, tui.RecentProjectOption{Path: recent.Path, Account: recent.Account})
