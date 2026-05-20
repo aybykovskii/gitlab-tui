@@ -23,6 +23,32 @@ type Config struct {
 	RecentProjectsLimit  int             `yaml:"recent_projects_limit"`
 	RecentProjectHistory []RecentProject `yaml:"recent_projects,omitempty"`
 	Emoji                EmojiConfig     `yaml:"emoji"`
+	Layout               LayoutConfig    `yaml:"layout"`
+}
+
+// LayoutConfig holds UI layout settings.
+type LayoutConfig struct {
+	LeftPanelWidth LeftPanelWidthConfig `yaml:"left_panel_width"`
+}
+
+// LeftPanelWidthConfig sets the left panel width as a percentage of the terminal width
+// for each navigation level. Valid range: 10–90. Zero values fall back to the default (35).
+type LeftPanelWidthConfig struct {
+	Sections   int `yaml:"sections"`
+	EntityList int `yaml:"entity_list"`
+	Detail     int `yaml:"detail"`
+	FileDiff   int `yaml:"file_diff"`
+}
+
+func DefaultLayoutConfig() LayoutConfig {
+	return LayoutConfig{
+		LeftPanelWidth: LeftPanelWidthConfig{
+			Sections:   35,
+			EntityList: 35,
+			Detail:     35,
+			FileDiff:   35,
+		},
+	}
 }
 
 type Account struct {
@@ -50,7 +76,8 @@ func Default() Config {
 			Host:     "https://gitlab.com",
 			TokenEnv: DefaultTokenEnv,
 		}},
-		Emoji: DefaultEmojiConfig(),
+		Emoji:  DefaultEmojiConfig(),
+		Layout: DefaultLayoutConfig(),
 	}
 }
 
@@ -159,6 +186,16 @@ func (c Config) Validate() error {
 
 	if !defaultFound {
 		return fmt.Errorf("default account %q does not exist", c.DefaultAccount)
+	}
+
+	w := c.Layout.LeftPanelWidth
+	for name, v := range map[string]int{
+		"sections": w.Sections, "entity_list": w.EntityList,
+		"detail": w.Detail, "file_diff": w.FileDiff,
+	} {
+		if v != 0 && (v < 10 || v > 90) {
+			return fmt.Errorf("layout.left_panel_width.%s must be between 10 and 90 (got %d)", name, v)
+		}
 	}
 
 	return nil

@@ -121,4 +121,5 @@ type ProjectOptions struct {
 	ToggleDraftMR        ToggleDraftMRFunc
 	UpdateMRLabels       UpdateMRLabelsFunc
 	Emoji                config.EmojiConfig
+	Layout               config.LayoutConfig
 }

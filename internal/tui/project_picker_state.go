@@ -78,26 +78,112 @@ func (s ProjectPickerState) View(layout LayoutState) string {
 	return headerStr + s.rowList.View() + strings.Join(footer, "\n")
 }
 
+func nsOf(path string) string {
+	if i := strings.Index(path, "/"); i >= 0 {
+		return path[:i]
+	}
+
+	return path
+}
+
+func nameOf(path string) string {
+	if i := strings.LastIndex(path, "/"); i >= 0 {
+		return path[i+1:]
+	}
+
+	return path
+}
+
+// nsGroupedRows builds projectListRows from a list of paths, grouping by namespace when there are
+// multiple distinct namespaces. Each path entry may carry an optional suffix appended after the name.
+func nsGroupedRows(paths []string, suffix func(path string) string) []projectListRow {
+	type nsGroup struct {
+		ns    string
+		paths []string
+	}
+
+	var groups []nsGroup
+
+	idx := map[string]int{}
+
+	for _, p := range paths {
+		ns := nsOf(p)
+		if i, ok := idx[ns]; ok {
+			groups[i].paths = append(groups[i].paths, p)
+		} else {
+			idx[ns] = len(groups)
+			groups = append(groups, nsGroup{ns: ns, paths: []string{p}})
+		}
+	}
+
+	// Show namespace headers only when multiple namespaces exist AND at least
+	// one namespace has more than one project — otherwise full paths are clearer.
+	multiNS := len(groups) > 1
+	useHeaders := false
+
+	if multiNS {
+		for _, g := range groups {
+			if len(g.paths) > 1 {
+				useHeaders = true
+				break
+			}
+		}
+	}
+
+	var rows []projectListRow
+
+	for _, g := range groups {
+		if useHeaders {
+			rows = append(rows, projectListRow{label: "  " + g.ns + "/"})
+		}
+
+		for _, path := range g.paths {
+			name := path
+			indent := "  "
+
+			if useHeaders {
+				name = nameOf(path)
+				indent = "    "
+			}
+
+			label := indent + name
+			if suffix != nil {
+				label += suffix(path)
+			}
+
+			rows = append(rows, projectListRow{project: path, label: label, selectable: true})
+		}
+	}
+
+	return rows
+}
+
 func (s *ProjectPickerState) rebuildRows() {
 	s.projectRows = nil
 
 	if filtered := s.filteredRecents(); len(filtered) > 0 {
 		s.projectRows = append(s.projectRows, projectListRow{label: "Recent"}, projectListRow{})
 
-		for _, recent := range filtered {
-			label := recent.Path
-			if recent.Account != "" {
-				label += " (" + recent.Account + ")"
+		paths := make([]string, len(filtered))
+		accountOf := map[string]string{}
+
+		for i, r := range filtered {
+			paths[i] = r.Path
+			accountOf[r.Path] = r.Account
+		}
+
+		rows := nsGroupedRows(paths, func(path string) string {
+			if acc := accountOf[path]; acc != "" {
+				return " (" + acc + ")"
 			}
 
-			s.projectRows = append(s.projectRows, projectListRow{project: recent.Path, label: label, selectable: true})
-		}
+			return ""
+		})
+		s.projectRows = append(s.projectRows, rows...)
 	}
 
-	for _, project := range s.staticProjects {
-		if s.matchesFilter(project) {
-			s.projectRows = append(s.projectRows, projectListRow{project: project, label: project, selectable: true})
-		}
+	if statics := filteredProjectPaths(s.staticProjects, s.query); len(statics) > 0 {
+		s.projectRows = append(s.projectRows, nsGroupedRows(statics, nil)...)
 	}
 
 	if len(s.projectRows) > 0 && len(s.loadProjects) > 0 {
@@ -126,9 +212,7 @@ func (s *ProjectPickerState) rebuildRows() {
 			continue
 		}
 
-		for _, project := range projects {
-			s.projectRows = append(s.projectRows, projectListRow{project: project, label: project, selectable: true})
-		}
+		s.projectRows = append(s.projectRows, nsGroupedRows(projects, nil)...)
 	}
 
 	items := make([]list.Item, len(s.projectRows))

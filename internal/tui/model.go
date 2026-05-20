@@ -47,6 +47,7 @@ type Model struct {
 	toggleDraftMR        ToggleDraftMRFunc
 	updateMRLabels       UpdateMRLabelsFunc
 	emoji                config.EmojiConfig
+	layout               config.LayoutConfig
 	projectLabels        []mr.Label
 	submitDrafts         SubmitDraftsFunc
 	discardDrafts        DiscardDraftsFunc
@@ -139,6 +140,7 @@ func NewModelWithProject(items []mr.MergeRequest, options ProjectOptions) Model 
 		toggleDraftMR:        options.ToggleDraftMR,
 		updateMRLabels:       options.UpdateMRLabels,
 		emoji:                options.Emoji,
+		layout:               options.Layout,
 		globals:              newGlobalKeys(),
 		projectListKeys:      newProjectListKeys(),
 	}

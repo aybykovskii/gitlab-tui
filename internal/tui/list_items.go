@@ -86,15 +86,17 @@ func (d projectPickerDelegate) Spacing() int                            { return
 func (d projectPickerDelegate) Update(_ tea.Msg, _ *list.Model) tea.Cmd { return nil }
 func (d projectPickerDelegate) Render(w io.Writer, m list.Model, index int, item list.Item) {
 	row := item.(projectListRow)
+	label := truncateRunes(row.label, max(1, m.Width()-4))
+
 	if !row.selectable {
-		fmt.Fprint(w, d.styles.DimmedTitle.Render(row.label))
+		fmt.Fprint(w, d.styles.DimmedTitle.Render(label))
 		return
 	}
 
 	if index == m.Index() {
-		fmt.Fprint(w, d.styles.SelectedTitle.Render(row.label))
+		fmt.Fprint(w, d.styles.SelectedTitle.Render(label))
 	} else {
-		fmt.Fprint(w, d.styles.NormalTitle.Render(row.label))
+		fmt.Fprint(w, d.styles.NormalTitle.Render(label))
 	}
 }
 

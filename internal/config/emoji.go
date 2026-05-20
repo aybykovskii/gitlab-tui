@@ -77,5 +77,5 @@ func (e EmojiConfig) Resolve() EmojiMap {
 }
 
 func DefaultEmojiConfig() EmojiConfig {
-	return EmojiConfig{Enabled: true}
+	return EmojiConfig{Enabled: true, Icons: defaultEmojiMap()}
 }

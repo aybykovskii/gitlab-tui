@@ -5,6 +5,7 @@ import (
 	"strings"
 
 	"github.com/charmbracelet/bubbles/list"
+	"github.com/charmbracelet/lipgloss"
 )
 
 func (m Model) renderProjectList() string {
@@ -12,18 +13,39 @@ func (m Model) renderProjectList() string {
 	style := paneStyle(width, m.paneHeight(), false)
 	itemStyles := list.NewDefaultItemStyles()
 	titleStyle := list.DefaultStyles().Title
+	dimStyle := lipgloss.NewStyle().Foreground(lipgloss.Color("240"))
 
 	lines := []string{titleStyle.Render("Projects"), ""}
-	for _, project := range m.projectList {
-		if project == m.projectPath {
-			lines = append(lines, itemStyles.SelectedTitle.Render(project))
-		} else {
-			lines = append(lines, itemStyles.NormalTitle.Render(project))
-		}
-	}
+	rows := m.ProjectPickerState.projectRows
 
-	if len(m.projectList) == 0 {
-		lines = append(lines, "  No projects")
+	if len(rows) == 0 {
+		for _, project := range m.projectList {
+			if project == m.projectPath {
+				lines = append(lines, itemStyles.SelectedTitle.Render(project))
+			} else {
+				lines = append(lines, itemStyles.NormalTitle.Render(project))
+			}
+		}
+
+		if len(m.projectList) == 0 {
+			lines = append(lines, "  No projects")
+		}
+	} else {
+		innerWidth := width - 4 // border(2) + padding(2)
+		for _, row := range rows {
+			label := truncateRunes(row.label, max(1, innerWidth-2))
+
+			switch {
+			case !row.selectable && row.label == "":
+				// empty separator, skip
+			case !row.selectable:
+				lines = append(lines, dimStyle.Render(label))
+			case row.project == m.projectPath:
+				lines = append(lines, itemStyles.SelectedTitle.Render(label))
+			default:
+				lines = append(lines, itemStyles.NormalTitle.Render(label))
+			}
+		}
 	}
 
 	return style.Render(strings.Join(lines, "\n"))

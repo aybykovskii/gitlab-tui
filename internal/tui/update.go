@@ -502,10 +502,30 @@ func (m Model) selectedItem() (mr.MergeRequest, bool) {
 	return items[clampSelection(m.EntityListState.mrList.Index(), len(items))], true
 }
 
+const defaultLeftPanelWidthPct = 35
+
 func (m Model) leftWidth() int {
 	if m.width <= 0 {
 		return 40
 	}
 
-	return max(24, m.width*35/100)
+	w := m.layout.LeftPanelWidth
+	var pct int
+
+	switch m.mode {
+	case ModeFileDiff:
+		pct = w.FileDiff
+	case ModeEntityList:
+		pct = w.EntityList
+	case ModeDetail, ModeLabelSelect:
+		pct = w.Detail
+	default:
+		pct = w.Sections
+	}
+
+	if pct == 0 {
+		pct = defaultLeftPanelWidthPct
+	}
+
+	return max(24, m.width*pct/100)
 }
