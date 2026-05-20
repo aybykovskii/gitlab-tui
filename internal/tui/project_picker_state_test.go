@@ -33,8 +33,8 @@ func TestProjectPickerStateViewMarksSelectedRow(t *testing.T) {
 
 	view := state.View(LayoutState{Mode: ModeProjectSelect})
 
-	if !strings.Contains(view, "> group/project") {
-		t.Fatalf("expected selection marker on project row, got:\n%s", view)
+	if !strings.Contains(view, "group/project") || !strings.Contains(view, "│") {
+		t.Fatalf("expected fancylist selection marker on project row, got:\n%s", view)
 	}
 }
 

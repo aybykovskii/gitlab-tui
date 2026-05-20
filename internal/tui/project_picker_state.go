@@ -4,6 +4,8 @@ package tui
 import (
 	"fmt"
 	"strings"
+
+	"github.com/charmbracelet/bubbles/list"
 )
 
 type ProjectPickerState struct {
@@ -16,6 +18,7 @@ type ProjectPickerState struct {
 	projectFilterActive  bool
 	selected             int
 	query                string
+	rowList              list.Model
 }
 
 func NewProjectPickerState(recents []RecentProjectOption, loaders []AccountProjectLoader, staticProjects ...string) ProjectPickerState {
@@ -24,6 +27,7 @@ func NewProjectPickerState(recents []RecentProjectOption, loaders []AccountProje
 		staticProjects:       staticProjects,
 		loadProjects:         loaders,
 		accountProjectStates: initialAccountProjectStates(loaders),
+		rowList:              newCompactFancyList("Projects", newProjectPickerDelegate()),
 	}
 	s.rebuildRows()
 
@@ -40,27 +44,38 @@ func (s ProjectPickerState) View(layout LayoutState) string {
 		}, "\n")
 	}
 
-	lines := []string{"Projects", ""}
+	var header []string
 	if s.projectFilterActive || s.query != "" {
-		lines = append(lines, "Filter: "+s.query, "")
+		header = append(header, "Filter: "+s.query)
 	}
+
+	footer := []string{"", "Enter/click: open  i: manual input  r: retry"}
 
 	if len(s.projectRows) == 0 {
-		lines = append(lines, "No matching projects")
+		return strings.Join(append(append(header, "Projects", "No matching projects"), footer...), "\n")
 	}
 
-	for i, row := range s.projectRows {
-		prefix := "  "
-		if i == s.selected && row.selectable {
-			prefix = "> "
-		}
+	s.rowList.Select(s.selected)
 
-		lines = append(lines, prefix+row.label)
+	height := layout.Height
+	if height == 0 {
+		height = 40
 	}
 
-	lines = append(lines, "", "Enter/click: open  i: manual input  r: retry")
+	width := layout.Width
+	if width == 0 {
+		width = 80
+	}
 
-	return strings.Join(lines, "\n")
+	listH := max(1, height-len(header)-len(footer))
+	s.rowList.SetSize(width-4, listH)
+
+	headerStr := ""
+	if len(header) > 0 {
+		headerStr = strings.Join(header, "\n") + "\n"
+	}
+
+	return headerStr + s.rowList.View() + strings.Join(footer, "\n")
 }
 
 func (s *ProjectPickerState) rebuildRows() {
@@ -115,6 +130,13 @@ func (s *ProjectPickerState) rebuildRows() {
 			s.projectRows = append(s.projectRows, projectListRow{project: project, label: project, selectable: true})
 		}
 	}
+
+	items := make([]list.Item, len(s.projectRows))
+	for i, row := range s.projectRows {
+		items[i] = row
+	}
+
+	_ = s.rowList.SetItems(items)
 }
 
 func (s ProjectPickerState) selectedProject() (string, bool) {

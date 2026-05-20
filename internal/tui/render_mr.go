@@ -31,12 +31,11 @@ func (m Model) renderRight() string {
 		return style.Render(m.renderIssueDetail())
 	}
 
-	items := m.filtered()
-	if len(items) == 0 {
+	item, ok := m.selectedItem()
+	if !ok {
 		return style.Render("No MR selected")
 	}
 
-	item := items[clampSelection(m.EntityListState.selected, len(items))]
 	tabs := TabsComponent{
 		Labels: []string{"Summary", "Discussions", "Files", m.reviewTabLabel(item)},
 		Active: int(m.activeTab),
@@ -52,7 +51,9 @@ func (m Model) renderRight() string {
 		// height-2: pane inner area; minus 3 for title + tabs + blank separator
 		filesHeight := max(1, height-5)
 		innerWidth := max(1, width-4)
-		return style.Render(header + "\n\n" + m.renderFiles(item, filesHeight, innerWidth))
+		rendered := style.Render(header + "\n\n" + m.renderFiles(item, filesHeight, innerWidth))
+
+		return rendered
 	case TabReview:
 		return style.Render(header + "\n\n" + m.renderReview(item))
 	default:

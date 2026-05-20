@@ -22,8 +22,8 @@ func (m Model) selectProject(path string) (Model, tea.Cmd) {
 	m.projectPath = path
 	m.mode = ModeSections
 	m.focus = FocusDetail
-	m.EntityListState.selected = 0
-	m.listTop = 0
+	m.EntityListState.mrList.Select(0)
+	m.EntityListState.issueList.Select(0)
 	m.MRDetailState.GotoTop()
 	m.projectLoaded = false
 	m.items = nil
@@ -47,8 +47,8 @@ func (m Model) openProjectCommand(path string) (Model, tea.Cmd) {
 	m.projectPath = path
 	m.mode = ModeEntityList
 	m.focus = FocusDetail
-	m.EntityListState.selected = 0
-	m.listTop = 0
+	m.EntityListState.mrList.Select(0)
+	m.EntityListState.issueList.Select(0)
 	m.MRDetailState.GotoTop()
 
 	if m.loadProject == nil {

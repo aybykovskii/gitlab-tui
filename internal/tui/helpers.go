@@ -117,12 +117,12 @@ func (m Model) filteredIssues() []issue.Issue {
 	return m.EntityListState.filteredIssues()
 }
 
-func (m Model) clampEntitySelection(selected int) int {
+func (m *Model) syncEntityList() {
 	if m.section == SectionIssues {
-		return clampSelection(selected, len(m.filteredIssues()))
+		m.EntityListState.syncIssueList()
+	} else {
+		m.EntityListState.syncMRList()
 	}
-
-	return clampSelection(selected, len(m.filtered()))
 }
 
 func clampSelection(selected int, count int) int {

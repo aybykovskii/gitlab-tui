@@ -9,12 +9,11 @@ import (
 )
 
 func (m Model) renderIssueDetail() string {
-	items := m.filteredIssues()
-	if len(items) == 0 {
+	item, ok := m.selectedIssue()
+	if !ok {
 		return "No issue selected"
 	}
 
-	item := items[clampSelection(m.EntityListState.selected, len(items))]
 	if !m.editInput && !m.issueCommentInput && !m.replyInput {
 		return m.IssueDetailState.View(LayoutState{Width: m.width, Height: m.height, Focus: m.focus, Mode: m.mode}, item)
 	}

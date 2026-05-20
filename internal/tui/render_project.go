@@ -3,24 +3,27 @@ package tui
 
 import (
 	"strings"
+
+	"github.com/charmbracelet/bubbles/list"
 )
 
 func (m Model) renderProjectList() string {
 	width := m.leftWidth()
 	style := paneStyle(width, m.paneHeight(), false)
-	lines := []string{"Projects", ""}
+	itemStyles := list.NewDefaultItemStyles()
+	titleStyle := list.DefaultStyles().Title
 
+	lines := []string{titleStyle.Render("Projects"), ""}
 	for _, project := range m.projectList {
-		prefix := "  "
 		if project == m.projectPath {
-			prefix = "> "
+			lines = append(lines, itemStyles.SelectedTitle.Render(project))
+		} else {
+			lines = append(lines, itemStyles.NormalTitle.Render(project))
 		}
-
-		lines = append(lines, prefix+project)
 	}
 
 	if len(m.projectList) == 0 {
-		lines = append(lines, "No projects")
+		lines = append(lines, "  No projects")
 	}
 
 	return style.Render(strings.Join(lines, "\n"))
@@ -28,45 +31,28 @@ func (m Model) renderProjectList() string {
 
 func (m Model) renderSections() string {
 	width := max(20, m.width-m.leftWidth())
-	style := paneStyle(width, m.paneHeight(), true)
-	lines := []string{"Sections", ""}
+	height := m.paneHeight()
+	style := paneStyle(width, height, true)
 
-	for i, sec := range tuiSections {
-		prefix := "  "
-		if i == m.sectionCursor {
-			prefix = "> "
-		}
+	idx := m.sectionList.Index()
+	m.sectionList.SetSize(width-4, max(1, height-2))
+	content := m.sectionList.View()
 
-		label := sec.label
-		if !sec.available {
-			label += " (soon)"
-		}
-
-		lines = append(lines, prefix+label)
+	if idx >= 0 && idx < len(tuiSections) && !tuiSections[idx].available {
+		content += "\n\nNot yet implemented"
 	}
 
-	if !tuiSections[m.sectionCursor].available {
-		lines = append(lines, "", "Not yet implemented")
-	}
-
-	return style.Render(strings.Join(lines, "\n"))
+	return style.Render(content)
 }
 
 func (m Model) renderSectionsContext() string {
 	width := m.leftWidth()
-	style := paneStyle(width, m.paneHeight(), false)
-	lines := []string{"Sections", ""}
+	height := m.paneHeight()
+	style := paneStyle(width, height, false)
 
-	for _, sec := range tuiSections {
-		prefix := "  "
-		if sec.id == m.section {
-			prefix = "> "
-		}
+	m.sectionList.SetSize(width-4, max(1, height-2))
 
-		lines = append(lines, prefix+sec.label)
-	}
-
-	return style.Render(strings.Join(lines, "\n"))
+	return style.Render(m.sectionList.View())
 }
 
 func (m Model) renderAppContextPane() string {

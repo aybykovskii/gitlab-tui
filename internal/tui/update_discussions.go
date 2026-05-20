@@ -9,12 +9,12 @@ import (
 )
 
 func (m Model) selectedIssue() (issue.Issue, bool) {
-	items := m.filteredIssues()
+	items := m.EntityListState.filteredIssues()
 	if len(items) == 0 {
 		return issue.Issue{}, false
 	}
 
-	return items[clampSelection(m.EntityListState.selected, len(items))], true
+	return items[clampSelection(m.EntityListState.issueList.Index(), len(items))], true
 }
 
 func (m Model) focusedIssueDiscussion() (issue.Discussion, bool) {

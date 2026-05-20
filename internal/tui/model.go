@@ -4,6 +4,7 @@ package tui
 import (
 	"io"
 
+	"github.com/charmbracelet/bubbles/list"
 	tea "github.com/charmbracelet/bubbletea"
 
 	"github.com/aybykovskii/gitlab-tui/internal/config"
@@ -24,7 +25,7 @@ type Model struct {
 	InputState
 	projectList          []string
 	section              Section
-	sectionCursor        int
+	sectionList          list.Model
 	entityID             string
 	projectLoaded        bool
 	mergeConfirmPending  bool
@@ -83,9 +84,18 @@ func NewModelWithProject(items []mr.MergeRequest, options ProjectOptions) Model 
 		projectListRecents = nil
 	}
 
+	sectionItems := make([]list.Item, len(tuiSections))
+	for i, sec := range tuiSections {
+		sectionItems[i] = sectionListItem{sec}
+	}
+
+	sectionList := newCompactFancyList("Sections", newSectionListDelegate())
+	_ = sectionList.SetItems(sectionItems)
+
 	model := Model{
 		EntityListState: NewEntityListState(items, options.Issues),
 		InputState:      NewInputState(),
+		sectionList:     sectionList,
 		ProjectPickerState: NewProjectPickerState(
 			buildRecentProjectOptions(options.Recents, options.RecentProjects),
 			options.LoadProjects,

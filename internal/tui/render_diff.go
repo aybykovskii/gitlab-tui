@@ -98,6 +98,7 @@ func buildFileTree(files []mr.ChangedFile) *fileTreeNode {
 			isFile := j == len(parts)-1
 
 			var child *fileTreeNode
+
 			for _, c := range cur.children {
 				if c.name == part {
 					child = c
@@ -110,6 +111,7 @@ func buildFileTree(files []mr.ChangedFile) *fileTreeNode {
 				if isFile {
 					idx = i
 				}
+
 				child = &fileTreeNode{name: part, fileIdx: idx}
 				cur.children = append(cur.children, child)
 			}
@@ -164,6 +166,7 @@ func renderFileTreeLines(node *fileTreeNode, prefix string, isLast bool, files [
 	}
 
 	childPrefix := prefix
+
 	if node.name != "" {
 		if isLast {
 			childPrefix += "    "

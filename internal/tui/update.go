@@ -105,9 +105,9 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.editIssue = msg.data.EditIssue
 		m.assignSelfIssue = msg.data.AssignSelfIssue
 		m.unassignSelfIssue = msg.data.UnassignSelfIssue
-		m.EntityListState.selected = clampSelection(0, len(m.filtered()))
+		m.EntityListState.mrList.Select(0)
+		m.EntityListState.syncMRList()
 		m.selectEntity()
-		m.listTop = 0
 		m.MRDetailState.GotoTop()
 
 		switch m.section {
@@ -310,8 +310,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		}
 
 		m.items = msg.items
-		m.EntityListState.selected = clampSelection(m.EntityListState.selected, len(m.filtered()))
-		m.listTop = 0
+		m.EntityListState.syncMRList()
 
 		return m, nil
 	case issuesFinishedMsg:
@@ -322,8 +321,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		}
 
 		m.issueItems = msg.items
-		m.EntityListState.selected = clampSelection(m.EntityListState.selected, len(m.filteredIssues()))
-		m.listTop = 0
+		m.EntityListState.syncIssueList()
 
 		return m, nil
 	case issueDiscussionsFinishedMsg:
@@ -413,34 +411,29 @@ func (m *Model) selectEntity() {
 		return
 	}
 
-	for i, item := range m.filtered() {
+	for i, item := range m.EntityListState.filteredMRs() {
 		if item.IID == iid {
-			m.EntityListState.selected = i
+			m.EntityListState.mrList.Select(i)
 			return
 		}
 	}
 }
 
 func (m *Model) moveSelection(delta int) {
-	count := len(m.filtered())
 	if m.section == SectionIssues {
-		count = len(m.filteredIssues())
-	}
+		if delta > 0 {
+			m.EntityListState.issueList.CursorDown()
+		} else {
+			m.EntityListState.issueList.CursorUp()
+		}
 
-	if count == 0 {
-		m.EntityListState.selected = 0
 		return
 	}
 
-	m.EntityListState.selected = clamp(m.EntityListState.selected+delta, 0, count-1)
-	visible := max(1, m.height-4)
-
-	if m.EntityListState.selected < m.listTop {
-		m.listTop = m.EntityListState.selected
-	}
-
-	if m.EntityListState.selected >= m.listTop+visible {
-		m.listTop = m.EntityListState.selected - visible + 1
+	if delta > 0 {
+		m.EntityListState.mrList.CursorDown()
+	} else {
+		m.EntityListState.mrList.CursorUp()
 	}
 }
 
@@ -501,12 +494,12 @@ func (m Model) paneHeight() int {
 }
 
 func (m Model) selectedItem() (mr.MergeRequest, bool) {
-	items := m.filtered()
+	items := m.EntityListState.filteredMRs()
 	if len(items) == 0 {
 		return mr.MergeRequest{}, false
 	}
 
-	return items[clampSelection(m.EntityListState.selected, len(items))], true
+	return items[clampSelection(m.EntityListState.mrList.Index(), len(items))], true
 }
 
 func (m Model) leftWidth() int {

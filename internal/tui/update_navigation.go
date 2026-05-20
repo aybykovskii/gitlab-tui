@@ -87,11 +87,11 @@ func (m Model) updateProjectInput(msg tea.KeyMsg) (Model, tea.Cmd) {
 func (m Model) updateSections(msg tea.KeyMsg) (Model, tea.Cmd) {
 	switch msg.String() {
 	case "up", "k":
-		m.sectionCursor = clamp(m.sectionCursor-1, 0, len(tuiSections)-1)
+		m.sectionList.CursorUp()
 	case "down", "j":
-		m.sectionCursor = clamp(m.sectionCursor+1, 0, len(tuiSections)-1)
+		m.sectionList.CursorDown()
 	case "enter":
-		sec := tuiSections[m.sectionCursor]
+		sec := tuiSections[m.sectionList.Index()]
 		if sec.available && sec.id == SectionMergeRequests {
 			m.section = SectionMergeRequests
 			if m.projectLoaded {
@@ -127,11 +127,13 @@ func (m Model) updateFilter(msg tea.KeyMsg) (Model, tea.Cmd) {
 	case tea.KeyBackspace:
 		if len(el.query) > 0 {
 			el.query = el.query[:len(el.query)-1]
-			el.selected = m.clampEntitySelection(el.selected)
+
+			m.syncEntityList()
 		}
 	case tea.KeyRunes:
 		el.query += msg.String()
-		el.selected = m.clampEntitySelection(el.selected)
+
+		m.syncEntityList()
 	}
 
 	return m, nil

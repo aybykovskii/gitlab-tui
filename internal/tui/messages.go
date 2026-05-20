@@ -37,6 +37,8 @@ type projectListRow struct {
 	selectable bool
 }
 
+func (r projectListRow) FilterValue() string { return r.project }
+
 type (
 	discussionsStartedMsg  struct{ iid int }
 	discussionsFinishedMsg struct {

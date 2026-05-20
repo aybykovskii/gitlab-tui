@@ -180,7 +180,7 @@ func TestResolvedProjectShowsProjectListAndSections(t *testing.T) {
 	view := model.View()
 	for _, want := range []string{
 		"Projects",
-		"> group/project",
+		"group/project",
 		"recent/other",
 		"gitlab/other",
 		"Sections",
@@ -242,8 +242,8 @@ func TestKeyboardSelectionAndDiffNavigation(t *testing.T) {
 		t.Fatalf("expected MR detail viewport offset=3 after Down in ModeDetail, got %d", model.MRDetailState.YOffset)
 	}
 
-	if model.EntityListState.selected != 0 {
-		t.Fatalf("expected selected unchanged in ModeDetail, got %d", model.EntityListState.selected)
+	if model.EntityListState.mrList.Index() != 0 {
+		t.Fatalf("expected selected unchanged in ModeDetail, got %d", model.EntityListState.mrList.Index())
 	}
 
 	// Enter on Summary tab no longer opens diff — it is a no-op
@@ -292,8 +292,8 @@ func TestDirectMRDeepLinkSelectsLoadedMergeRequest(t *testing.T) {
 	}}})
 	model = updated.(Model)
 
-	if model.EntityListState.selected != 1 {
-		t.Fatalf("expected loaded target MR selected, got %d", model.EntityListState.selected)
+	if model.EntityListState.mrList.Index() != 1 {
+		t.Fatalf("expected loaded target MR selected, got %d", model.EntityListState.mrList.Index())
 	}
 
 	if !strings.Contains(model.View(), "!123 Loaded target") {
@@ -309,8 +309,8 @@ func TestDirectMRDeepLinkSelectsMatchingMergeRequest(t *testing.T) {
 		{IID: 123, Title: "Target MR", Description: "Deep linked"},
 	}, ProjectOptions{Path: "group/project", Section: SectionMergeRequests, EntityID: "123"})
 
-	if model.EntityListState.selected != 1 {
-		t.Fatalf("expected selected MR index 1, got %d", model.EntityListState.selected)
+	if model.EntityListState.mrList.Index() != 1 {
+		t.Fatalf("expected selected MR index 1, got %d", model.EntityListState.mrList.Index())
 	}
 
 	view := model.View()
@@ -3320,14 +3320,14 @@ func TestUpDownInModeEntityListStillMovesSelection(t *testing.T) {
 
 	model := NewModelWithProject(FakeMergeRequests(), ProjectOptions{Path: "group/project", Section: SectionMergeRequests})
 	model.mode = ModeEntityList
-	initialSelected := model.EntityListState.selected
+	initialSelected := model.EntityListState.mrList.Index()
 	initialMRDetailViewportOffset := model.MRDetailState.YOffset
 
 	updated, _ := model.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'j'}})
 	model = updated.(Model)
 
-	if model.EntityListState.selected != initialSelected+1 {
-		t.Fatalf("expected selected to increment in ModeEntityList, got %d", model.EntityListState.selected)
+	if model.EntityListState.mrList.Index() != initialSelected+1 {
+		t.Fatalf("expected selected to increment in ModeEntityList, got %d", model.EntityListState.mrList.Index())
 	}
 
 	if model.MRDetailState.YOffset != initialMRDetailViewportOffset {

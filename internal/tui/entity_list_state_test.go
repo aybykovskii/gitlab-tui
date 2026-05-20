@@ -43,7 +43,7 @@ func TestEntityListStateViewUsesEncapsulatedFilterAndSelection(t *testing.T) {
 	state.query = "visible"
 
 	view := state.View(LayoutState{Width: 80, Height: 20}, EntityListViewData{Section: SectionMergeRequests})
-	if !strings.Contains(view, ">") || !strings.Contains(view, "!2 Visible MR") || strings.Contains(view, "Hidden MR") {
-		t.Fatalf("expected filtered selected MR list, got:\n%s", view)
+	if !strings.Contains(view, "│") || !strings.Contains(view, "!2 Visible MR") || strings.Contains(view, "Hidden MR") {
+		t.Fatalf("expected filtered fancylist selected MR list, got:\n%s", view)
 	}
 }
