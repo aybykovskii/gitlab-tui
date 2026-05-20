@@ -40,6 +40,8 @@ type gitLabClient interface {
 	AcceptMergeRequest(ctx context.Context, projectPath string, iid int) error
 	UpdateMergeRequest(ctx context.Context, projectPath string, iid int, title, description string) error
 	CreateMergeRequestNote(ctx context.Context, projectPath string, iid int, body string) error
+	AddMergeRequestDiscussionNote(ctx context.Context, projectPath string, iid int, discussionID string, body string) error
+	ResolveMergeRequestDiscussion(ctx context.Context, projectPath string, iid int, discussionID string, resolved bool) error
 	SearchProjects(ctx context.Context, query string, limit int) ([]string, error)
 }
 
@@ -243,6 +245,15 @@ func buildProjectOptions(cfg *config.Config, configPath string, configLoaded boo
 		postMRComment := func(iid int, body string) error {
 			return client.CreateMergeRequestNote(context.Background(), projectPath, iid, body)
 		}
+		replyToDiscussion := func(iid int, discussionID string, body string) error {
+			return client.AddMergeRequestDiscussionNote(context.Background(), projectPath, iid, discussionID, body)
+		}
+		resolveDiscussion := func(iid int, discussionID string) error {
+			return client.ResolveMergeRequestDiscussion(context.Background(), projectPath, iid, discussionID, true)
+		}
+		unresolveDiscussion := func(iid int, discussionID string) error {
+			return client.ResolveMergeRequestDiscussion(context.Background(), projectPath, iid, discussionID, false)
+		}
 
 		return tui.ProjectData{
 			Items: mrRes.items, Issues: issues, Labels: labels,
@@ -253,7 +264,8 @@ func buildProjectOptions(cfg *config.Config, configPath string, configLoaded boo
 			EditIssue: editIssue, AssignSelfIssue: assignSelfIssue, UnassignSelfIssue: unassignSelfIssue,
 			UpdateMRLabels: updateLabels, ToggleDraftMR: toggleDraftMR,
 			ApproveMR: approveMR, MergeMR: mergeMR, EditMR: editMR,
-			PostMRComment: postMRComment,
+			PostMRComment: postMRComment, ReplyToDiscussion: replyToDiscussion,
+			ResolveDiscussion: resolveDiscussion, UnresolveDiscussion: unresolveDiscussion,
 		}, nil
 	}
 

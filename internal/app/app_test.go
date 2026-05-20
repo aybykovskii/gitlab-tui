@@ -107,6 +107,14 @@ func (f *fakeGitLabClient) CreateMergeRequestNote(ctx context.Context, projectPa
 	return nil
 }
 
+func (f *fakeGitLabClient) AddMergeRequestDiscussionNote(ctx context.Context, projectPath string, iid int, discussionID string, body string) error {
+	return nil
+}
+
+func (f *fakeGitLabClient) ResolveMergeRequestDiscussion(ctx context.Context, projectPath string, iid int, discussionID string, resolved bool) error {
+	return nil
+}
+
 func TestBuildProjectOptionsUsesAccountsAndLimitedRecentProjects(t *testing.T) {
 	t.Parallel()
 

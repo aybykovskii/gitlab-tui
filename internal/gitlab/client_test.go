@@ -36,6 +36,12 @@ type fakeDiscussions struct {
 	commentBody   string
 	mrCommentIID  int64
 	mrCommentBody string
+	replyIID      int64
+	replyID       string
+	replyBody     string
+	resolveIID    int64
+	resolveID     string
+	resolved      bool
 	items         []*glab.Discussion
 }
 
@@ -147,6 +153,24 @@ func (f *fakeDiscussions) CreateMergeRequestDiscussion(pid any, mergeRequest int
 	}
 
 	return &glab.Discussion{}, &glab.Response{}, nil
+}
+
+func (f *fakeDiscussions) AddMergeRequestDiscussionNote(pid any, mergeRequest int64, discussion string, opt *glab.AddMergeRequestDiscussionNoteOptions, options ...glab.RequestOptionFunc) (*glab.Note, *glab.Response, error) {
+	f.replyIID = mergeRequest
+	f.replyID = discussion
+	if opt != nil && opt.Body != nil {
+		f.replyBody = *opt.Body
+	}
+	return &glab.Note{}, &glab.Response{}, nil
+}
+
+func (f *fakeDiscussions) UpdateMergeRequestDiscussionNote(pid any, mergeRequest int64, discussion string, note int64, opt *glab.UpdateMergeRequestDiscussionNoteOptions, options ...glab.RequestOptionFunc) (*glab.Note, *glab.Response, error) {
+	f.resolveIID = mergeRequest
+	f.resolveID = discussion
+	if opt != nil && opt.Resolved != nil {
+		f.resolved = *opt.Resolved
+	}
+	return &glab.Note{}, &glab.Response{}, nil
 }
 
 func (f *fakeApprovals) GetConfiguration(pid any, mergeRequest int64, options ...glab.RequestOptionFunc) (*glab.MergeRequestApprovals, *glab.Response, error) {
