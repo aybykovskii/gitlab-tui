@@ -34,3 +34,17 @@ func TestAcceptMergeRequestCallsAPI(t *testing.T) {
 		t.Fatalf("expected accept iid 42, got %d", mrs.acceptIID)
 	}
 }
+
+func TestUpdateMergeRequestCallsAPI(t *testing.T) {
+	t.Parallel()
+
+	fake := &fakeMergeRequestEdit{}
+	client := NewClientWithMergeRequestEdit(fake)
+
+	if err := client.UpdateMergeRequest(context.Background(), "group/project", 42, "New title", "New description"); err != nil {
+		t.Fatalf("UpdateMergeRequest: %v", err)
+	}
+	if fake.lastIID != 42 || fake.lastOpts == nil || *fake.lastOpts.Title != "New title" || *fake.lastOpts.Description != "New description" {
+		t.Fatalf("unexpected update call: iid=%d opts=%+v", fake.lastIID, fake.lastOpts)
+	}
+}

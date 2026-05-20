@@ -99,6 +99,10 @@ func (f *fakeGitLabClient) AcceptMergeRequest(ctx context.Context, projectPath s
 	return nil
 }
 
+func (f *fakeGitLabClient) UpdateMergeRequest(ctx context.Context, projectPath string, iid int, title, description string) error {
+	return nil
+}
+
 func TestBuildProjectOptionsUsesAccountsAndLimitedRecentProjects(t *testing.T) {
 	t.Parallel()
 
