@@ -14,6 +14,7 @@ import (
 	gitremote "github.com/aybykovskii/gitlab-tui/internal/git"
 	gitlabclient "github.com/aybykovskii/gitlab-tui/internal/gitlab"
 	"github.com/aybykovskii/gitlab-tui/internal/issue"
+	"github.com/aybykovskii/gitlab-tui/internal/launcher"
 	"github.com/aybykovskii/gitlab-tui/internal/mr"
 	"github.com/aybykovskii/gitlab-tui/internal/tui"
 )
@@ -238,7 +239,11 @@ func buildProjectOptions(cfg *config.Config, configPath string, configLoaded boo
 		}, nil
 	}
 
-	options := tui.ProjectOptions{Path: resolution.Path, Section: intent.Section, EntityID: intent.EntityID, LoadProject: loadProject, Emoji: cfg.Emoji, Layout: cfg.Layout}
+	options := tui.ProjectOptions{
+		Path: resolution.Path, Section: intent.Section, EntityID: intent.EntityID,
+		LoadProject: loadProject, OpenURL: launcher.OpenURL, OpenEditor: launcher.OpenEditor,
+		Emoji: cfg.Emoji, Layout: cfg.Layout,
+	}
 	for _, recent := range cfg.RecentProjects() {
 		options.Recents = append(options.Recents, recent.Path)
 		options.RecentProjects = append(options.RecentProjects, tui.RecentProjectOption{Path: recent.Path, Account: recent.Account})
