@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/aybykovskii/gitlab-tui/internal/config"
+	"github.com/aybykovskii/gitlab-tui/internal/debuglog"
 	gitremote "github.com/aybykovskii/gitlab-tui/internal/git"
 	gitlabclient "github.com/aybykovskii/gitlab-tui/internal/gitlab"
 	"github.com/aybykovskii/gitlab-tui/internal/issue"
@@ -124,6 +125,8 @@ func buildProjectOptions(cfg *config.Config, configPath string, configLoaded boo
 			resolvedAccountID = accountID
 		}
 
+		debuglog.Log("loadProject: path=%s accountID=%q resolved=%q", projectPath, accountID, resolvedAccountID)
+
 		account, ok := cfg.Account(resolvedAccountID)
 		if !ok {
 			return tui.ProjectData{}, fmt.Errorf("account %q not found", resolvedAccountID)
@@ -209,7 +212,7 @@ func buildProjectOptions(cfg *config.Config, configPath string, configLoaded boo
 		labelsRes := <-labelsCh
 		labels := labelsRes.labels
 
-		RememberResolvedProject(cfg, resolution.Account, projectPath, time.Now())
+		RememberResolvedProject(cfg, resolvedAccountID, projectPath, time.Now())
 
 		if configLoaded {
 			if err := config.Save(configPath, *cfg); err != nil {

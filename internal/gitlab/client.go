@@ -5,8 +5,10 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"net/http"
 	"strings"
 
+	retryablehttp "github.com/hashicorp/go-retryablehttp"
 	glab "gitlab.com/gitlab-org/api/client-go"
 
 	"github.com/aybykovskii/gitlab-tui/internal/config"
@@ -67,7 +69,15 @@ func NewClient(account config.Account, env []string) (Client, error) {
 		return Client{}, err
 	}
 
-	client, err := glab.NewClient(token, glab.WithBaseURL(account.Host))
+	opts := []glab.ClientOptionFunc{glab.WithBaseURL(account.Host)}
+
+	if debuglog.Enabled() {
+		opts = append(opts, glab.WithRequestLogHook(func(_ retryablehttp.Logger, req *http.Request, _ int) {
+			debuglog.Log("HTTP %s %s", req.Method, req.URL)
+		}))
+	}
+
+	client, err := glab.NewClient(token, opts...)
 	if err != nil {
 		debuglog.Log("NewClient: glab.NewClient error: %v", err)
 		return Client{}, err

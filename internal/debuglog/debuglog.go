@@ -25,6 +25,9 @@ func init() {
 	Log("--- session started %s ---", time.Now().Format(time.RFC3339))
 }
 
+// Enabled reports whether debug logging is active.
+func Enabled() bool { return logger != nil }
+
 // Log writes a formatted line to the debug log file. No-op when GITLAB_TUI_DEBUG is unset.
 func Log(format string, args ...any) {
 	if logger == nil {

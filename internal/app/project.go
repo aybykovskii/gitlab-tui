@@ -34,28 +34,30 @@ type ProjectResolver struct {
 }
 
 func (r ProjectResolver) Resolve() ProjectResolution {
-	accountID := r.Config.DefaultAccount
+	defaultAccountID := r.Config.DefaultAccount
+
 	if r.ProjectOverride != "" {
-		return ProjectResolution{Account: accountID, Path: r.ProjectOverride, Source: ProjectSourceOverride}
+		return ProjectResolution{Account: defaultAccountID, Path: r.ProjectOverride, Source: ProjectSourceOverride}
 	}
 
-	account, ok := r.Config.Account(accountID)
-	if ok && r.Remotes != nil {
+	if r.Remotes != nil {
 		if urls, err := r.Remotes.RemoteURLs(); err == nil {
-			for _, remoteURL := range urls {
-				if path, ok := gitremote.ProjectPathFromRemote(remoteURL, account.Host); ok {
-					return ProjectResolution{Account: accountID, Path: path, Source: ProjectSourceGitRemote}
+			for _, account := range r.Config.Accounts {
+				for _, remoteURL := range urls {
+					if path, ok := gitremote.ProjectPathFromRemote(remoteURL, account.Host); ok {
+						return ProjectResolution{Account: account.ID, Path: path, Source: ProjectSourceGitRemote}
+					}
 				}
 			}
 		}
 	}
 
-	recents := r.Config.RecentProjectsForAccount(accountID)
+	recents := r.Config.RecentProjectsForAccount(defaultAccountID)
 	if len(recents) > 0 {
-		return ProjectResolution{Account: accountID, Source: ProjectSourceRecentProjects, Recents: recents}
+		return ProjectResolution{Account: defaultAccountID, Source: ProjectSourceRecentProjects, Recents: recents}
 	}
 
-	return ProjectResolution{Account: accountID, Source: ProjectSourceManualInput}
+	return ProjectResolution{Account: defaultAccountID, Source: ProjectSourceManualInput}
 }
 
 func RememberResolvedProject(cfg *config.Config, account string, path string, now time.Time) {
