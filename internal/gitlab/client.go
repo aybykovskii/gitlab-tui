@@ -55,6 +55,14 @@ type MergeRequestEditClient interface {
 	UpdateMergeRequest(pid any, mergeRequest int64, opt *glab.UpdateMergeRequestOptions, options ...glab.RequestOptionFunc) (*glab.MergeRequest, *glab.Response, error)
 }
 
+type DraftNotesClient interface {
+	CreateDraftNote(pid any, mergeRequest int64, opt *glab.CreateDraftNoteOptions, options ...glab.RequestOptionFunc) (*glab.DraftNote, *glab.Response, error)
+	PublishAllDraftNotes(pid any, mergeRequest int64, options ...glab.RequestOptionFunc) (*glab.Response, error)
+	PublishDraftNote(pid any, mergeRequest int64, note int64, options ...glab.RequestOptionFunc) (*glab.Response, error)
+	ListDraftNotes(pid any, mergeRequest int64, opt *glab.ListDraftNotesOptions, options ...glab.RequestOptionFunc) ([]*glab.DraftNote, *glab.Response, error)
+	DeleteDraftNote(pid any, mergeRequest int64, note int64, options ...glab.RequestOptionFunc) (*glab.Response, error)
+}
+
 type Client struct {
 	mergeRequests MergeRequestClient
 	approvals     MergeRequestApprovalsClient
@@ -62,6 +70,7 @@ type Client struct {
 	projects      ProjectsClient
 	labels        LabelsClient
 	mrEdit        MergeRequestEditClient
+	draftNotes    DraftNotesClient
 	issues        IssuesClient
 }
 
@@ -95,6 +104,7 @@ func NewClient(account config.Account, env []string) (Client, error) {
 		projects:      client.Projects,
 		labels:        client.Labels,
 		mrEdit:        client.MergeRequests,
+		draftNotes:    client.DraftNotes,
 		issues:        client.Issues,
 	}, nil
 }
@@ -125,6 +135,10 @@ func NewClientWithLabels(labels LabelsClient) Client {
 
 func NewClientWithMergeRequestEdit(mrEdit MergeRequestEditClient) Client {
 	return Client{mrEdit: mrEdit}
+}
+
+func NewClientWithDraftNotes(draftNotes DraftNotesClient) Client {
+	return Client{draftNotes: draftNotes}
 }
 
 func (c Client) ListProjects(ctx context.Context, limit int) ([]string, error) {

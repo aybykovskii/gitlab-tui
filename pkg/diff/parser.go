@@ -36,6 +36,7 @@ type Discussion struct {
 }
 
 type DraftComment struct {
+	ID       int
 	LocalID  string
 	Body     string
 	Position *Position

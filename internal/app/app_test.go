@@ -115,6 +115,18 @@ func (f *fakeGitLabClient) ResolveMergeRequestDiscussion(ctx context.Context, pr
 	return nil
 }
 
+func (f *fakeGitLabClient) CreateDraftNote(ctx context.Context, projectPath string, iid int, discussionID string, body string, position *mr.DiffPosition) (int, error) {
+	return 0, nil
+}
+
+func (f *fakeGitLabClient) BulkPublishDraftNotes(ctx context.Context, projectPath string, iid int, draftIDs []int) error {
+	return nil
+}
+
+func (f *fakeGitLabClient) DeleteAllDraftNotes(ctx context.Context, projectPath string, iid int) error {
+	return nil
+}
+
 func TestBuildProjectOptionsUsesAccountsAndLimitedRecentProjects(t *testing.T) {
 	t.Parallel()
 

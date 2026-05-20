@@ -42,6 +42,9 @@ type gitLabClient interface {
 	CreateMergeRequestNote(ctx context.Context, projectPath string, iid int, body string) error
 	AddMergeRequestDiscussionNote(ctx context.Context, projectPath string, iid int, discussionID string, body string) error
 	ResolveMergeRequestDiscussion(ctx context.Context, projectPath string, iid int, discussionID string, resolved bool) error
+	CreateDraftNote(ctx context.Context, projectPath string, iid int, discussionID string, body string, position *mr.DiffPosition) (int, error)
+	BulkPublishDraftNotes(ctx context.Context, projectPath string, iid int, draftIDs []int) error
+	DeleteAllDraftNotes(ctx context.Context, projectPath string, iid int) error
 	SearchProjects(ctx context.Context, query string, limit int) ([]string, error)
 }
 
@@ -254,6 +257,26 @@ func buildProjectOptions(cfg *config.Config, configPath string, configLoaded boo
 		unresolveDiscussion := func(iid int, discussionID string) error {
 			return client.ResolveMergeRequestDiscussion(context.Background(), projectPath, iid, discussionID, false)
 		}
+		postInlineComment := func(iid int, position mr.DiffPosition, body string) error {
+			_, err := client.CreateDraftNote(context.Background(), projectPath, iid, "", body, &position)
+			return err
+		}
+		draftReply := func(iid int, discussionID string, body string) error {
+			_, err := client.CreateDraftNote(context.Background(), projectPath, iid, discussionID, body, nil)
+			return err
+		}
+		submitDrafts := func(iid int, drafts []mr.DraftComment) error {
+			ids := make([]int, 0, len(drafts))
+			for _, draft := range drafts {
+				if draft.ID > 0 {
+					ids = append(ids, draft.ID)
+				}
+			}
+			return client.BulkPublishDraftNotes(context.Background(), projectPath, iid, ids)
+		}
+		discardDrafts := func(iid int) error {
+			return client.DeleteAllDraftNotes(context.Background(), projectPath, iid)
+		}
 
 		return tui.ProjectData{
 			Items: mrRes.items, Issues: issues, Labels: labels,
@@ -266,6 +289,8 @@ func buildProjectOptions(cfg *config.Config, configPath string, configLoaded boo
 			ApproveMR: approveMR, MergeMR: mergeMR, EditMR: editMR,
 			PostMRComment: postMRComment, ReplyToDiscussion: replyToDiscussion,
 			ResolveDiscussion: resolveDiscussion, UnresolveDiscussion: unresolveDiscussion,
+			PostInlineComment: postInlineComment, DraftReply: draftReply,
+			SubmitDrafts: submitDrafts, DiscardDrafts: discardDrafts,
 		}, nil
 	}
 
