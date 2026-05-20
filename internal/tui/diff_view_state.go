@@ -26,6 +26,7 @@ type DiffViewState struct {
 	diffDiscussions    []mr.Discussion
 	diffDrafts         []mr.DraftComment
 	emoji              config.EmojiConfig
+	xOffset            int
 }
 
 func NewDiffViewState() DiffViewState {
@@ -69,13 +70,13 @@ func (s DiffViewState) content(layout LayoutState) string {
 	lines := []string{fmt.Sprintf("Diff %s", file.Path), ""}
 	annotated := diff.ProjectDiscussions(file.Diff, s.diffDiscussions, file.Path)
 
-	colWidth := max(10, (max(20, layout.Width-4)-22)/2)
+	colWidth := max(10, (max(20, layout.Width-4)-21)/2)
 	rowFmt := fmt.Sprintf("%%s │ %%-%ds │ %%s │ %%-%ds", colWidth, colWidth)
 
 	for i, arow := range annotated {
-		cursor := "  "
+		cursor := " "
 		if i == s.diffCursor {
-			cursor = "> "
+			cursor = "▌"
 		}
 
 		draftMarker := s.draftGutterMarker(file.Path, arow.NewLine)
@@ -108,13 +109,8 @@ func (s DiffViewState) content(layout LayoutState) string {
 			rowColor = "240"
 		}
 
-		if runes := []rune(oldContent); len(runes) > colWidth {
-			oldContent = string(runes[:colWidth])
-		}
-
-		if runes := []rune(newContent); len(runes) > colWidth {
-			newContent = string(runes[:colWidth])
-		}
+		oldContent = applyHScroll(oldContent, s.xOffset, colWidth)
+		newContent = applyHScroll(newContent, s.xOffset, colWidth)
 
 		lineContent := fmt.Sprintf(rowFmt, oldNum, oldContent, newNum, newContent)
 		lines = append(lines, cursor+draftMarker+discussionMarker+" "+ansiColor(rowColor, lineContent))
@@ -128,6 +124,19 @@ func (s DiffViewState) content(layout LayoutState) string {
 	}
 
 	return strings.Join(lines, "\n")
+}
+
+func applyHScroll(content string, xOffset, colWidth int) string {
+	runes := []rune(content)
+	start := min(xOffset, len(runes))
+	end := min(start+colWidth, len(runes))
+	visible := runes[start:end]
+
+	if xOffset > 0 && len(visible) > 0 {
+		visible[0] = '‹'
+	}
+
+	return string(visible)
 }
 
 func ansiColor(color string, text string) string {

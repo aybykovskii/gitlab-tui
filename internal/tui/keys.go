@@ -64,6 +64,8 @@ type FileDiffKeys struct {
 	ToggleThreadPanel key.Binding
 	PrevThread        key.Binding
 	NextThread        key.Binding
+	ScrollLeft        key.Binding
+	ScrollRight       key.Binding
 }
 
 func newGlobalKeys() GlobalKeys {
@@ -161,9 +163,11 @@ func newFileDiffKeys() FileDiffKeys {
 		ToggleThreadPanel: key.NewBinding(key.WithKeys("t"), key.WithHelp("t", "thread")),
 		PrevThread:        key.NewBinding(key.WithKeys("["), key.WithHelp("[", "prev thread")),
 		NextThread:        key.NewBinding(key.WithKeys("]"), key.WithHelp("]", "next thread")),
+		ScrollLeft:        key.NewBinding(key.WithKeys("shift+left"), key.WithHelp("Shift+←", "scroll left")),
+		ScrollRight:       key.NewBinding(key.WithKeys("shift+right"), key.WithHelp("Shift+→", "scroll right")),
 	}
 }
 
 func (k FileDiffKeys) LocalKeys() []key.Binding {
-	return []key.Binding{k.PrevFile, k.NextFile, k.Up, k.Down, k.Comment, k.Reply, k.ToggleThreadPanel, k.PrevThread, k.NextThread}
+	return []key.Binding{k.PrevFile, k.NextFile, k.Up, k.Down, k.Comment, k.Reply, k.ToggleThreadPanel, k.PrevThread, k.NextThread, k.ScrollLeft, k.ScrollRight}
 }
