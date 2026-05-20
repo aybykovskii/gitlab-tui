@@ -2,12 +2,15 @@ package gitlab
 
 import (
 	"context"
+	"io"
 	"net/http"
 	"net/http/httptest"
 	"os"
+	"strings"
 	"testing"
 
 	"github.com/aybykovskii/gitlab-tui/internal/config"
+	"github.com/aybykovskii/gitlab-tui/internal/mr"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -58,6 +61,51 @@ func TestHTTPListProjectIssuesPassesStateAndMapsItems(t *testing.T) {
 	assert.Equal(t, "Issues API", items[0].Title)
 	assert.Equal(t, "Alice", items[0].Author)
 	assert.Equal(t, 2, items[0].CommentCount)
+}
+
+func TestHTTPResolveMergeRequestDiscussionUsesDiscussionEndpoint(t *testing.T) {
+	t.Parallel()
+
+	server := gitlabTestServer(t, map[string]http.HandlerFunc{
+		"/api/v4/projects/group%2Fproject/merge_requests/42/discussions/disc-1": func(w http.ResponseWriter, r *http.Request) {
+			assert.Equal(t, http.MethodPut, r.Method)
+			body, err := io.ReadAll(r.Body)
+			require.NoError(t, err)
+			assert.Contains(t, string(body), "resolved")
+			assert.NotContains(t, r.URL.Path, "/notes/0")
+			_, err = w.Write([]byte(`{}`))
+			require.NoError(t, err)
+		},
+	})
+
+	client := newHTTPTestClient(t, server.URL)
+	err := client.ResolveMergeRequestDiscussion(context.Background(), "group/project", 42, "disc-1", true)
+
+	require.NoError(t, err)
+}
+
+func TestHTTPCreateMergeRequestDiscussionSendsInlinePosition(t *testing.T) {
+	t.Parallel()
+
+	server := gitlabTestServer(t, map[string]http.HandlerFunc{
+		"/api/v4/projects/group%2Fproject/merge_requests/42/discussions": func(w http.ResponseWriter, r *http.Request) {
+			assert.Equal(t, http.MethodPost, r.Method)
+			body, err := io.ReadAll(r.Body)
+			require.NoError(t, err)
+			payload := string(body)
+			assert.True(t, strings.Contains(payload, "new_path") || strings.Contains(payload, "new_path%"), payload)
+			assert.Contains(t, payload, "main.go")
+			assert.Contains(t, payload, "new_line")
+			assert.NotContains(t, payload, "old_line\":0")
+			_, err = w.Write([]byte(`{}`))
+			require.NoError(t, err)
+		},
+	})
+
+	client := newHTTPTestClient(t, server.URL)
+	err := client.CreateMergeRequestDiscussion(context.Background(), "group/project", 42, "Check this", &mr.DiffPosition{NewPath: "main.go", OldPath: "main.go", NewLine: 7})
+
+	require.NoError(t, err)
 }
 
 func gitlabTestServer(t *testing.T, handlers map[string]http.HandlerFunc) *httptest.Server {

@@ -1,6 +1,8 @@
 package tui
 
 import (
+	"fmt"
+
 	"github.com/charmbracelet/bubbles/key"
 	tea "github.com/charmbracelet/bubbletea"
 
@@ -117,9 +119,11 @@ func (m Model) updateDiscussionsTab(msg tea.KeyMsg) (Model, tea.Cmd) {
 					return m, nil
 				}
 
+				localID := fmt.Sprintf("local-%d", len(m.drafts[iid])+1)
+
 				return m, func() tea.Msg {
-					err := callback(iid, discussionID, body)
-					return replyFinishedMsg{iid: iid, discussionID: discussionID, body: body, draft: true, err: err}
+					id, err := callback(iid, discussionID, body)
+					return draftAddedMsg{iid: iid, draft: mr.DraftComment{ID: id, LocalID: localID, Body: body}, err: err}
 				}
 			}
 

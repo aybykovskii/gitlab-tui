@@ -39,7 +39,7 @@ type gitLabClient interface {
 	ApproveMergeRequest(ctx context.Context, projectPath string, iid int) error
 	AcceptMergeRequest(ctx context.Context, projectPath string, iid int) error
 	UpdateMergeRequest(ctx context.Context, projectPath string, iid int, title, description string) error
-	CreateMergeRequestNote(ctx context.Context, projectPath string, iid int, body string) error
+	CreateMergeRequestDiscussion(ctx context.Context, projectPath string, iid int, body string, position *mr.DiffPosition) error
 	AddMergeRequestDiscussionNote(ctx context.Context, projectPath string, iid int, discussionID string, body string) error
 	ResolveMergeRequestDiscussion(ctx context.Context, projectPath string, iid int, discussionID string, resolved bool) error
 	CreateDraftNote(ctx context.Context, projectPath string, iid int, discussionID string, body string, position *mr.DiffPosition) (int, error)
@@ -246,7 +246,7 @@ func buildProjectOptions(cfg *config.Config, configPath string, configLoaded boo
 			return client.UpdateMergeRequest(context.Background(), projectPath, iid, title, description)
 		}
 		postMRComment := func(iid int, body string) error {
-			return client.CreateMergeRequestNote(context.Background(), projectPath, iid, body)
+			return client.CreateMergeRequestDiscussion(context.Background(), projectPath, iid, body, nil)
 		}
 		replyToDiscussion := func(iid int, discussionID string, body string) error {
 			return client.AddMergeRequestDiscussionNote(context.Background(), projectPath, iid, discussionID, body)
@@ -258,19 +258,21 @@ func buildProjectOptions(cfg *config.Config, configPath string, configLoaded boo
 			return client.ResolveMergeRequestDiscussion(context.Background(), projectPath, iid, discussionID, false)
 		}
 		postInlineComment := func(iid int, position mr.DiffPosition, body string) error {
-			_, err := client.CreateDraftNote(context.Background(), projectPath, iid, "", body, &position)
-			return err
+			return client.CreateMergeRequestDiscussion(context.Background(), projectPath, iid, body, &position)
 		}
-		draftReply := func(iid int, discussionID string, body string) error {
-			_, err := client.CreateDraftNote(context.Background(), projectPath, iid, discussionID, body, nil)
-			return err
+		draftInlineComment := func(iid int, position mr.DiffPosition, body string) (int, error) {
+			return client.CreateDraftNote(context.Background(), projectPath, iid, "", body, &position)
+		}
+		draftReply := func(iid int, discussionID string, body string) (int, error) {
+			return client.CreateDraftNote(context.Background(), projectPath, iid, discussionID, body, nil)
 		}
 		submitDrafts := func(iid int, drafts []mr.DraftComment) error {
 			ids := make([]int, 0, len(drafts))
 			for _, draft := range drafts {
-				if draft.ID > 0 {
-					ids = append(ids, draft.ID)
+				if draft.ID <= 0 {
+					return fmt.Errorf("draft %q is missing server id", draft.LocalID)
 				}
+				ids = append(ids, draft.ID)
 			}
 			return client.BulkPublishDraftNotes(context.Background(), projectPath, iid, ids)
 		}
@@ -289,7 +291,7 @@ func buildProjectOptions(cfg *config.Config, configPath string, configLoaded boo
 			ApproveMR: approveMR, MergeMR: mergeMR, EditMR: editMR,
 			PostMRComment: postMRComment, ReplyToDiscussion: replyToDiscussion,
 			ResolveDiscussion: resolveDiscussion, UnresolveDiscussion: unresolveDiscussion,
-			PostInlineComment: postInlineComment, DraftReply: draftReply,
+			PostInlineComment: postInlineComment, DraftInlineComment: draftInlineComment, DraftReply: draftReply,
 			SubmitDrafts: submitDrafts, DiscardDrafts: discardDrafts,
 		}, nil
 	}

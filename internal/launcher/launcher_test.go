@@ -57,12 +57,14 @@ func TestOpenEditorBuildsLineFlags(t *testing.T) {
 	tests := []struct {
 		editor string
 		want   []string
+		name   string
 	}{
-		{editor: "vim", want: []string{"+12", "file.go"}},
-		{editor: "nvim", want: []string{"+12", "file.go"}},
-		{editor: "nano", want: []string{"+12", "file.go"}},
-		{editor: "code", want: []string{"--goto", "file.go:12"}},
-		{editor: "emacs", want: []string{"file.go"}},
+		{editor: "vim", name: "vim", want: []string{"+12", "file.go"}},
+		{editor: "nvim", name: "nvim", want: []string{"+12", "file.go"}},
+		{editor: "nano", name: "nano", want: []string{"+12", "file.go"}},
+		{editor: "code", name: "code", want: []string{"--goto", "file.go:12"}},
+		{editor: "code --wait", name: "code", want: []string{"--wait", "--goto", "file.go:12"}},
+		{editor: "emacs", name: "emacs", want: []string{"file.go"}},
 	}
 
 	for _, tc := range tests {
@@ -81,8 +83,8 @@ func TestOpenEditorBuildsLineFlags(t *testing.T) {
 			if err := OpenEditor("file.go", 12); err != nil {
 				t.Fatalf("OpenEditor: %v", err)
 			}
-			if gotName != tc.editor {
-				t.Fatalf("expected editor %q, got %q", tc.editor, gotName)
+			if gotName != tc.name {
+				t.Fatalf("expected editor %q, got %q", tc.name, gotName)
 			}
 			if len(gotArgs) != len(tc.want) {
 				t.Fatalf("expected args %+v, got %+v", tc.want, gotArgs)

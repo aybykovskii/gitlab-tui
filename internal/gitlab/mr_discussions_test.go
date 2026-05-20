@@ -3,6 +3,8 @@ package gitlab
 import (
 	"context"
 	"testing"
+
+	"github.com/aybykovskii/gitlab-tui/internal/mr"
 )
 
 func TestCreateMergeRequestNoteCreatesGeneralDiscussion(t *testing.T) {
@@ -16,6 +18,24 @@ func TestCreateMergeRequestNoteCreatesGeneralDiscussion(t *testing.T) {
 	}
 	if discussions.mrCommentIID != 42 || discussions.mrCommentBody != "Looks good" {
 		t.Fatalf("unexpected MR discussion call: iid=%d body=%q", discussions.mrCommentIID, discussions.mrCommentBody)
+	}
+}
+
+func TestCreateMergeRequestDiscussionCreatesInlineThread(t *testing.T) {
+	t.Parallel()
+
+	discussions := &fakeDiscussions{}
+	client := NewClientWithDiscussions(discussions)
+
+	err := client.CreateMergeRequestDiscussion(context.Background(), "group/project", 42, "Check", &mr.DiffPosition{NewPath: "main.go", OldPath: "main.go", NewLine: 7})
+	if err != nil {
+		t.Fatalf("CreateMergeRequestDiscussion: %v", err)
+	}
+	if discussions.mrCommentPosition == nil || discussions.mrCommentPosition.NewLine == nil || *discussions.mrCommentPosition.NewLine != 7 {
+		t.Fatalf("expected inline position, got %+v", discussions.mrCommentPosition)
+	}
+	if discussions.mrCommentPosition.OldLine != nil {
+		t.Fatalf("expected old line omitted, got %+v", *discussions.mrCommentPosition.OldLine)
 	}
 }
 

@@ -31,18 +31,19 @@ type fakeIssues struct {
 }
 
 type fakeDiscussions struct {
-	issueIID      int64
-	commentIID    int64
-	commentBody   string
-	mrCommentIID  int64
-	mrCommentBody string
-	replyIID      int64
-	replyID       string
-	replyBody     string
-	resolveIID    int64
-	resolveID     string
-	resolved      bool
-	items         []*glab.Discussion
+	issueIID          int64
+	commentIID        int64
+	commentBody       string
+	mrCommentIID      int64
+	mrCommentBody     string
+	mrCommentPosition *glab.PositionOptions
+	replyIID          int64
+	replyID           string
+	replyBody         string
+	resolveIID        int64
+	resolveID         string
+	resolved          bool
+	items             []*glab.Discussion
 }
 
 type fakeApprovals struct {
@@ -151,6 +152,9 @@ func (f *fakeDiscussions) CreateMergeRequestDiscussion(pid any, mergeRequest int
 	if opt != nil && opt.Body != nil {
 		f.mrCommentBody = *opt.Body
 	}
+	if opt != nil {
+		f.mrCommentPosition = opt.Position
+	}
 
 	return &glab.Discussion{}, &glab.Response{}, nil
 }
@@ -164,13 +168,13 @@ func (f *fakeDiscussions) AddMergeRequestDiscussionNote(pid any, mergeRequest in
 	return &glab.Note{}, &glab.Response{}, nil
 }
 
-func (f *fakeDiscussions) UpdateMergeRequestDiscussionNote(pid any, mergeRequest int64, discussion string, note int64, opt *glab.UpdateMergeRequestDiscussionNoteOptions, options ...glab.RequestOptionFunc) (*glab.Note, *glab.Response, error) {
+func (f *fakeDiscussions) ResolveMergeRequestDiscussion(pid any, mergeRequest int64, discussion string, opt *glab.ResolveMergeRequestDiscussionOptions, options ...glab.RequestOptionFunc) (*glab.Discussion, *glab.Response, error) {
 	f.resolveIID = mergeRequest
 	f.resolveID = discussion
 	if opt != nil && opt.Resolved != nil {
 		f.resolved = *opt.Resolved
 	}
-	return &glab.Note{}, &glab.Response{}, nil
+	return &glab.Discussion{}, &glab.Response{}, nil
 }
 
 func (f *fakeApprovals) GetConfiguration(pid any, mergeRequest int64, options ...glab.RequestOptionFunc) (*glab.MergeRequestApprovals, *glab.Response, error) {

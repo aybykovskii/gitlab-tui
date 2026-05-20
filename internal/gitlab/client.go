@@ -40,7 +40,7 @@ type DiscussionsClient interface {
 	CreateIssueDiscussion(pid any, issue int64, opt *glab.CreateIssueDiscussionOptions, options ...glab.RequestOptionFunc) (*glab.Discussion, *glab.Response, error)
 	CreateMergeRequestDiscussion(pid any, mergeRequest int64, opt *glab.CreateMergeRequestDiscussionOptions, options ...glab.RequestOptionFunc) (*glab.Discussion, *glab.Response, error)
 	AddMergeRequestDiscussionNote(pid any, mergeRequest int64, discussion string, opt *glab.AddMergeRequestDiscussionNoteOptions, options ...glab.RequestOptionFunc) (*glab.Note, *glab.Response, error)
-	UpdateMergeRequestDiscussionNote(pid any, mergeRequest int64, discussion string, note int64, opt *glab.UpdateMergeRequestDiscussionNoteOptions, options ...glab.RequestOptionFunc) (*glab.Note, *glab.Response, error)
+	ResolveMergeRequestDiscussion(pid any, mergeRequest int64, discussion string, opt *glab.ResolveMergeRequestDiscussionOptions, options ...glab.RequestOptionFunc) (*glab.Discussion, *glab.Response, error)
 }
 
 type ProjectsClient interface {

@@ -76,6 +76,7 @@ type ProjectData struct {
 	DiscardDrafts        DiscardDraftsFunc
 	ReplyToDiscussion    ReplyToDiscussionFunc
 	DraftReply           DraftReplyFunc
+	DraftInlineComment   DraftInlineCommentFunc
 	ResolveDiscussion    ResolveDiscussionFunc
 	UnresolveDiscussion  UnresolveDiscussionFunc
 	PostInlineComment    PostInlineCommentFunc
@@ -115,6 +116,7 @@ type ProjectOptions struct {
 	DiscardDrafts        DiscardDraftsFunc
 	ReplyToDiscussion    ReplyToDiscussionFunc
 	DraftReply           DraftReplyFunc
+	DraftInlineComment   DraftInlineCommentFunc
 	ResolveDiscussion    ResolveDiscussionFunc
 	UnresolveDiscussion  UnresolveDiscussionFunc
 	PostInlineComment    PostInlineCommentFunc

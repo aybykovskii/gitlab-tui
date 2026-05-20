@@ -61,6 +61,7 @@ type (
 type draftAddedMsg struct {
 	iid   int
 	draft mr.DraftComment
+	err   error
 }
 
 type draftsSubmittedMsg struct {

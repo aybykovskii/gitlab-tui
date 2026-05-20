@@ -18,7 +18,7 @@ func (c Client) CreateDraftNote(ctx context.Context, projectPath string, iid int
 		opt.InReplyToDiscussionID = &discussionID
 	}
 	if position != nil {
-		opt.Position = draftPositionOptions(position)
+		opt.Position = diffPositionOptions(position)
 	}
 
 	draft, _, err := c.draftNotes.CreateDraftNote(projectPath, int64(iid), opt, glab.WithContext(ctx))
@@ -36,8 +36,7 @@ func (c Client) BulkPublishDraftNotes(ctx context.Context, projectPath string, i
 		return ErrClientNotConfigured
 	}
 	if len(draftIDs) == 0 {
-		_, err := c.draftNotes.PublishAllDraftNotes(projectPath, int64(iid), glab.WithContext(ctx))
-		return err
+		return nil
 	}
 	for _, id := range draftIDs {
 		if _, err := c.draftNotes.PublishDraftNote(projectPath, int64(iid), int64(id), glab.WithContext(ctx)); err != nil {
@@ -67,15 +66,24 @@ func (c Client) DeleteAllDraftNotes(ctx context.Context, projectPath string, iid
 	return nil
 }
 
-func draftPositionOptions(position *mr.DiffPosition) *glab.PositionOptions {
-	newLine := int64(position.NewLine)
-	oldLine := int64(position.OldLine)
+func diffPositionOptions(position *mr.DiffPosition) *glab.PositionOptions {
 	positionType := "text"
-	return &glab.PositionOptions{
-		NewPath:      &position.NewPath,
-		OldPath:      &position.OldPath,
-		NewLine:      &newLine,
-		OldLine:      &oldLine,
-		PositionType: &positionType,
+	opt := &glab.PositionOptions{PositionType: &positionType}
+
+	if position.NewPath != "" {
+		opt.NewPath = &position.NewPath
 	}
+	if position.OldPath != "" {
+		opt.OldPath = &position.OldPath
+	}
+	if position.NewLine > 0 {
+		newLine := int64(position.NewLine)
+		opt.NewLine = &newLine
+	}
+	if position.OldLine > 0 {
+		oldLine := int64(position.OldLine)
+		opt.OldLine = &oldLine
+	}
+
+	return opt
 }

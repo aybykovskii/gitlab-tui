@@ -15,9 +15,15 @@ import (
 )
 
 type fakeGitLabClient struct {
-	account    string
-	listLimit  int
-	listCalled bool
+	account        string
+	listLimit      int
+	listCalled     bool
+	createdProject string
+	createdIID     int
+	createdBody    string
+	createdPos     *mr.DiffPosition
+	createdDraftID int
+	publishedIDs   []int
 }
 
 func (f *fakeGitLabClient) ListProjects(ctx context.Context, limit int) ([]string, error) {
@@ -103,7 +109,11 @@ func (f *fakeGitLabClient) UpdateMergeRequest(ctx context.Context, projectPath s
 	return nil
 }
 
-func (f *fakeGitLabClient) CreateMergeRequestNote(ctx context.Context, projectPath string, iid int, body string) error {
+func (f *fakeGitLabClient) CreateMergeRequestDiscussion(ctx context.Context, projectPath string, iid int, body string, position *mr.DiffPosition) error {
+	f.createdProject = projectPath
+	f.createdIID = iid
+	f.createdBody = body
+	f.createdPos = position
 	return nil
 }
 
@@ -116,10 +126,14 @@ func (f *fakeGitLabClient) ResolveMergeRequestDiscussion(ctx context.Context, pr
 }
 
 func (f *fakeGitLabClient) CreateDraftNote(ctx context.Context, projectPath string, iid int, discussionID string, body string, position *mr.DiffPosition) (int, error) {
-	return 0, nil
+	if f.createdDraftID == 0 {
+		f.createdDraftID = 321
+	}
+	return f.createdDraftID, nil
 }
 
 func (f *fakeGitLabClient) BulkPublishDraftNotes(ctx context.Context, projectPath string, iid int, draftIDs []int) error {
+	f.publishedIDs = append([]int(nil), draftIDs...)
 	return nil
 }
 
@@ -273,6 +287,49 @@ func (f *fakeGitLabClientWithLabels) ListProjectLabels(_ context.Context, _ stri
 
 func (f *fakeGitLabClientWithLabels) UpdateMRLabels(_ context.Context, _ string, _ int, _ []string) error {
 	return nil
+}
+
+func TestLoadProjectWiresMRWriteCallbacksWithDraftIDs(t *testing.T) {
+	t.Parallel()
+
+	cfg := config.Default()
+	client := &fakeGitLabClient{account: "default", createdDraftID: 777}
+	resolution := ProjectResolution{Account: "default", Path: "group/project", Source: ProjectSourceGitRemote}
+
+	options := buildProjectOptions(&cfg, "", false, resolution, CLIIntent{}, func(account config.Account) (gitLabClient, error) {
+		return client, nil
+	})
+
+	data, err := options.LoadProject("group/project", "")
+	if err != nil {
+		t.Fatalf("loadProject: %v", err)
+	}
+	if data.PostInlineComment == nil || data.DraftInlineComment == nil || data.SubmitDrafts == nil {
+		t.Fatal("expected MR write callbacks to be populated")
+	}
+
+	pos := mr.DiffPosition{NewPath: "main.go", NewLine: 7}
+	if err := data.PostInlineComment(42, pos, "instant"); err != nil {
+		t.Fatalf("PostInlineComment: %v", err)
+	}
+	if client.createdProject != "group/project" || client.createdIID != 42 || client.createdBody != "instant" || client.createdPos == nil {
+		t.Fatalf("unexpected inline comment call: %+v", client)
+	}
+
+	id, err := data.DraftInlineComment(42, pos, "draft")
+	if err != nil {
+		t.Fatalf("DraftInlineComment: %v", err)
+	}
+	if id != 777 {
+		t.Fatalf("expected draft id 777, got %d", id)
+	}
+
+	if err := data.SubmitDrafts(42, []mr.DraftComment{{ID: 777, LocalID: "d1"}}); err != nil {
+		t.Fatalf("SubmitDrafts: %v", err)
+	}
+	if len(client.publishedIDs) != 1 || client.publishedIDs[0] != 777 {
+		t.Fatalf("expected published id 777, got %+v", client.publishedIDs)
+	}
 }
 
 func TestLoadProjectIncludesLabelsInProjectData(t *testing.T) {

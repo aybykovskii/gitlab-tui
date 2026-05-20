@@ -55,6 +55,9 @@ func TestCreateDraftNoteCreatesInlineDraft(t *testing.T) {
 	if id != 123 || fake.createIID != 42 || fake.createOpt == nil || *fake.createOpt.Note != "Check this" || fake.createOpt.Position == nil {
 		t.Fatalf("unexpected create draft call: id=%d iid=%d opt=%+v", id, fake.createIID, fake.createOpt)
 	}
+	if fake.createOpt.Position.OldLine != nil {
+		t.Fatalf("expected absent old line for new-line draft, got %+v", *fake.createOpt.Position.OldLine)
+	}
 }
 
 func TestCreateDraftNoteCreatesReplyDraft(t *testing.T) {
@@ -68,6 +71,19 @@ func TestCreateDraftNoteCreatesReplyDraft(t *testing.T) {
 	}
 	if fake.createOpt.InReplyToDiscussionID == nil || *fake.createOpt.InReplyToDiscussionID != "disc-1" {
 		t.Fatalf("expected reply discussion id, got %+v", fake.createOpt)
+	}
+}
+
+func TestBulkPublishDraftNotesNoopsWithoutIDs(t *testing.T) {
+	t.Parallel()
+
+	fake := &fakeDraftNotes{}
+	client := NewClientWithDraftNotes(fake)
+	if err := client.BulkPublishDraftNotes(context.Background(), "group/project", 42, nil); err != nil {
+		t.Fatalf("BulkPublishDraftNotes: %v", err)
+	}
+	if fake.publishAllIID != 0 || len(fake.published) != 0 {
+		t.Fatalf("expected no publish calls, publishAll=%d published=%+v", fake.publishAllIID, fake.published)
 	}
 }
 

@@ -38,9 +38,11 @@ func OpenEditor(filePath string, line int) error {
 		return errors.New("EDITOR is not set")
 	}
 
-	name := filepath.Base(strings.Fields(editor)[0])
-	args := editorArgs(name, filePath, line)
-	if err := commandRunner(editor, args...); err != nil {
+	parts := strings.Fields(editor)
+	name := filepath.Base(parts[0])
+	args := append([]string{}, parts[1:]...)
+	args = append(args, editorArgs(name, filePath, line)...)
+	if err := commandRunner(parts[0], args...); err != nil {
 		return fmt.Errorf("open editor: %w", err)
 	}
 

@@ -54,6 +54,7 @@ type Model struct {
 	discardDrafts        DiscardDraftsFunc
 	replyToDiscussion    ReplyToDiscussionFunc
 	draftReply           DraftReplyFunc
+	draftInlineComment   DraftInlineCommentFunc
 	resolveDiscussion    ResolveDiscussionFunc
 	unresolveDiscussion  UnresolveDiscussionFunc
 	loadDiscussions      LoadDiscussionsFunc
@@ -121,6 +122,7 @@ func NewModelWithProject(items []mr.MergeRequest, options ProjectOptions) Model 
 		discardDrafts:        options.DiscardDrafts,
 		replyToDiscussion:    options.ReplyToDiscussion,
 		draftReply:           options.DraftReply,
+		draftInlineComment:   options.DraftInlineComment,
 		resolveDiscussion:    options.ResolveDiscussion,
 		unresolveDiscussion:  options.UnresolveDiscussion,
 		postInlineComment:    options.PostInlineComment,

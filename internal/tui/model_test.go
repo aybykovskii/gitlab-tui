@@ -1363,6 +1363,53 @@ func TestReviewTabPublishesDraftsWithSummaryAndDiscards(t *testing.T) {
 	}
 }
 
+func TestDraftInlineCommentCreatesServerDraftAndStoresID(t *testing.T) {
+	t.Parallel()
+
+	created := false
+	opts := draftOpts()
+	opts.DraftInlineComment = func(iid int, position mr.DiffPosition, body string) (int, error) {
+		created = true
+		if iid != 42 || body != "Server draft" {
+			t.Fatalf("unexpected draft callback args: iid=%d body=%q", iid, body)
+		}
+		if position.NewPath != "main.go" || position.NewLine != 1 || position.OldPath != "main.go" || position.OldLine != 1 {
+			t.Fatalf("unexpected position: %+v", position)
+		}
+		return 987, nil
+	}
+
+	model := NewModelWithProject(FakeMergeRequests(), opts)
+	updated, _ := model.Update(tea.KeyMsg{Type: tea.KeyTab})
+	model = updated.(Model)
+	updated, _ = model.Update(tea.KeyMsg{Type: tea.KeyTab})
+	model = updated.(Model)
+	updated, _ = model.Update(filesFinishedMsg{iid: 42, files: []mr.ChangedFile{{Path: "main.go", Diff: []mr.DiffRow{{OldLine: 1, NewLine: 1, OldText: "old", NewText: "old"}}}}})
+	model = updated.(Model)
+	updated, _ = model.Update(tea.KeyMsg{Type: tea.KeyEnter})
+	model = updated.(Model)
+
+	updated, _ = model.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune("c")})
+	model = updated.(Model)
+	updated, _ = model.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune("Server draft")})
+	model = updated.(Model)
+	updated, cmd := model.Update(tea.KeyMsg{Type: tea.KeyEnter})
+	model = updated.(Model)
+	if cmd == nil {
+		t.Fatal("expected create draft command")
+	}
+
+	updated, _ = model.Update(cmd())
+	model = updated.(Model)
+
+	if !created {
+		t.Fatal("expected draft callback")
+	}
+	if len(model.drafts[42]) != 1 || model.drafts[42][0].ID != 987 {
+		t.Fatalf("expected stored draft id 987, got %+v", model.drafts[42])
+	}
+}
+
 func TestModelStoresDraftCommentForCurrentMR(t *testing.T) {
 	t.Parallel()
 
@@ -1863,14 +1910,14 @@ func TestDKeyOpensDraftReplyAndEnterCallsService(t *testing.T) {
 
 	called := false
 	opts := discussionWriteOpts()
-	opts.DraftReply = func(iid int, discussionID string, body string) error {
+	opts.DraftReply = func(iid int, discussionID string, body string) (int, error) {
 		called = true
 
 		if body != "Draft reply" {
 			t.Errorf("expected 'Draft reply', got %q", body)
 		}
 
-		return nil
+		return 123, nil
 	}
 
 	model := NewModelWithProject(FakeMergeRequests(), opts)
@@ -1897,10 +1944,14 @@ func TestDKeyOpensDraftReplyAndEnterCallsService(t *testing.T) {
 		t.Fatal("expected draft reply command")
 	}
 
-	cmd()
+	updated, _ = model.Update(cmd())
+	model = updated.(Model)
 
 	if !called {
 		t.Fatal("expected DraftReply to be called")
+	}
+	if len(model.drafts[42]) != 1 || model.drafts[42][0].ID != 123 {
+		t.Fatalf("expected stored draft reply id 123, got %+v", model.drafts[42])
 	}
 }
 

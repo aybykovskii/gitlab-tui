@@ -54,9 +54,11 @@ func (m Model) updateFileDiffReplyInput(msg tea.KeyMsg) (Model, tea.Cmd) {
 				return m, nil
 			}
 
+			localID := fmt.Sprintf("local-%d", len(m.drafts[iid])+1)
+
 			return m, func() tea.Msg {
-				err := callback(iid, discussionID, body)
-				return replyFinishedMsg{iid: iid, discussionID: discussionID, body: body, draft: true, err: err}
+				id, err := callback(iid, discussionID, body)
+				return draftAddedMsg{iid: iid, draft: mr.DraftComment{ID: id, LocalID: localID, Body: body}, err: err}
 			}
 		}
 
@@ -100,26 +102,7 @@ func (m Model) updateFileDiffCommentInput(msg tea.KeyMsg) (Model, tea.Cmd) {
 		}
 
 		files := m.currentFiles()
-
-		var filePath string
-		if len(files) > m.selectedFile {
-			filePath = files[m.selectedFile].Path
-		}
-
-		startLine := m.diffCursor
-		if m.rangeStart >= 0 {
-			startLine = m.rangeStart
-		}
-
-		var newLine int
-		if len(files) > m.selectedFile && startLine < len(files[m.selectedFile].Diff) {
-			newLine = files[m.selectedFile].Diff[startLine].NewLine
-		}
-
-		var endNewLine int
-		if m.rangeStart >= 0 && len(files) > m.selectedFile && m.diffCursor < len(files[m.selectedFile].Diff) {
-			endNewLine = files[m.selectedFile].Diff[m.diffCursor].NewLine
-		}
+		position, endNewLine := m.diffCommentPosition(files)
 
 		m.rangeStart = -1
 
@@ -129,11 +112,10 @@ func (m Model) updateFileDiffCommentInput(msg tea.KeyMsg) (Model, tea.Cmd) {
 				return m, nil
 			}
 
-			pos := mr.DiffPosition{NewPath: filePath, NewLine: newLine}
 			iid := item.IID
 
 			return m, func() tea.Msg {
-				err := callback(iid, pos, body)
+				err := callback(iid, position, body)
 				return inlineCommentFinishedMsg{iid: iid, err: err}
 			}
 		}
@@ -141,10 +123,22 @@ func (m Model) updateFileDiffCommentInput(msg tea.KeyMsg) (Model, tea.Cmd) {
 		draft := mr.DraftComment{
 			LocalID:  fmt.Sprintf("local-%d", len(m.drafts[item.IID])+1),
 			Body:     body,
-			Position: &mr.DiffPosition{NewPath: filePath, NewLine: newLine},
+			Position: &position,
 			EndLine:  endNewLine,
 		}
-		m.drafts[item.IID] = append(m.drafts[item.IID], draft)
+
+		callback := m.draftInlineComment
+		if callback == nil {
+			m.drafts[item.IID] = append(m.drafts[item.IID], draft)
+			return m, nil
+		}
+
+		iid := item.IID
+		return m, func() tea.Msg {
+			id, err := callback(iid, position, body)
+			draft.ID = id
+			return draftAddedMsg{iid: iid, draft: draft, err: err}
+		}
 	case tea.KeyBackspace:
 		m.Backspace()
 	case tea.KeyRunes, tea.KeySpace:
@@ -316,6 +310,36 @@ func (m Model) toggleDiscussionResolveAtCursor() (Model, tea.Cmd) {
 	}
 
 	return m, nil
+}
+
+func (m Model) diffCommentPosition(files []mr.ChangedFile) (mr.DiffPosition, int) {
+	if len(files) <= m.selectedFile {
+		return mr.DiffPosition{}, 0
+	}
+
+	file := files[m.selectedFile]
+	startLine := m.diffCursor
+	if m.rangeStart >= 0 {
+		startLine = m.rangeStart
+	}
+
+	position := mr.DiffPosition{NewPath: file.Path, OldPath: file.OldPath}
+	if position.OldPath == "" {
+		position.OldPath = file.Path
+	}
+
+	if startLine >= 0 && startLine < len(file.Diff) {
+		row := file.Diff[startLine]
+		position.NewLine = row.NewLine
+		position.OldLine = row.OldLine
+	}
+
+	endNewLine := 0
+	if m.rangeStart >= 0 && m.diffCursor >= 0 && m.diffCursor < len(file.Diff) {
+		endNewLine = file.Diff[m.diffCursor].NewLine
+	}
+
+	return position, endNewLine
 }
 
 func (m Model) submitDraftsCommand() (Model, tea.Cmd) {

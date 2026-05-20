@@ -138,6 +138,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.discardDrafts = msg.data.DiscardDrafts
 		m.replyToDiscussion = msg.data.ReplyToDiscussion
 		m.draftReply = msg.data.DraftReply
+		m.draftInlineComment = msg.data.DraftInlineComment
 		m.resolveDiscussion = msg.data.ResolveDiscussion
 		m.unresolveDiscussion = msg.data.UnresolveDiscussion
 		m.postInlineComment = msg.data.PostInlineComment
@@ -337,15 +338,30 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 		return m, nil
 	case draftAddedMsg:
+		if msg.err != nil {
+			m.commentError = msg.err.Error()
+			return m, nil
+		}
+
+		m.commentError = ""
 		m.drafts[msg.iid] = append(m.drafts[msg.iid], msg.draft)
 		return m, nil
 	case draftsSubmittedMsg:
-		if msg.err == nil {
-			m.drafts[msg.iid] = nil
+		if msg.err != nil {
+			m.actionError = msg.err.Error()
+			return m, nil
 		}
 
+		m.actionError = ""
+		m.drafts[msg.iid] = nil
 		return m, nil
 	case draftsDiscardedMsg:
+		if msg.err != nil {
+			m.actionError = msg.err.Error()
+			return m, nil
+		}
+
+		m.actionError = ""
 		m.drafts[msg.iid] = nil
 		return m, nil
 	case filesFinishedMsg:
