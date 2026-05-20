@@ -31,10 +31,12 @@ type fakeIssues struct {
 }
 
 type fakeDiscussions struct {
-	issueIID    int64
-	commentIID  int64
-	commentBody string
-	items       []*glab.Discussion
+	issueIID      int64
+	commentIID    int64
+	commentBody   string
+	mrCommentIID  int64
+	mrCommentBody string
+	items         []*glab.Discussion
 }
 
 type fakeApprovals struct {
@@ -133,6 +135,15 @@ func (f *fakeDiscussions) CreateIssueDiscussion(pid any, issue int64, opt *glab.
 	f.commentIID = issue
 	if opt != nil && opt.Body != nil {
 		f.commentBody = *opt.Body
+	}
+
+	return &glab.Discussion{}, &glab.Response{}, nil
+}
+
+func (f *fakeDiscussions) CreateMergeRequestDiscussion(pid any, mergeRequest int64, opt *glab.CreateMergeRequestDiscussionOptions, options ...glab.RequestOptionFunc) (*glab.Discussion, *glab.Response, error) {
+	f.mrCommentIID = mergeRequest
+	if opt != nil && opt.Body != nil {
+		f.mrCommentBody = *opt.Body
 	}
 
 	return &glab.Discussion{}, &glab.Response{}, nil

@@ -39,6 +39,7 @@ type gitLabClient interface {
 	ApproveMergeRequest(ctx context.Context, projectPath string, iid int) error
 	AcceptMergeRequest(ctx context.Context, projectPath string, iid int) error
 	UpdateMergeRequest(ctx context.Context, projectPath string, iid int, title, description string) error
+	CreateMergeRequestNote(ctx context.Context, projectPath string, iid int, body string) error
 	SearchProjects(ctx context.Context, query string, limit int) ([]string, error)
 }
 
@@ -239,6 +240,9 @@ func buildProjectOptions(cfg *config.Config, configPath string, configLoaded boo
 		editMR := func(iid int, title, description string) error {
 			return client.UpdateMergeRequest(context.Background(), projectPath, iid, title, description)
 		}
+		postMRComment := func(iid int, body string) error {
+			return client.CreateMergeRequestNote(context.Background(), projectPath, iid, body)
+		}
 
 		return tui.ProjectData{
 			Items: mrRes.items, Issues: issues, Labels: labels,
@@ -249,6 +253,7 @@ func buildProjectOptions(cfg *config.Config, configPath string, configLoaded boo
 			EditIssue: editIssue, AssignSelfIssue: assignSelfIssue, UnassignSelfIssue: unassignSelfIssue,
 			UpdateMRLabels: updateLabels, ToggleDraftMR: toggleDraftMR,
 			ApproveMR: approveMR, MergeMR: mergeMR, EditMR: editMR,
+			PostMRComment: postMRComment,
 		}, nil
 	}
 
