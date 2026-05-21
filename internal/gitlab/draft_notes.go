@@ -38,12 +38,9 @@ func (c Client) BulkPublishDraftNotes(ctx context.Context, projectPath string, i
 	if len(draftIDs) == 0 {
 		return nil
 	}
-	for _, id := range draftIDs {
-		if _, err := c.draftNotes.PublishDraftNote(projectPath, int64(iid), int64(id), glab.WithContext(ctx)); err != nil {
-			return err
-		}
-	}
-	return nil
+
+	_, err := c.draftNotes.PublishAllDraftNotes(projectPath, int64(iid), glab.WithContext(ctx))
+	return err
 }
 
 func (c Client) DeleteAllDraftNotes(ctx context.Context, projectPath string, iid int) error {
@@ -70,6 +67,15 @@ func diffPositionOptions(position *mr.DiffPosition) *glab.PositionOptions {
 	positionType := "text"
 	opt := &glab.PositionOptions{PositionType: &positionType}
 
+	if position.BaseSHA != "" {
+		opt.BaseSHA = &position.BaseSHA
+	}
+	if position.HeadSHA != "" {
+		opt.HeadSHA = &position.HeadSHA
+	}
+	if position.StartSHA != "" {
+		opt.StartSHA = &position.StartSHA
+	}
 	if position.NewPath != "" {
 		opt.NewPath = &position.NewPath
 	}

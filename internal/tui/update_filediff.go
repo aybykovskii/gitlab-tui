@@ -323,7 +323,13 @@ func (m Model) diffCommentPosition(files []mr.ChangedFile) (mr.DiffPosition, int
 		startLine = m.rangeStart
 	}
 
-	position := mr.DiffPosition{NewPath: file.Path, OldPath: file.OldPath}
+	position := mr.DiffPosition{
+		BaseSHA:  file.BaseSHA,
+		HeadSHA:  file.HeadSHA,
+		StartSHA: file.StartSHA,
+		NewPath:  file.Path,
+		OldPath:  file.OldPath,
+	}
 	if position.OldPath == "" {
 		position.OldPath = file.Path
 	}

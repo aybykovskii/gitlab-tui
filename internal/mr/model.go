@@ -42,6 +42,9 @@ type DraftComment = diff.DraftComment
 type ChangedFile struct {
 	Path         string
 	OldPath      string
+	BaseSHA      string
+	HeadSHA      string
+	StartSHA     string
 	IsNew        bool
 	IsDeleted    bool
 	IsRenamed    bool

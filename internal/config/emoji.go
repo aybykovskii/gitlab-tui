@@ -31,51 +31,53 @@ func defaultEmojiMap() EmojiMap {
 	}
 }
 
-// Resolve returns the effective emoji map: defaults merged with overrides when enabled,
-// or all-empty when disabled.
-func (e EmojiConfig) Resolve() EmojiMap {
-	if !e.Enabled {
-		return EmojiMap{}
-	}
-
-	d := defaultEmojiMap()
-	m := e.Icons
-
-	if m.Author == "" {
-		m.Author = d.Author
-	}
-
-	if m.Branch == "" {
-		m.Branch = d.Branch
-	}
-
-	if m.State == "" {
-		m.State = d.State
-	}
-
-	if m.Pipeline == "" {
-		m.Pipeline = d.Pipeline
-	}
-
-	if m.Approvals == "" {
-		m.Approvals = d.Approvals
-	}
-
-	if m.Labels == "" {
-		m.Labels = d.Labels
-	}
-
-	if m.Reviewers == "" {
-		m.Reviewers = d.Reviewers
-	}
-
-	if m.Draft == "" {
-		m.Draft = d.Draft
-	}
-
-	return m
-}
-
 func DefaultEmojiConfig() EmojiConfig {
 	return EmojiConfig{Enabled: true, Icons: defaultEmojiMap()}
 }
+
+
+// Resolve returns the effective emoji map: defaults merged with overrides when enabled,
+// or all-empty when disabled.
+func (config EmojiConfig) Resolve() EmojiMap {
+	if !config.Enabled {
+		return EmojiMap{}
+	}
+
+	defaults := defaultEmojiMap()
+	icons := config.Icons
+
+	if icons.Author == "" {
+		icons.Author = defaults.Author
+	}
+
+	if icons.Branch == "" {
+		icons.Branch = defaults.Branch
+	}
+
+	if icons.State == "" {
+		icons.State = defaults.State
+	}
+
+	if icons.Pipeline == "" {
+		icons.Pipeline = defaults.Pipeline
+	}
+
+	if icons.Approvals == "" {
+		icons.Approvals = defaults.Approvals
+	}
+
+	if icons.Labels == "" {
+		icons.Labels = defaults.Labels
+	}
+
+	if icons.Reviewers == "" {
+		icons.Reviewers = defaults.Reviewers
+	}
+
+	if icons.Draft == "" {
+		icons.Draft = defaults.Draft
+	}
+
+	return icons
+}
+

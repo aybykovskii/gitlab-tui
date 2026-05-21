@@ -20,6 +20,7 @@ import (
 
 type MergeRequestClient interface {
 	ListProjectMergeRequests(pid any, opt *glab.ListProjectMergeRequestsOptions, options ...glab.RequestOptionFunc) ([]*glab.BasicMergeRequest, *glab.Response, error)
+	GetMergeRequest(pid any, mergeRequest int64, opt *glab.GetMergeRequestsOptions, options ...glab.RequestOptionFunc) (*glab.MergeRequest, *glab.Response, error)
 	ListMergeRequestDiffs(pid any, mergeRequest int64, opt *glab.ListMergeRequestDiffsOptions, options ...glab.RequestOptionFunc) ([]*glab.MergeRequestDiff, *glab.Response, error)
 	AcceptMergeRequest(pid any, mergeRequest int64, opt *glab.AcceptMergeRequestOptions, options ...glab.RequestOptionFunc) (*glab.MergeRequest, *glab.Response, error)
 }
@@ -58,7 +59,6 @@ type MergeRequestEditClient interface {
 type DraftNotesClient interface {
 	CreateDraftNote(pid any, mergeRequest int64, opt *glab.CreateDraftNoteOptions, options ...glab.RequestOptionFunc) (*glab.DraftNote, *glab.Response, error)
 	PublishAllDraftNotes(pid any, mergeRequest int64, options ...glab.RequestOptionFunc) (*glab.Response, error)
-	PublishDraftNote(pid any, mergeRequest int64, note int64, options ...glab.RequestOptionFunc) (*glab.Response, error)
 	ListDraftNotes(pid any, mergeRequest int64, opt *glab.ListDraftNotesOptions, options ...glab.RequestOptionFunc) ([]*glab.DraftNote, *glab.Response, error)
 	DeleteDraftNote(pid any, mergeRequest int64, note int64, options ...glab.RequestOptionFunc) (*glab.Response, error)
 }
@@ -612,6 +612,12 @@ func (c Client) MergeRequestChangedFiles(ctx context.Context, projectPath string
 		return nil, ErrClientNotConfigured
 	}
 
+	detail, _, err := c.mergeRequests.GetMergeRequest(projectPath, int64(iid), nil, glab.WithContext(ctx))
+	if err != nil {
+		return nil, normalizeError(err)
+	}
+	diffRefs := mergeRequestDiffRefs(detail)
+
 	opt := &glab.ListMergeRequestDiffsOptions{
 		ListOptions: glab.ListOptions{PerPage: 50, Page: 1},
 	}
@@ -626,7 +632,11 @@ func (c Client) MergeRequestChangedFiles(ctx context.Context, projectPath string
 
 		for _, item := range items {
 			if item != nil {
-				result = append(result, MapChangedFile(item))
+				file := MapChangedFile(item)
+				file.BaseSHA = diffRefs.BaseSHA
+				file.HeadSHA = diffRefs.HeadSHA
+				file.StartSHA = diffRefs.StartSHA
+				result = append(result, file)
 			}
 		}
 
@@ -668,10 +678,13 @@ func MapDiscussion(item *glab.Discussion) mr.Discussion {
 		})
 		if d.Position == nil && note.Position != nil && note.Position.NewPath != "" {
 			d.Position = &mr.DiffPosition{
-				NewPath: note.Position.NewPath,
-				NewLine: int(note.Position.NewLine),
-				OldPath: note.Position.OldPath,
-				OldLine: int(note.Position.OldLine),
+				BaseSHA:  note.Position.BaseSHA,
+				HeadSHA:  note.Position.HeadSHA,
+				StartSHA: note.Position.StartSHA,
+				NewPath:  note.Position.NewPath,
+				NewLine:  int(note.Position.NewLine),
+				OldPath:  note.Position.OldPath,
+				OldLine:  int(note.Position.OldLine),
 			}
 		}
 	}
@@ -681,6 +694,18 @@ func MapDiscussion(item *glab.Discussion) mr.Discussion {
 	}
 
 	return d
+}
+
+func mergeRequestDiffRefs(item *glab.MergeRequest) mr.DiffPosition {
+	if item == nil {
+		return mr.DiffPosition{}
+	}
+
+	return mr.DiffPosition{
+		BaseSHA:  item.DiffRefs.BaseSha,
+		HeadSHA:  item.DiffRefs.HeadSha,
+		StartSHA: item.DiffRefs.StartSha,
+	}
 }
 
 func MapChangedFile(item *glab.MergeRequestDiff) mr.ChangedFile {

@@ -22,10 +22,13 @@ type Note struct {
 }
 
 type Position struct {
-	NewPath string
-	NewLine int
-	OldPath string
-	OldLine int
+	BaseSHA  string
+	HeadSHA  string
+	StartSHA string
+	NewPath  string
+	NewLine  int
+	OldPath  string
+	OldLine  int
 }
 
 type Discussion struct {
