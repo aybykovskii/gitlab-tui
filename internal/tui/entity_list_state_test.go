@@ -4,6 +4,8 @@ import (
 	"strings"
 	"testing"
 
+
+	"github.com/stretchr/testify/assert"
 	"github.com/aybykovskii/gitlab-tui/internal/issue"
 	"github.com/aybykovskii/gitlab-tui/internal/mr"
 )
@@ -16,9 +18,7 @@ func TestEntityListStateViewRendersMergeRequests(t *testing.T) {
 
 	view := state.View(LayoutState{Width: 80, Height: 20}, EntityListViewData{Section: SectionMergeRequests})
 	for _, want := range []string{"Project: group/project", "Merge Requests", "!1 First MR", "alice feat → main"} {
-		if !strings.Contains(view, want) {
-			t.Fatalf("expected MR entity list to contain %q, got:\n%s", want, view)
-		}
+		assert.Contains(t, view, want)
 	}
 }
 
@@ -30,9 +30,7 @@ func TestEntityListStateViewRendersIssues(t *testing.T) {
 
 	view := state.View(LayoutState{Width: 80, Height: 20}, EntityListViewData{Section: SectionIssues, IssueStateLabel: "opened"})
 	for _, want := range []string{"Project: group/project", "Issues [opened]", "#2 First issue", "bob · [bug] · 💬 3"} {
-		if !strings.Contains(view, want) {
-			t.Fatalf("expected issue entity list to contain %q, got:\n%s", want, view)
-		}
+		assert.Contains(t, view, want)
 	}
 }
 

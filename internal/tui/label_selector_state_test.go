@@ -4,6 +4,8 @@ import (
 	"strings"
 	"testing"
 
+
+	"github.com/stretchr/testify/assert"
 	"github.com/aybykovskii/gitlab-tui/internal/mr"
 )
 
@@ -14,9 +16,7 @@ func TestLabelSelectorStateViewShowsEmptyMessage(t *testing.T) {
 
 	view := state.View(LayoutState{})
 
-	if !strings.Contains(view, "No project labels") {
-		t.Fatalf("expected empty message, got:\n%s", view)
-	}
+	assert.Contains(t, view, "No project labels")
 }
 
 func TestLabelSelectorStateViewRendersHeaderHint(t *testing.T) {
@@ -39,9 +39,7 @@ func TestLabelSelectorStateViewShowsUnselectedMarkerForUnpendingLabel(t *testing
 
 	view := state.View(LayoutState{})
 
-	if !strings.Contains(view, "○") {
-		t.Fatalf("expected unselected marker ○, got:\n%s", view)
-	}
+	assert.Contains(t, view, "○")
 }
 
 func TestLabelSelectorStateViewShowsSelectedMarkerForPendingLabel(t *testing.T) {
@@ -53,9 +51,7 @@ func TestLabelSelectorStateViewShowsSelectedMarkerForPendingLabel(t *testing.T) 
 
 	view := state.View(LayoutState{})
 
-	if !strings.Contains(view, "●") {
-		t.Fatalf("expected selected marker ●, got:\n%s", view)
-	}
+	assert.Contains(t, view, "●")
 }
 
 func TestLabelSelectorStateViewMarksCursorRow(t *testing.T) {
@@ -80,9 +76,7 @@ func TestLabelSelectorStateViewMarksCursorRow(t *testing.T) {
 		}
 	}
 
-	if !found {
-		t.Fatalf("expected cursor marker on 'enhancement' row, got:\n%s", view)
-	}
+	assert.True(t, found)
 }
 
 func TestLabelSelectorStateViewOnlyMarksOneLabelSelected(t *testing.T) {

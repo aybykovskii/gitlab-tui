@@ -4,6 +4,8 @@ import (
 	"strings"
 	"testing"
 
+
+	"github.com/stretchr/testify/assert"
 	tea "github.com/charmbracelet/bubbletea"
 
 	"github.com/aybykovskii/gitlab-tui/internal/issue"
@@ -20,17 +22,11 @@ func TestEnterOnIssuesSectionOpensIssueList(t *testing.T) {
 	updated, _ = model.Update(tea.KeyMsg{Type: tea.KeyEnter})
 	model = updated.(Model)
 
-	if model.mode != ModeEntityList {
-		t.Fatalf("expected ModeEntityList after entering Issues section, got %v", model.mode)
-	}
+	assert.Equal(t, ModeEntityList, model.mode)
 
-	if model.section != SectionIssues {
-		t.Fatalf("expected Issues section, got %q", model.section)
-	}
+	assert.Equal(t, SectionIssues, model.section)
 
-	if !strings.Contains(model.View(), "Issues [opened]") {
-		t.Fatalf("expected issue list view, got %q", model.View())
-	}
+	assert.Contains(t, model.View(), "Issues [opened]")
 }
 
 func TestIssuesEntityListRendersTwoLineRows(t *testing.T) {
@@ -55,18 +51,12 @@ func TestIssuesEntityListRendersTwoLineRows(t *testing.T) {
 	view := model.renderEntityListPane()
 
 	for _, want := range []string{"Issues [opened]", "#80 Issues Entity List", "Alice · [frontend] [tui] · 💬 3", "#81 No comments", "Bob · [backend]"} {
-		if !strings.Contains(view, want) {
-			t.Fatalf("expected issue list to contain %q, got %q", want, view)
-		}
+		assert.Contains(t, view, want)
 	}
 
-	if strings.Contains(view, "extra") {
-		t.Fatalf("expected labels to be truncated, got %q", view)
-	}
+	assert.NotContains(t, view, "extra")
 
-	if strings.Contains(view, "💬 0") {
-		t.Fatalf("expected zero comment count to be hidden, got %q", view)
-	}
+	assert.NotContains(t, view, "💬 0")
 }
 
 func TestIssueStateFilterCyclesAndUpdatesTitle(t *testing.T) {
@@ -83,18 +73,12 @@ func TestIssueStateFilterCyclesAndUpdatesTitle(t *testing.T) {
 		updated, cmd := model.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'s'}})
 
 		model = updated.(Model)
-		if model.issueState != want {
-			t.Fatalf("expected state %q, got %q", want, model.issueState)
-		}
+		assert.Equal(t, want, model.issueState)
 
-		if cmd == nil {
-			t.Fatalf("expected state %q to reload issues", want)
-		}
+		assert.NotNil(t, cmd)
 	}
 
-	if !strings.Contains(model.renderEntityListPane(), "Issues [opened]") {
-		t.Fatalf("expected title to show opened state, got %q", model.renderEntityListPane())
-	}
+	assert.Contains(t, model.renderEntityListPane(), "Issues [opened]")
 }
 
 func TestIssueDetailSummaryRendersMetadata(t *testing.T) {
@@ -121,9 +105,7 @@ func TestIssueDetailSummaryRendersMetadata(t *testing.T) {
 	view := model.renderRight()
 
 	for _, want := range []string{"#81 Issue Detail", "[>Summary<] [Discussions]", "👤 Alice · assigned: Bob", "🟢 opened · 💬 7", "🏷️ [frontend] [tui]", "📅 Due: 2026-05-20 · 🏁 v1", "⚖️ Weight: 5", "Detail description"} {
-		if !strings.Contains(view, want) {
-			t.Fatalf("expected issue detail to contain %q, got %q", want, view)
-		}
+		assert.Contains(t, view, want)
 	}
 }
 
@@ -135,13 +117,9 @@ func TestIssueDetailHidesUnsetWeight(t *testing.T) {
 	model.issueItems = []issue.Issue{{IID: 82, Title: "No Estimate", State: "closed"}}
 
 	view := model.renderRight()
-	if strings.Contains(view, "Weight") {
-		t.Fatalf("expected unset weight to be hidden, got %q", view)
-	}
+	assert.NotContains(t, view, "Weight")
 
-	if !strings.Contains(view, "🔴 closed") {
-		t.Fatalf("expected closed state emoji, got %q", view)
-	}
+	assert.Contains(t, view, "🔴 closed")
 }
 
 func TestIssueDetailTabsStayWithinSummaryAndDiscussions(t *testing.T) {
@@ -155,9 +133,7 @@ func TestIssueDetailTabsStayWithinSummaryAndDiscussions(t *testing.T) {
 		updated, _ := model.Update(tea.KeyMsg{Type: tea.KeyTab})
 
 		model = updated.(Model)
-		if model.IssueDetailState.activeTab != want {
-			t.Fatalf("expected tab %v, got %v", want, model.IssueDetailState.activeTab)
-		}
+		assert.Equal(t, want, model.IssueDetailState.activeTab)
 	}
 }
 
@@ -202,17 +178,13 @@ func TestIssueEditOpenAssignAndLabelsActions(t *testing.T) {
 	updated, _ := model.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune("e")})
 
 	model = updated.(Model)
-	if !model.editInput {
-		t.Fatal("expected e to open issue edit input")
-	}
+	assert.True(t, model.editInput)
 
 	model.BeginWithValue("New")
 	updated, cmd := model.Update(tea.KeyMsg{Type: tea.KeyEnter})
 	model = updated.(Model)
 
-	if cmd == nil {
-		t.Fatal("expected edit command")
-	}
+	assert.NotNil(t, cmd)
 
 	updated, _ = model.Update(cmd())
 
@@ -224,9 +196,7 @@ func TestIssueEditOpenAssignAndLabelsActions(t *testing.T) {
 	updated, cmd = model.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune("a")})
 	model = updated.(Model)
 
-	if cmd == nil {
-		t.Fatal("expected assign command")
-	}
+	assert.NotNil(t, cmd)
 
 	updated, _ = model.Update(cmd())
 
@@ -238,23 +208,17 @@ func TestIssueEditOpenAssignAndLabelsActions(t *testing.T) {
 	updated, _ = model.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune("l")})
 
 	model = updated.(Model)
-	if model.mode != ModeLabelSelect {
-		t.Fatalf("expected label selector mode, got %v", model.mode)
-	}
+	assert.Equal(t, ModeLabelSelect, model.mode)
 
 	model.mode = ModeDetail
 	updated, cmd = model.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune("o")})
 	model = updated.(Model)
 
-	if cmd == nil {
-		t.Fatal("expected open URL command")
-	}
+	assert.NotNil(t, cmd)
 
 	cmd()
 
-	if openedURL != "https://gitlab.example/issue/84" {
-		t.Fatalf("expected issue URL opened, got %q", openedURL)
-	}
+	assert.Equal(t, "https://gitlab.example/issue/84", openedURL)
 }
 
 func TestIssueCloseReopenActionUsesStateAndUpdatesModel(t *testing.T) {
@@ -280,9 +244,7 @@ func TestIssueCloseReopenActionUsesStateAndUpdatesModel(t *testing.T) {
 	updated, cmd := model.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune("c")})
 	model = updated.(Model)
 
-	if cmd == nil {
-		t.Fatal("expected close command")
-	}
+	assert.NotNil(t, cmd)
 
 	updated, _ = model.Update(cmd())
 
@@ -291,16 +253,12 @@ func TestIssueCloseReopenActionUsesStateAndUpdatesModel(t *testing.T) {
 		t.Fatalf("expected close to update state, closed=%t reopened=%t issue=%+v", closed, reopened, model.issueItems[0])
 	}
 
-	if !strings.Contains(model.renderRight(), "🔴 closed") {
-		t.Fatalf("expected closed summary, got %q", model.renderRight())
-	}
+	assert.Contains(t, model.renderRight(), "🔴 closed")
 
 	updated, cmd = model.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune("c")})
 	model = updated.(Model)
 
-	if cmd == nil {
-		t.Fatal("expected reopen command")
-	}
+	assert.NotNil(t, cmd)
 
 	updated, _ = model.Update(cmd())
 
@@ -320,9 +278,7 @@ func TestIssueDiscussionsTabRendersCommentsAndReplyInput(t *testing.T) {
 	model.IssueDetailState.discussions = map[int][]issue.Discussion{82: {{ID: "d1", Notes: []mr.Note{{Author: "Alice", Body: "Needs work"}}}}}
 
 	view := model.renderRight()
-	if !strings.Contains(view, "Needs work") {
-		t.Fatalf("expected issue discussion body, got %q", view)
-	}
+	assert.Contains(t, view, "Needs work")
 
 	updated, _ := model.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune("r")})
 
@@ -357,19 +313,13 @@ func TestIssueGeneralCommentInputCallsPostIssueComment(t *testing.T) {
 	updated, cmd := model.Update(tea.KeyMsg{Type: tea.KeyEnter})
 	model = updated.(Model)
 
-	if model.issueCommentInput {
-		t.Fatal("expected issue comment input to close")
-	}
+	assert.False(t, model.issueCommentInput)
 
-	if cmd == nil {
-		t.Fatal("expected issue comment command")
-	}
+	assert.NotNil(t, cmd)
 
 	cmd()
 
-	if !called {
-		t.Fatal("expected PostIssueComment to be called")
-	}
+	assert.True(t, called)
 }
 
 func TestIssueDiscussionsIgnoreResolveAndDraftKeys(t *testing.T) {
@@ -391,9 +341,7 @@ func TestIssueDiscussionsIgnoreResolveAndDraftKeys(t *testing.T) {
 	updated, _ = model.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune("d")})
 
 	model = updated.(Model)
-	if model.replyInput {
-		t.Fatal("expected d to be ignored for issue discussions")
-	}
+	assert.False(t, model.replyInput)
 }
 
 func TestIssueFilterNarrowsByTitleAndAuthor(t *testing.T) {

@@ -9,6 +9,9 @@ import (
 	"testing"
 	"time"
 
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+
 	"github.com/aybykovskii/gitlab-tui/internal/config"
 	"github.com/aybykovskii/gitlab-tui/internal/issue"
 	"github.com/aybykovskii/gitlab-tui/internal/mr"
@@ -18,6 +21,7 @@ type fakeGitLabClient struct {
 	account        string
 	listLimit      int
 	listCalled     bool
+	calls          []string
 	createdProject string
 	createdIID     int
 	createdBody    string
@@ -98,18 +102,26 @@ func (f *fakeGitLabClient) ToggleDraftMR(ctx context.Context, projectPath string
 }
 
 func (f *fakeGitLabClient) ApproveMergeRequest(ctx context.Context, projectPath string, iid int) error {
+	f.calls = append(f.calls, "approve")
 	return nil
 }
 
 func (f *fakeGitLabClient) AcceptMergeRequest(ctx context.Context, projectPath string, iid int) error {
+	f.calls = append(f.calls, "merge")
 	return nil
 }
 
 func (f *fakeGitLabClient) UpdateMergeRequest(ctx context.Context, projectPath string, iid int, title, description string) error {
+	f.calls = append(f.calls, "edit")
 	return nil
 }
 
 func (f *fakeGitLabClient) CreateMergeRequestDiscussion(ctx context.Context, projectPath string, iid int, body string, position *mr.DiffPosition) error {
+	if position == nil {
+		f.calls = append(f.calls, "mr-comment")
+	} else {
+		f.calls = append(f.calls, "inline-comment")
+	}
 	f.createdProject = projectPath
 	f.createdIID = iid
 	f.createdBody = body
@@ -118,14 +130,25 @@ func (f *fakeGitLabClient) CreateMergeRequestDiscussion(ctx context.Context, pro
 }
 
 func (f *fakeGitLabClient) AddMergeRequestDiscussionNote(ctx context.Context, projectPath string, iid int, discussionID string, body string) error {
+	f.calls = append(f.calls, "reply")
 	return nil
 }
 
 func (f *fakeGitLabClient) ResolveMergeRequestDiscussion(ctx context.Context, projectPath string, iid int, discussionID string, resolved bool) error {
+	if resolved {
+		f.calls = append(f.calls, "resolve")
+	} else {
+		f.calls = append(f.calls, "unresolve")
+	}
 	return nil
 }
 
 func (f *fakeGitLabClient) CreateDraftNote(ctx context.Context, projectPath string, iid int, discussionID string, body string, position *mr.DiffPosition) (int, error) {
+	if position == nil {
+		f.calls = append(f.calls, "draft-reply")
+	} else {
+		f.calls = append(f.calls, "draft-inline")
+	}
 	if f.createdDraftID == 0 {
 		f.createdDraftID = 321
 	}
@@ -133,11 +156,13 @@ func (f *fakeGitLabClient) CreateDraftNote(ctx context.Context, projectPath stri
 }
 
 func (f *fakeGitLabClient) BulkPublishDraftNotes(ctx context.Context, projectPath string, iid int, draftIDs []int) error {
+	f.calls = append(f.calls, "submit-drafts")
 	f.publishedIDs = append([]int(nil), draftIDs...)
 	return nil
 }
 
 func (f *fakeGitLabClient) DeleteAllDraftNotes(ctx context.Context, projectPath string, iid int) error {
+	f.calls = append(f.calls, "discard-drafts")
 	return nil
 }
 
@@ -162,118 +187,69 @@ func TestBuildProjectOptionsUsesAccountsAndLimitedRecentProjects(t *testing.T) {
 		return client, nil
 	})
 
-	if len(options.LoadProjects) != 2 {
-		t.Fatalf("expected 2 account loaders, got %d", len(options.LoadProjects))
-	}
-
-	if len(options.Recents) != 2 || options.Recents[0] != "group/newest" || options.Recents[1] != "group/middle" {
-		t.Fatalf("expected limited recent paths in newest order, got %+v", options.Recents)
-	}
-
-	if len(options.RecentProjects) != 2 || options.RecentProjects[0].Account != "work" || options.RecentProjects[1].Account != "default" {
-		t.Fatalf("expected account-tagged recent projects, got %+v", options.RecentProjects)
-	}
-
-	if options.Path != "remote/project" {
-		t.Fatalf("expected resolved project path, got %q", options.Path)
-	}
+	require.Len(t, options.LoadProjects, 2)
+	require.Len(t, options.Recents, 2)
+	assert.Equal(t, "group/newest", options.Recents[0])
+	assert.Equal(t, "group/middle", options.Recents[1])
+	require.Len(t, options.RecentProjects, 2)
+	assert.Equal(t, "work", options.RecentProjects[0].Account)
+	assert.Equal(t, "default", options.RecentProjects[1].Account)
+	assert.Equal(t, "remote/project", options.Path)
 
 	for _, loader := range options.LoadProjects {
 		projects, err := loader.Load()
-		if err != nil {
-			t.Fatalf("load projects for %s: %v", loader.ID, err)
-		}
-
-		if len(projects) != 1 || projects[0] != loader.ID+"/project" {
-			t.Fatalf("unexpected projects for %s: %+v", loader.ID, projects)
-		}
-
-		if clients[loader.ID].listLimit != 15 || !clients[loader.ID].listCalled {
-			t.Fatalf("expected loader %s to call ListProjects(15), got called=%t limit=%d", loader.ID, clients[loader.ID].listCalled, clients[loader.ID].listLimit)
-		}
+		require.NoError(t, err, "load projects for %s", loader.ID)
+		require.Len(t, projects, 1)
+		assert.Equal(t, loader.ID+"/project", projects[0])
+		assert.True(t, clients[loader.ID].listCalled)
+		assert.Equal(t, 15, clients[loader.ID].listLimit)
 	}
 }
 
-func TestRunVersion(t *testing.T) {
-	t.Parallel()
+func TestRun(t *testing.T) {
+	t.Run("version", func(t *testing.T) {
+		t.Parallel()
 
-	var stdout bytes.Buffer
+		var stdout, stderr bytes.Buffer
+		code := New("test-version").Run([]string{"version"}, &stdout, &stderr)
 
-	var stderr bytes.Buffer
+		assert.Equal(t, 0, code)
+		assert.Equal(t, "test-version", strings.TrimSpace(stdout.String()))
+		assert.Empty(t, stderr.String())
+	})
 
-	code := New("test-version").Run([]string{"version"}, &stdout, &stderr)
+	t.Run("init creates config", func(t *testing.T) {
+		t.Parallel()
 
-	if code != 0 {
-		t.Fatalf("expected exit code 0, got %d", code)
-	}
+		var stdout, stderr bytes.Buffer
+		configPath := filepath.Join(t.TempDir(), "config.yaml")
+		code := NewWithEnv("test-version", []string{"GITLAB_TUI_CONFIG_FILE=" + configPath}).Run([]string{"init"}, &stdout, &stderr)
 
-	if got := strings.TrimSpace(stdout.String()); got != "test-version" {
-		t.Fatalf("expected version output, got %q", got)
-	}
+		assert.Equal(t, 0, code, "stderr: %s", stderr.String())
+		assert.Contains(t, stdout.String(), "created config: "+configPath)
+		_, err := os.Stat(configPath)
+		assert.NoError(t, err)
+	})
 
-	if stderr.Len() != 0 {
-		t.Fatalf("expected empty stderr, got %q", stderr.String())
-	}
-}
+	t.Run("section alias is not unknown command", func(t *testing.T) {
+		t.Parallel()
 
-func TestRunInitCreatesConfig(t *testing.T) {
-	t.Parallel()
+		var stdout, stderr bytes.Buffer
+		code := NewWithEnv("test-version", []string{"GITLAB_TOKEN="}).Run([]string{"mr"}, &stdout, &stderr)
 
-	var stdout bytes.Buffer
+		assert.NotContains(t, stderr.String(), "unknown command")
+		assert.NotEqual(t, 2, code, "stderr: %s", stderr.String())
+	})
 
-	var stderr bytes.Buffer
+	t.Run("unknown command", func(t *testing.T) {
+		t.Parallel()
 
-	configPath := filepath.Join(t.TempDir(), "config.yaml")
+		var stdout, stderr bytes.Buffer
+		code := New("test-version").Run([]string{"wat"}, &stdout, &stderr)
 
-	code := NewWithEnv("test-version", []string{"GITLAB_TUI_CONFIG_FILE=" + configPath}).Run([]string{"init"}, &stdout, &stderr)
-
-	if code != 0 {
-		t.Fatalf("expected exit code 0, got %d, stderr %q", code, stderr.String())
-	}
-
-	if !strings.Contains(stdout.String(), "created config: "+configPath) {
-		t.Fatalf("expected created config output, got %q", stdout.String())
-	}
-
-	if _, err := os.Stat(configPath); err != nil {
-		t.Fatalf("expected config file to exist: %v", err)
-	}
-}
-
-func TestRunSectionAliasIsNotUnknownCommand(t *testing.T) {
-	t.Parallel()
-
-	var stdout bytes.Buffer
-
-	var stderr bytes.Buffer
-
-	code := NewWithEnv("test-version", []string{"GITLAB_TOKEN="}).Run([]string{"mr"}, &stdout, &stderr)
-
-	if strings.Contains(stderr.String(), "unknown command") {
-		t.Fatalf("section alias 'mr' produced unknown command error: %q", stderr.String())
-	}
-
-	if code == 2 {
-		t.Fatalf("section alias 'mr' produced CLI parse error (exit 2), stderr %q", stderr.String())
-	}
-}
-
-func TestRunUnknownCommand(t *testing.T) {
-	t.Parallel()
-
-	var stdout bytes.Buffer
-
-	var stderr bytes.Buffer
-
-	code := New("test-version").Run([]string{"wat"}, &stdout, &stderr)
-
-	if code != 2 {
-		t.Fatalf("expected exit code 2, got %d", code)
-	}
-
-	if !strings.Contains(stderr.String(), "unknown command: wat") {
-		t.Fatalf("expected unknown command error, got %q", stderr.String())
-	}
+		assert.Equal(t, 2, code)
+		assert.Contains(t, stderr.String(), "unknown command: wat")
+	})
 }
 
 type fakeGitLabClientWithLabels struct {
@@ -289,76 +265,119 @@ func (f *fakeGitLabClientWithLabels) UpdateMRLabels(_ context.Context, _ string,
 	return nil
 }
 
-func TestLoadProjectWiresMRWriteCallbacksWithDraftIDs(t *testing.T) {
-	t.Parallel()
+func TestLoadProject(t *testing.T) {
+	t.Run("wires MR write callbacks with draft IDs", func(t *testing.T) {
+		t.Parallel()
 
-	cfg := config.Default()
-	client := &fakeGitLabClient{account: "default", createdDraftID: 777}
-	resolution := ProjectResolution{Account: "default", Path: "group/project", Source: ProjectSourceGitRemote}
+		cfg := config.Default()
+		client := &fakeGitLabClient{account: "default", createdDraftID: 777}
+		resolution := ProjectResolution{Account: "default", Path: "group/project", Source: ProjectSourceGitRemote}
 
-	options := buildProjectOptions(&cfg, "", false, resolution, CLIIntent{}, func(account config.Account) (gitLabClient, error) {
-		return client, nil
+		options := buildProjectOptions(&cfg, "", false, resolution, CLIIntent{}, func(account config.Account) (gitLabClient, error) {
+			return client, nil
+		})
+
+		data, err := options.LoadProject("group/project", "")
+		require.NoError(t, err)
+		require.NotNil(t, data.PostInlineComment)
+		require.NotNil(t, data.DraftInlineComment)
+		require.NotNil(t, data.SubmitDrafts)
+
+		pos := mr.DiffPosition{NewPath: "main.go", NewLine: 7}
+		require.NoError(t, data.PostInlineComment(42, pos, "instant"))
+		assert.Equal(t, "group/project", client.createdProject)
+		assert.Equal(t, 42, client.createdIID)
+		assert.Equal(t, "instant", client.createdBody)
+		assert.NotNil(t, client.createdPos)
+
+		id, err := data.DraftInlineComment(42, pos, "draft")
+		require.NoError(t, err)
+		assert.Equal(t, 777, id)
+
+		require.NoError(t, data.SubmitDrafts(42, []mr.DraftComment{{ID: 777, LocalID: "d1"}}))
+		require.Len(t, client.publishedIDs, 1)
+		assert.Equal(t, 777, client.publishedIDs[0])
 	})
 
-	data, err := options.LoadProject("group/project", "")
-	if err != nil {
-		t.Fatalf("loadProject: %v", err)
-	}
-	if data.PostInlineComment == nil || data.DraftInlineComment == nil || data.SubmitDrafts == nil {
-		t.Fatal("expected MR write callbacks to be populated")
-	}
+	t.Run("wires all callbacks to selected account", func(t *testing.T) {
+		t.Parallel()
 
-	pos := mr.DiffPosition{NewPath: "main.go", NewLine: 7}
-	if err := data.PostInlineComment(42, pos, "instant"); err != nil {
-		t.Fatalf("PostInlineComment: %v", err)
-	}
-	if client.createdProject != "group/project" || client.createdIID != 42 || client.createdBody != "instant" || client.createdPos == nil {
-		t.Fatalf("unexpected inline comment call: %+v", client)
-	}
+		cfg := config.Default()
+		cfg.Accounts = append(cfg.Accounts, config.Account{ID: "work", Host: "https://gitlab.example.com", TokenEnv: "WORK_TOKEN"})
+		clients := map[string]*fakeGitLabClient{}
+		resolution := ProjectResolution{Account: "default", Path: "group/project", Source: ProjectSourceGitRemote}
 
-	id, err := data.DraftInlineComment(42, pos, "draft")
-	if err != nil {
-		t.Fatalf("DraftInlineComment: %v", err)
-	}
-	if id != 777 {
-		t.Fatalf("expected draft id 777, got %d", id)
-	}
+		options := buildProjectOptions(&cfg, "", false, resolution, CLIIntent{}, func(account config.Account) (gitLabClient, error) {
+			client := &fakeGitLabClient{account: account.ID, createdDraftID: 777}
+			clients[account.ID] = client
+			return client, nil
+		})
 
-	if err := data.SubmitDrafts(42, []mr.DraftComment{{ID: 777, LocalID: "d1"}}); err != nil {
-		t.Fatalf("SubmitDrafts: %v", err)
-	}
-	if len(client.publishedIDs) != 1 || client.publishedIDs[0] != 777 {
-		t.Fatalf("expected published id 777, got %+v", client.publishedIDs)
-	}
-}
+		data, err := options.LoadProject("group/project", "work")
+		require.NoError(t, err)
 
-func TestLoadProjectIncludesLabelsInProjectData(t *testing.T) {
-	t.Parallel()
+		callbacks := map[string]bool{
+			"ApproveMR":           data.ApproveMR != nil,
+			"MergeMR":             data.MergeMR != nil,
+			"EditMR":              data.EditMR != nil,
+			"PostMRComment":       data.PostMRComment != nil,
+			"ReplyToDiscussion":   data.ReplyToDiscussion != nil,
+			"DraftReply":          data.DraftReply != nil,
+			"PostInlineComment":   data.PostInlineComment != nil,
+			"DraftInlineComment":  data.DraftInlineComment != nil,
+			"SubmitDrafts":        data.SubmitDrafts != nil,
+			"DiscardDrafts":       data.DiscardDrafts != nil,
+			"ResolveDiscussion":   data.ResolveDiscussion != nil,
+			"UnresolveDiscussion": data.UnresolveDiscussion != nil,
+		}
+		for name, ok := range callbacks {
+			assert.True(t, ok, "expected %s to be wired", name)
+		}
 
-	expectedLabels := []mr.Label{
-		{Name: "bug", Color: "#EE0701"},
-		{Name: "feature", Color: "#0075CA"},
-	}
-	cfg := config.Default()
-	resolution := ProjectResolution{Account: "default", Path: "group/project", Source: ProjectSourceGitRemote}
+		pos := mr.DiffPosition{BaseSHA: "base", HeadSHA: "head", StartSHA: "start", NewPath: "main.go", OldPath: "main.go", NewLine: 7}
+		_ = data.ApproveMR(42)
+		_ = data.MergeMR(42)
+		_ = data.EditMR(42, "title", "description")
+		_ = data.PostMRComment(42, "general")
+		_ = data.ReplyToDiscussion(42, "disc-1", "reply")
+		_, _ = data.DraftReply(42, "disc-1", "draft reply")
+		_ = data.PostInlineComment(42, pos, "inline")
+		_, _ = data.DraftInlineComment(42, pos, "draft inline")
+		_ = data.SubmitDrafts(42, []mr.DraftComment{{ID: 777, LocalID: "d1"}})
+		_ = data.DiscardDrafts(42)
+		_ = data.ResolveDiscussion(42, "disc-1")
+		_ = data.UnresolveDiscussion(42, "disc-1")
 
-	options := buildProjectOptions(&cfg, "", false, resolution, CLIIntent{}, func(account config.Account) (gitLabClient, error) {
-		return &fakeGitLabClientWithLabels{
-			fakeGitLabClient: fakeGitLabClient{account: account.ID},
-			labels:           expectedLabels,
-		}, nil
+		work := clients["work"]
+		require.NotNil(t, work)
+		for _, want := range []string{"approve", "merge", "edit", "mr-comment", "reply", "draft-reply", "inline-comment", "draft-inline", "submit-drafts", "discard-drafts", "resolve", "unresolve"} {
+			assert.Contains(t, work.calls, want)
+		}
+		if defaultClient := clients["default"]; defaultClient != nil {
+			assert.Empty(t, defaultClient.calls, "expected default account not to receive write calls")
+		}
 	})
 
-	data, err := options.LoadProject("group/project", "")
-	if err != nil {
-		t.Fatalf("loadProject: %v", err)
-	}
+	t.Run("includes labels in project data", func(t *testing.T) {
+		t.Parallel()
 
-	if len(data.Labels) != 2 {
-		t.Fatalf("expected 2 labels, got %d", len(data.Labels))
-	}
+		expectedLabels := []mr.Label{
+			{Name: "bug", Color: "#EE0701"},
+			{Name: "feature", Color: "#0075CA"},
+		}
+		cfg := config.Default()
+		resolution := ProjectResolution{Account: "default", Path: "group/project", Source: ProjectSourceGitRemote}
 
-	if data.Labels[0].Name != "bug" {
-		t.Fatalf("expected first label 'bug', got %q", data.Labels[0].Name)
-	}
+		options := buildProjectOptions(&cfg, "", false, resolution, CLIIntent{}, func(account config.Account) (gitLabClient, error) {
+			return &fakeGitLabClientWithLabels{
+				fakeGitLabClient: fakeGitLabClient{account: account.ID},
+				labels:           expectedLabels,
+			}, nil
+		})
+
+		data, err := options.LoadProject("group/project", "")
+		require.NoError(t, err)
+		require.Len(t, data.Labels, 2)
+		assert.Equal(t, "bug", data.Labels[0].Name)
+	})
 }

@@ -4,6 +4,9 @@ import (
 	"context"
 	"testing"
 
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+
 	glab "gitlab.com/gitlab-org/api/client-go"
 )
 
@@ -13,12 +16,8 @@ func TestApproveMergeRequestCallsAPI(t *testing.T) {
 	approvals := &fakeApprovals{}
 	client := NewClientWithServices(&fakeMergeRequests{pages: [][]*glab.BasicMergeRequest{{}}}, approvals)
 
-	if err := client.ApproveMergeRequest(context.Background(), "group/project", 42); err != nil {
-		t.Fatalf("ApproveMergeRequest: %v", err)
-	}
-	if approvals.approveIID != 42 {
-		t.Fatalf("expected approve iid 42, got %d", approvals.approveIID)
-	}
+	require.NoError(t, client.ApproveMergeRequest(context.Background(), "group/project", 42))
+	assert.Equal(t, int64(42), approvals.approveIID)
 }
 
 func TestAcceptMergeRequestCallsAPI(t *testing.T) {
@@ -27,12 +26,8 @@ func TestAcceptMergeRequestCallsAPI(t *testing.T) {
 	mrs := &fakeMergeRequests{pages: [][]*glab.BasicMergeRequest{{}}}
 	client := NewClientWithMergeRequests(mrs)
 
-	if err := client.AcceptMergeRequest(context.Background(), "group/project", 42); err != nil {
-		t.Fatalf("AcceptMergeRequest: %v", err)
-	}
-	if mrs.acceptIID != 42 {
-		t.Fatalf("expected accept iid 42, got %d", mrs.acceptIID)
-	}
+	require.NoError(t, client.AcceptMergeRequest(context.Background(), "group/project", 42))
+	assert.Equal(t, int64(42), mrs.acceptIID)
 }
 
 func TestUpdateMergeRequestCallsAPI(t *testing.T) {
@@ -41,10 +36,9 @@ func TestUpdateMergeRequestCallsAPI(t *testing.T) {
 	fake := &fakeMergeRequestEdit{}
 	client := NewClientWithMergeRequestEdit(fake)
 
-	if err := client.UpdateMergeRequest(context.Background(), "group/project", 42, "New title", "New description"); err != nil {
-		t.Fatalf("UpdateMergeRequest: %v", err)
-	}
-	if fake.lastIID != 42 || fake.lastOpts == nil || *fake.lastOpts.Title != "New title" || *fake.lastOpts.Description != "New description" {
-		t.Fatalf("unexpected update call: iid=%d opts=%+v", fake.lastIID, fake.lastOpts)
-	}
+	require.NoError(t, client.UpdateMergeRequest(context.Background(), "group/project", 42, "New title", "New description"))
+	assert.Equal(t, int64(42), fake.lastIID)
+	require.NotNil(t, fake.lastOpts)
+	assert.Equal(t, "New title", *fake.lastOpts.Title)
+	assert.Equal(t, "New description", *fake.lastOpts.Description)
 }

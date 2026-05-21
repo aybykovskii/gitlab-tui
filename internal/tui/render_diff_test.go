@@ -4,6 +4,8 @@ import (
 	"strings"
 	"testing"
 
+
+	"github.com/stretchr/testify/assert"
 	"github.com/aybykovskii/gitlab-tui/internal/mr"
 )
 
@@ -13,9 +15,7 @@ func TestBuildFileTreeFlat(t *testing.T) {
 	files := []mr.ChangedFile{{Path: "main.go"}, {Path: "go.mod"}}
 	tree := buildFileTree(files)
 
-	if len(tree.children) != 2 {
-		t.Fatalf("expected 2 root children, got %d", len(tree.children))
-	}
+	assert.Len(t, tree.children, 2)
 
 	if tree.children[0].name != "main.go" || tree.children[0].fileIdx != 0 {
 		t.Fatalf("expected first child main.go (idx 0), got %q (idx %d)", tree.children[0].name, tree.children[0].fileIdx)
@@ -32,18 +32,14 @@ func TestBuildFileTreeNested(t *testing.T) {
 	}
 	tree := buildFileTree(files)
 
-	if len(tree.children) != 2 {
-		t.Fatalf("expected 2 root children (internal, cmd), got %d", len(tree.children))
-	}
+	assert.Len(t, tree.children, 2)
 
 	internal := tree.children[0]
 	if internal.name != "internal" || internal.fileIdx != -1 {
 		t.Fatalf("expected directory node 'internal', got %q fileIdx=%d", internal.name, internal.fileIdx)
 	}
 
-	if len(internal.children) != 2 {
-		t.Fatalf("expected 2 children under internal, got %d", len(internal.children))
-	}
+	assert.Len(t, internal.children, 2)
 }
 
 func TestBuildFileTreeSharedPrefix(t *testing.T) {
@@ -60,9 +56,7 @@ func TestBuildFileTreeSharedPrefix(t *testing.T) {
 	}
 
 	pkg := tree.children[0]
-	if len(pkg.children) != 2 {
-		t.Fatalf("expected 2 children under pkg, got %d", len(pkg.children))
-	}
+	assert.Len(t, pkg.children, 2)
 }
 
 func TestRenderFileTreeLinesConnectors(t *testing.T) {
@@ -78,9 +72,7 @@ func TestRenderFileTreeLinesConnectors(t *testing.T) {
 	out := strings.Join(lines, "\n")
 
 	for _, want := range []string{"├──", "└──", "│", "internal", "cmd", "render.go", "update.go", "main.go"} {
-		if !strings.Contains(out, want) {
-			t.Fatalf("expected output to contain %q, got:\n%s", want, out)
-		}
+		assert.Contains(t, out, want)
 	}
 }
 
@@ -91,13 +83,9 @@ func TestRenderFileTreeLinesTruncation(t *testing.T) {
 	tree := buildFileTree(files)
 	lines := renderFileTreeLines(tree, "", false, files, -1, 10)
 
-	if len(lines) != 1 {
-		t.Fatalf("expected 1 line, got %d", len(lines))
-	}
+	assert.Len(t, lines, 1)
 
-	if !strings.Contains(lines[0], "…") {
-		t.Fatalf("expected truncation with …, got: %q", lines[0])
-	}
+	assert.Contains(t, lines[0], "…")
 
 	runes := []rune(lines[0])
 	if len(runes) > 10 {
@@ -118,17 +106,11 @@ func TestRenderFileTreeLinesColors(t *testing.T) {
 	lines := renderFileTreeLines(tree, "", false, files, -1, 60)
 	out := strings.Join(lines, "\n")
 
-	if !strings.Contains(out, "\x1b[38;5;2m") {
-		t.Fatalf("expected green color for new file")
-	}
+	assert.Contains(t, out, "\x1b[38;5;2m")
 
-	if !strings.Contains(out, "\x1b[38;5;1m") {
-		t.Fatalf("expected red color for deleted file")
-	}
+	assert.Contains(t, out, "\x1b[38;5;1m")
 
-	if !strings.Contains(out, "\x1b[38;5;3m") {
-		t.Fatalf("expected yellow color for renamed file")
-	}
+	assert.Contains(t, out, "\x1b[38;5;3m")
 }
 
 func TestRenderFileTreeLinesSelectedHighlight(t *testing.T) {
@@ -143,18 +125,12 @@ func TestRenderFileTreeLinesSelectedHighlight(t *testing.T) {
 	linesA := renderFileTreeLines(tree, "", false, files, 0, 60)
 	linesB := renderFileTreeLines(tree, "", false, files, 1, 60)
 
-	if !strings.Contains(linesA[0], "a.go") {
-		t.Fatalf("expected a.go in first line, got: %q", linesA[0])
-	}
+	assert.Contains(t, linesA[0], "a.go")
 
-	if !strings.Contains(linesB[1], "b.go") {
-		t.Fatalf("expected b.go in second line, got: %q", linesB[1])
-	}
+	assert.Contains(t, linesB[1], "b.go")
 
 	// selected line contains lipgloss background escape
-	if !strings.Contains(linesA[0], "\x1b[") {
-		t.Fatalf("expected ANSI escape in selected line a.go, got: %q", linesA[0])
-	}
+	assert.Contains(t, linesA[0], "\x1b[")
 }
 
 func TestFindSelectedFileLine(t *testing.T) {

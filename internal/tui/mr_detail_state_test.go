@@ -5,6 +5,8 @@ import (
 	"strings"
 	"testing"
 
+
+	"github.com/stretchr/testify/assert"
 	"github.com/aybykovskii/gitlab-tui/internal/mr"
 )
 
@@ -14,13 +16,9 @@ func TestMRDetailStateHandlesDiscussionsStarted(t *testing.T) {
 	s := NewMRDetailState()
 	s.Update(discussionsStartedMsg{})
 
-	if !s.discussionsLoading {
-		t.Fatal("expected discussionsLoading = true after discussionsStartedMsg")
-	}
+	assert.True(t, s.discussionsLoading)
 
-	if s.discussionsError != "" {
-		t.Fatalf("expected empty discussionsError, got %q", s.discussionsError)
-	}
+	assert.Equal(t, "", s.discussionsError)
 }
 
 func TestMRDetailStateHandlesDiscussionsFinished(t *testing.T) {
@@ -31,13 +29,9 @@ func TestMRDetailStateHandlesDiscussionsFinished(t *testing.T) {
 	s.discussionsLoading = true
 	s.Update(discussionsFinishedMsg{iid: 5, discussions: discussions})
 
-	if s.discussionsLoading {
-		t.Fatal("expected discussionsLoading = false after discussionsFinishedMsg")
-	}
+	assert.False(t, s.discussionsLoading)
 
-	if len(s.discussions[5]) != 1 {
-		t.Fatalf("expected 1 discussion stored, got %d", len(s.discussions[5]))
-	}
+	assert.Len(t, s.discussions[5], 1)
 }
 
 func TestMRDetailStateHandlesDiscussionsFinishedError(t *testing.T) {
@@ -47,17 +41,11 @@ func TestMRDetailStateHandlesDiscussionsFinishedError(t *testing.T) {
 	s.discussionsLoading = true
 	s.Update(discussionsFinishedMsg{iid: 5, err: errors.New("network error")})
 
-	if s.discussionsLoading {
-		t.Fatal("expected discussionsLoading = false after error")
-	}
+	assert.False(t, s.discussionsLoading)
 
-	if s.discussionsError == "" {
-		t.Fatal("expected discussionsError to be set")
-	}
+	assert.NotEqual(t, "", s.discussionsError)
 
-	if len(s.discussions[5]) != 0 {
-		t.Fatal("expected no discussions stored on error")
-	}
+	assert.Len(t, s.discussions[5], 0)
 }
 
 func TestMRDetailStateHandlesFilesStarted(t *testing.T) {
@@ -66,9 +54,7 @@ func TestMRDetailStateHandlesFilesStarted(t *testing.T) {
 	s := NewMRDetailState()
 	s.Update(filesStartedMsg{})
 
-	if !s.filesLoading {
-		t.Fatal("expected filesLoading = true after filesStartedMsg")
-	}
+	assert.True(t, s.filesLoading)
 }
 
 func TestMRDetailStateHandlesFilesFinished(t *testing.T) {
@@ -79,13 +65,9 @@ func TestMRDetailStateHandlesFilesFinished(t *testing.T) {
 	s.filesLoading = true
 	s.Update(filesFinishedMsg{iid: 7, files: files})
 
-	if s.filesLoading {
-		t.Fatal("expected filesLoading = false after filesFinishedMsg")
-	}
+	assert.False(t, s.filesLoading)
 
-	if len(s.changedFiles[7]) != 1 {
-		t.Fatalf("expected 1 file stored, got %d", len(s.changedFiles[7]))
-	}
+	assert.Len(t, s.changedFiles[7], 1)
 }
 
 func TestMRDetailStateViewRendersActiveTabs(t *testing.T) {
@@ -111,9 +93,7 @@ func TestMRDetailStateViewRendersActiveTabs(t *testing.T) {
 			state.activeTab = tc.tab
 
 			view := state.View(LayoutState{Width: 80, Height: 20}, item)
-			if !strings.Contains(view, tc.want) {
-				t.Fatalf("expected active tab %q in view:\n%s", tc.want, view)
-			}
+			assert.Contains(t, view, tc.want)
 		})
 	}
 }
@@ -140,8 +120,6 @@ func TestMRDetailStateViewShowsDraftMarkers(t *testing.T) {
 
 	view := state.View(LayoutState{Width: 80, Height: 20}, item)
 	for _, want := range []string{"[>Review (1)<]", "> main.go:7 Check naming"} {
-		if !strings.Contains(view, want) {
-			t.Fatalf("expected draft marker %q in view:\n%s", want, view)
-		}
+		assert.Contains(t, view, want)
 	}
 }

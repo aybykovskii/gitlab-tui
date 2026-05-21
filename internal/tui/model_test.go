@@ -8,6 +8,7 @@ import (
 
 	"github.com/charmbracelet/bubbles/key"
 	tea "github.com/charmbracelet/bubbletea"
+	"github.com/stretchr/testify/assert"
 
 	"github.com/aybykovskii/gitlab-tui/internal/config"
 	"github.com/aybykovskii/gitlab-tui/internal/mr"
@@ -30,13 +31,9 @@ func TestProgramUsesAltScreen(t *testing.T) {
 	}
 
 	output := stdout.String()
-	if !strings.Contains(output, "\x1b[?1049h") {
-		t.Fatalf("expected program to enter alternate screen, got %q", output)
-	}
+	assert.Contains(t, output, "\x1b[?1049h")
 
-	if !strings.Contains(output, "\x1b[?1049l") {
-		t.Fatalf("expected program to leave alternate screen, got %q", output)
-	}
+	assert.Contains(t, output, "\x1b[?1049l")
 }
 
 var errTestRefresh = errors.New("refresh failed")
@@ -53,9 +50,7 @@ func TestAllNavigationKeyMapsHaveHelp(t *testing.T) {
 		"file diff":    newFileDiffKeys().LocalKeys(),
 	}
 	for name, bindings := range keyMaps {
-		if len(bindings) == 0 {
-			t.Fatalf("expected %s key map to have bindings", name)
-		}
+		assert.NotEmpty(t, bindings)
 
 		for _, binding := range bindings {
 			if binding.Help().Key == "" || binding.Help().Desc == "" {
@@ -72,9 +67,7 @@ func TestCollapsedKeyBarTruncatesLocalKeys(t *testing.T) {
 	model.width = 34
 
 	view := model.renderKeyBar()
-	if !strings.Contains(view, "…") {
-		t.Fatalf("expected truncated key bar with ellipsis, got %q", view)
-	}
+	assert.Contains(t, view, "…")
 }
 
 func TestExpandedKeyBarShowsAllProjectListLocalKeys(t *testing.T) {
@@ -86,14 +79,10 @@ func TestExpandedKeyBarShowsAllProjectListLocalKeys(t *testing.T) {
 
 	view := model.renderKeyBar()
 	for _, want := range []string{"↑/k up", "↓/j down", "Enter open", "/ filter", "i manual", "r retry", "Global:"} {
-		if !strings.Contains(view, want) {
-			t.Fatalf("expected expanded key bar to contain %q, got %q", want, view)
-		}
+		assert.Contains(t, view, want)
 	}
 
-	if !strings.Contains(view, "─") {
-		t.Fatalf("expected expanded key bar separator, got %q", view)
-	}
+	assert.Contains(t, view, "─")
 }
 
 func TestViewRendersPersistentKeyBar(t *testing.T) {
@@ -106,9 +95,7 @@ func TestViewRendersPersistentKeyBar(t *testing.T) {
 	view := model.View()
 
 	for _, want := range []string{"Local", "Global", "q quit", "Esc back", "h keys"} {
-		if !strings.Contains(view, want) {
-			t.Fatalf("expected key bar to contain %q, got %q", want, view)
-		}
+		assert.Contains(t, view, want)
 	}
 }
 
@@ -122,9 +109,7 @@ func TestHKeyTogglesExpandedKeyBarAndPaneHeight(t *testing.T) {
 	updated, _ := model.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'h'}})
 	model = updated.(Model)
 
-	if !model.keyBarExpanded {
-		t.Fatal("expected key bar to expand")
-	}
+	assert.True(t, model.keyBarExpanded)
 
 	if model.paneHeight() >= collapsedHeight {
 		t.Fatalf("expected expanded key bar to shrink panes, collapsed=%d expanded=%d", collapsedHeight, model.paneHeight())
@@ -133,9 +118,7 @@ func TestHKeyTogglesExpandedKeyBarAndPaneHeight(t *testing.T) {
 	updated, _ = model.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'h'}})
 
 	model = updated.(Model)
-	if model.keyBarExpanded {
-		t.Fatal("expected key bar to collapse")
-	}
+	assert.False(t, model.keyBarExpanded)
 }
 
 func TestGlobalKeysUseDeclaredBindings(t *testing.T) {
@@ -145,9 +128,7 @@ func TestGlobalKeysUseDeclaredBindings(t *testing.T) {
 
 	_, cmd := model.Update(tea.KeyMsg{Type: tea.KeyCtrlC})
 
-	if cmd == nil {
-		t.Fatal("expected ctrl+c declared global quit binding to return quit command")
-	}
+	assert.NotNil(t, cmd)
 }
 
 func TestInputModeQDoesNotQuit(t *testing.T) {
@@ -159,13 +140,9 @@ func TestInputModeQDoesNotQuit(t *testing.T) {
 	updated, cmd := model.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'q'}})
 	model = updated.(Model)
 
-	if cmd != nil {
-		t.Fatal("expected q to be handled as input, not global quit")
-	}
+	assert.Nil(t, cmd)
 
-	if model.Value() != "q" {
-		t.Fatalf("expected q in comment buffer, got %q", model.Value())
-	}
+	assert.Equal(t, "q", model.Value())
 }
 
 func TestResolvedProjectShowsProjectListAndSections(t *testing.T) {
@@ -188,9 +165,7 @@ func TestResolvedProjectShowsProjectListAndSections(t *testing.T) {
 		"Issues",
 		"Pipelines",
 	} {
-		if !strings.Contains(view, want) {
-			t.Fatalf("expected view to contain %q, got %q", want, view)
-		}
+		assert.Contains(t, view, want)
 	}
 }
 
@@ -201,13 +176,9 @@ func TestEnterOnMergeRequestsSectionOpensMRList(t *testing.T) {
 	updated, _ := model.Update(tea.KeyMsg{Type: tea.KeyEnter})
 	model = updated.(Model)
 
-	if model.mode != ModeEntityList {
-		t.Fatalf("expected ModeEntityList after entering MR section, got %v", model.mode)
-	}
+	assert.Equal(t, ModeEntityList, model.mode)
 
-	if model.section != SectionMergeRequests {
-		t.Fatalf("expected MR section, got %q", model.section)
-	}
+	assert.Equal(t, SectionMergeRequests, model.section)
 
 	if !strings.Contains(model.View(), "Merge Requests") || !strings.Contains(model.View(), "Port TUI shell") {
 		t.Fatalf("expected MR list view, got %q", model.View())
@@ -238,29 +209,21 @@ func TestKeyboardSelectionAndDiffNavigation(t *testing.T) {
 	updated, _ := model.Update(tea.KeyMsg{Type: tea.KeyDown})
 
 	model = updated.(Model)
-	if model.MRDetailState.YOffset != 3 {
-		t.Fatalf("expected MR detail viewport offset=3 after Down in ModeDetail, got %d", model.MRDetailState.YOffset)
-	}
+	assert.Equal(t, 3, model.MRDetailState.YOffset)
 
-	if model.EntityListState.mrList.Index() != 0 {
-		t.Fatalf("expected selected unchanged in ModeDetail, got %d", model.EntityListState.mrList.Index())
-	}
+	assert.Equal(t, 0, model.EntityListState.mrList.Index())
 
 	// Enter on Summary tab no longer opens diff — it is a no-op
 	updated, _ = model.Update(tea.KeyMsg{Type: tea.KeyEnter})
 
 	model = updated.(Model)
-	if model.mode != ModeDetail {
-		t.Fatalf("expected to stay in ModeDetail after Enter on Summary, got %v", model.mode)
-	}
+	assert.Equal(t, ModeDetail, model.mode)
 
 	// Esc from ModeDetail returns to entity list
 	updated, _ = model.Update(tea.KeyMsg{Type: tea.KeyEsc})
 
 	model = updated.(Model)
-	if model.mode != ModeEntityList {
-		t.Fatalf("expected ModeEntityList after Esc from ModeDetail, got %v", model.mode)
-	}
+	assert.Equal(t, ModeEntityList, model.mode)
 }
 
 func TestFilterInputNarrowsList(t *testing.T) {
@@ -273,13 +236,9 @@ func TestFilterInputNarrowsList(t *testing.T) {
 	model = updated.(Model)
 
 	filtered := model.filtered()
-	if len(filtered) != 1 {
-		t.Fatalf("expected 1 filtered item, got %d", len(filtered))
-	}
+	assert.Len(t, filtered, 1)
 
-	if !strings.Contains(strings.ToLower(filtered[0].Title), "yaml") {
-		t.Fatalf("unexpected filtered item: %+v", filtered[0])
-	}
+	assert.Contains(t, strings.ToLower(filtered[0].Title), "yaml")
 }
 
 func TestDirectMRDeepLinkSelectsLoadedMergeRequest(t *testing.T) {
@@ -292,13 +251,9 @@ func TestDirectMRDeepLinkSelectsLoadedMergeRequest(t *testing.T) {
 	}}})
 	model = updated.(Model)
 
-	if model.EntityListState.mrList.Index() != 1 {
-		t.Fatalf("expected loaded target MR selected, got %d", model.EntityListState.mrList.Index())
-	}
+	assert.Equal(t, 1, model.EntityListState.mrList.Index())
 
-	if !strings.Contains(model.View(), "!123 Loaded target") {
-		t.Fatalf("expected loaded target MR detail, got %q", model.View())
-	}
+	assert.Contains(t, model.View(), "!123 Loaded target")
 }
 
 func TestDirectMRDeepLinkSelectsMatchingMergeRequest(t *testing.T) {
@@ -309,9 +264,7 @@ func TestDirectMRDeepLinkSelectsMatchingMergeRequest(t *testing.T) {
 		{IID: 123, Title: "Target MR", Description: "Deep linked"},
 	}, ProjectOptions{Path: "group/project", Section: SectionMergeRequests, EntityID: "123"})
 
-	if model.EntityListState.mrList.Index() != 1 {
-		t.Fatalf("expected selected MR index 1, got %d", model.EntityListState.mrList.Index())
-	}
+	assert.Equal(t, 1, model.EntityListState.mrList.Index())
 
 	view := model.View()
 	if !strings.Contains(view, "!123 Target MR") || !strings.Contains(view, "Deep linked") {
@@ -347,9 +300,7 @@ func TestMRListAndDetailRenderPreviousMRInfo(t *testing.T) {
 		"Review from terminal",
 		"https://gitlab.com/group/project/-/merge_requests/10",
 	} {
-		if !strings.Contains(view, want) {
-			t.Fatalf("expected view to contain %q, got %q", want, view)
-		}
+		assert.Contains(t, view, want)
 	}
 }
 
@@ -376,26 +327,18 @@ func TestProjectSelectionGoesToSectionsImmediately(t *testing.T) {
 			return ProjectData{Items: []mr.MergeRequest{{IID: 42, Title: "Loaded"}}}, nil
 		},
 	})
-	if model.mode != ModeProjectSelect {
-		t.Fatalf("expected project select mode, got %v", model.mode)
-	}
+	assert.Equal(t, ModeProjectSelect, model.mode)
 
 	updated, _ := model.Update(tea.KeyMsg{Type: tea.KeyDown})
 	model = updated.(Model)
 	updated, cmd := model.Update(tea.KeyMsg{Type: tea.KeyEnter})
 	model = updated.(Model)
 
-	if cmd != nil {
-		t.Fatal("expected no loading command on project selection")
-	}
+	assert.Nil(t, cmd)
 
-	if model.mode != ModeSections {
-		t.Fatalf("expected sections mode immediately, got %v", model.mode)
-	}
+	assert.Equal(t, ModeSections, model.mode)
 
-	if model.projectPath != "group/two" {
-		t.Fatalf("expected selected project path, got %q", model.projectPath)
-	}
+	assert.Equal(t, "group/two", model.projectPath)
 }
 
 func TestProjectLoadShowsLoadingState(t *testing.T) {
@@ -406,13 +349,9 @@ func TestProjectLoadShowsLoadingState(t *testing.T) {
 	model = updated.(Model)
 
 	view := model.View()
-	if !strings.Contains(view, "Loading project…") {
-		t.Fatalf("expected project loading state, got %q", view)
-	}
+	assert.Contains(t, view, "Loading project…")
 
-	if strings.Contains(view, "Refreshing…") {
-		t.Fatalf("expected project load not to look like refresh, got %q", view)
-	}
+	assert.NotContains(t, view, "Refreshing…")
 }
 
 func TestProjectLoadErrorCanReturnToSelection(t *testing.T) {
@@ -425,20 +364,14 @@ func TestProjectLoadErrorCanReturnToSelection(t *testing.T) {
 	model = updated.(Model)
 
 	view := model.View()
-	if !strings.Contains(view, "Error: refresh failed") {
-		t.Fatalf("expected load error in view, got %q", view)
-	}
+	assert.Contains(t, view, "Error: refresh failed")
 
-	if !strings.Contains(view, "Esc back") {
-		t.Fatalf("expected recovery key in key bar, got %q", view)
-	}
+	assert.Contains(t, view, "Esc back")
 
 	updated, _ = model.Update(tea.KeyMsg{Type: tea.KeyEsc})
 
 	model = updated.(Model)
-	if model.mode != ModeProjectSelect {
-		t.Fatalf("expected project select after Esc, got %v", model.mode)
-	}
+	assert.Equal(t, ModeProjectSelect, model.mode)
 }
 
 func TestProjectLoadErrorRetryReloadsSameProject(t *testing.T) {
@@ -449,9 +382,7 @@ func TestProjectLoadErrorRetryReloadsSameProject(t *testing.T) {
 		Recents: []string{"group/project"},
 		LoadProject: func(path string, _ string) (ProjectData, error) {
 			calls++
-			if path != "group/project" {
-				t.Fatalf("expected retry path group/project, got %q", path)
-			}
+			assert.Equal(t, "group/project", path)
 			return ProjectData{Items: []mr.MergeRequest{{IID: 9, Title: "Retried"}}}, nil
 		},
 	})
@@ -462,15 +393,11 @@ func TestProjectLoadErrorRetryReloadsSameProject(t *testing.T) {
 
 	_, cmd := model.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune("r")})
 
-	if cmd == nil {
-		t.Fatal("expected retry command")
-	}
+	assert.NotNil(t, cmd)
 
 	_ = cmd
 
-	if calls != 0 {
-		t.Fatalf("expected command creation not to call loader yet, got %d calls", calls)
-	}
+	assert.Equal(t, 0, calls)
 }
 
 func TestManualProjectLoadErrorReturnsToInput(t *testing.T) {
@@ -484,13 +411,9 @@ func TestManualProjectLoadErrorReturnsToInput(t *testing.T) {
 	updated, _ = model.Update(tea.KeyMsg{Type: tea.KeyEsc})
 	model = updated.(Model)
 
-	if model.mode != ModeProjectInput {
-		t.Fatalf("expected project input after Esc, got %v", model.mode)
-	}
+	assert.Equal(t, ModeProjectInput, model.mode)
 
-	if model.focus != FocusFilter {
-		t.Fatalf("expected input focus after Esc, got %v", model.focus)
-	}
+	assert.Equal(t, FocusFilter, model.focus)
 }
 
 func TestManualProjectInputGoesToSectionsImmediately(t *testing.T) {
@@ -501,26 +424,18 @@ func TestManualProjectInputGoesToSectionsImmediately(t *testing.T) {
 			return ProjectData{Items: []mr.MergeRequest{{IID: 7, Title: "Manual"}}}, nil
 		},
 	})
-	if model.mode != ModeProjectInput {
-		t.Fatalf("expected project input mode, got %v", model.mode)
-	}
+	assert.Equal(t, ModeProjectInput, model.mode)
 
 	updated, _ := model.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune("group/project")})
 	model = updated.(Model)
 	updated, cmd := model.Update(tea.KeyMsg{Type: tea.KeyEnter})
 	model = updated.(Model)
 
-	if cmd != nil {
-		t.Fatal("expected no loading command on manual project input")
-	}
+	assert.Nil(t, cmd)
 
-	if model.mode != ModeSections {
-		t.Fatalf("expected sections mode immediately, got %v", model.mode)
-	}
+	assert.Equal(t, ModeSections, model.mode)
 
-	if model.projectPath != "group/project" {
-		t.Fatalf("expected project path set, got %q", model.projectPath)
-	}
+	assert.Equal(t, "group/project", model.projectPath)
 }
 
 func TestEnterOnSummaryDoesNotTriggerDiff(t *testing.T) {
@@ -534,13 +449,9 @@ func TestEnterOnSummaryDoesNotTriggerDiff(t *testing.T) {
 	updated, cmd := model.Update(tea.KeyMsg{Type: tea.KeyEnter})
 	model = updated.(Model)
 
-	if cmd != nil {
-		t.Fatal("expected no command from Enter on Summary tab")
-	}
+	assert.Nil(t, cmd)
 
-	if model.mode != ModeDetail {
-		t.Fatalf("expected to stay in ModeDetail, got %v", model.mode)
-	}
+	assert.Equal(t, ModeDetail, model.mode)
 }
 
 func TestEmptyProjectStateCanReturnToProjectSelection(t *testing.T) {
@@ -551,9 +462,7 @@ func TestEmptyProjectStateCanReturnToProjectSelection(t *testing.T) {
 	model = updated.(Model)
 
 	view := model.View()
-	if !strings.Contains(view, "No opened MRs") {
-		t.Fatalf("expected empty MR state, got %q", view)
-	}
+	assert.Contains(t, view, "No opened MRs")
 
 	if !strings.Contains(view, "r refresh") || !strings.Contains(view, "Esc back") {
 		t.Fatalf("expected empty state actions in key bar, got %q", view)
@@ -562,9 +471,7 @@ func TestEmptyProjectStateCanReturnToProjectSelection(t *testing.T) {
 	updated, _ = model.Update(tea.KeyMsg{Type: tea.KeyEsc})
 
 	model = updated.(Model)
-	if model.mode != ModeProjectSelect {
-		t.Fatalf("expected project select after Esc, got %v", model.mode)
-	}
+	assert.Equal(t, ModeProjectSelect, model.mode)
 }
 
 func TestRefreshKeyReturnsCommand(t *testing.T) {
@@ -579,9 +486,7 @@ func TestRefreshKeyReturnsCommand(t *testing.T) {
 	})
 
 	_, cmd := model.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune("r")})
-	if cmd == nil {
-		t.Fatal("expected refresh command")
-	}
+	assert.NotNil(t, cmd)
 }
 
 func TestRefreshFinishedReplacesItems(t *testing.T) {
@@ -591,13 +496,9 @@ func TestRefreshFinishedReplacesItems(t *testing.T) {
 	updated, _ := model.Update(refreshFinishedMsg{items: []mr.MergeRequest{{IID: 99, Title: "Refreshed"}}})
 	model = updated.(Model)
 
-	if len(model.items) != 1 {
-		t.Fatalf("expected refreshed items, got %d", len(model.items))
-	}
+	assert.Len(t, model.items, 1)
 
-	if model.items[0].IID != 99 {
-		t.Fatalf("unexpected refreshed item: %+v", model.items[0])
-	}
+	assert.Equal(t, 99, model.items[0].IID)
 }
 
 func TestRefreshFinishedStoresError(t *testing.T) {
@@ -607,9 +508,7 @@ func TestRefreshFinishedStoresError(t *testing.T) {
 	updated, _ := model.Update(refreshFinishedMsg{err: errTestRefresh})
 	model = updated.(Model)
 
-	if model.errorMessage != errTestRefresh.Error() {
-		t.Fatalf("expected refresh error, got %q", model.errorMessage)
-	}
+	assert.Equal(t, errTestRefresh.Error(), model.errorMessage)
 }
 
 // --- #41: MR detail tabs ---
@@ -646,17 +545,11 @@ func TestDiscussionsTabTriggersLoadOnFirstVisit(t *testing.T) {
 	updated, cmd := model.Update(tea.KeyMsg{Type: tea.KeyTab})
 	model = updated.(Model)
 
-	if model.activeTab != TabDiscussions {
-		t.Fatalf("expected TabDiscussions, got %v", model.activeTab)
-	}
+	assert.Equal(t, TabDiscussions, model.activeTab)
 
-	if cmd == nil {
-		t.Fatal("expected a load command when switching to Discussions tab for the first time")
-	}
+	assert.NotNil(t, cmd)
 
-	if !strings.Contains(model.View(), "Loading") {
-		t.Fatalf("expected loading state in Discussions tab, got:\n%s", model.View())
-	}
+	assert.Contains(t, model.View(), "Loading")
 }
 
 func TestDiscussionsTabRendersThreadsAfterLoad(t *testing.T) {
@@ -679,9 +572,7 @@ func TestDiscussionsTabRendersThreadsAfterLoad(t *testing.T) {
 
 	view := model.View()
 	for _, want := range []string{"[open]", "alice", "Please fix the naming", "bob", "Done"} {
-		if !strings.Contains(view, want) {
-			t.Fatalf("expected %q in Discussions view, got:\n%s", want, view)
-		}
+		assert.Contains(t, view, want)
 	}
 }
 
@@ -702,9 +593,7 @@ func TestFocusedDiscussionThreadIsMarked(t *testing.T) {
 
 	// cursor starts at 0 → first thread marked, second not
 	view := model.View()
-	if !strings.Contains(view, "> [") {
-		t.Fatalf("expected focused thread marker '> [' in view, got:\n%s", view)
-	}
+	assert.Contains(t, view, "> [")
 
 	// Move cursor to second thread
 	updated, _ = model.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune("j")})
@@ -715,9 +604,7 @@ func TestFocusedDiscussionThreadIsMarked(t *testing.T) {
 		t.Fatalf("expected exactly one focused thread marker, got:\n%s", view)
 	}
 
-	if !strings.Contains(view, "bob") {
-		t.Fatalf("expected second thread visible after j, got:\n%s", view)
-	}
+	assert.Contains(t, view, "bob")
 }
 
 func TestDiscussionThreadsAreSeparatedByDivider(t *testing.T) {
@@ -741,9 +628,7 @@ func TestDiscussionThreadsAreSeparatedByDivider(t *testing.T) {
 		t.Fatalf("expected both threads in view, got:\n%s", view)
 	}
 	// A horizontal rule separates consecutive threads
-	if !strings.Contains(view, "───") {
-		t.Fatalf("expected separator (───) between threads, got:\n%s", view)
-	}
+	assert.Contains(t, view, "───")
 }
 
 func TestDiscussionThreadShowsAllReplies(t *testing.T) {
@@ -766,9 +651,7 @@ func TestDiscussionThreadShowsAllReplies(t *testing.T) {
 
 	view := model.View()
 	for _, want := range []string{"First comment", "bob", "Second reply", "carol", "Third reply"} {
-		if !strings.Contains(view, want) {
-			t.Fatalf("expected %q in Discussions view, got:\n%s", want, view)
-		}
+		assert.Contains(t, view, want)
 	}
 }
 
@@ -781,9 +664,7 @@ func TestDiscussionsTabShowsEmptyState(t *testing.T) {
 	updated, _ = model.Update(discussionsFinishedMsg{iid: 42, discussions: []mr.Discussion{}})
 	model = updated.(Model)
 
-	if !strings.Contains(model.View(), "No discussions") {
-		t.Fatalf("expected empty state, got:\n%s", model.View())
-	}
+	assert.Contains(t, model.View(), "No discussions")
 }
 
 func TestDiscussionsTabShowsErrorState(t *testing.T) {
@@ -795,9 +676,7 @@ func TestDiscussionsTabShowsErrorState(t *testing.T) {
 	updated, _ = model.Update(discussionsFinishedMsg{iid: 42, err: errors.New("network error")})
 	model = updated.(Model)
 
-	if !strings.Contains(model.View(), "Error:") {
-		t.Fatalf("expected error state, got:\n%s", model.View())
-	}
+	assert.Contains(t, model.View(), "Error:")
 }
 
 func TestFilesTabTriggersLoadOnFirstVisit(t *testing.T) {
@@ -811,17 +690,11 @@ func TestFilesTabTriggersLoadOnFirstVisit(t *testing.T) {
 	updated, cmd := model.Update(tea.KeyMsg{Type: tea.KeyTab})
 	model = updated.(Model)
 
-	if model.activeTab != TabFiles {
-		t.Fatalf("expected TabFiles, got %v", model.activeTab)
-	}
+	assert.Equal(t, TabFiles, model.activeTab)
 
-	if cmd == nil {
-		t.Fatal("expected a load command when switching to Files tab for the first time")
-	}
+	assert.NotNil(t, cmd)
 
-	if !strings.Contains(model.View(), "Loading") {
-		t.Fatalf("expected loading state in Files tab, got:\n%s", model.View())
-	}
+	assert.Contains(t, model.View(), "Loading")
 }
 
 func TestFilesTabRendersChangedFilesAfterLoad(t *testing.T) {
@@ -847,9 +720,7 @@ func TestFilesTabRendersChangedFilesAfterLoad(t *testing.T) {
 		"internal/tui/model.go", "+10", "-3",
 		"cmd/main.go", "A", "+25",
 	} {
-		if !strings.Contains(view, want) {
-			t.Fatalf("expected %q in Files view, got:\n%s", want, view)
-		}
+		assert.Contains(t, view, want)
 	}
 }
 
@@ -864,9 +735,7 @@ func TestFilesTabShowsEmptyState(t *testing.T) {
 	updated, _ = model.Update(filesFinishedMsg{iid: 42, files: []mr.ChangedFile{}})
 	model = updated.(Model)
 
-	if !strings.Contains(model.View(), "No changed files") {
-		t.Fatalf("expected empty state, got:\n%s", model.View())
-	}
+	assert.Contains(t, model.View(), "No changed files")
 }
 
 func TestFilesTabShowsErrorState(t *testing.T) {
@@ -880,9 +749,7 @@ func TestFilesTabShowsErrorState(t *testing.T) {
 	updated, _ = model.Update(filesFinishedMsg{iid: 42, err: errors.New("timeout")})
 	model = updated.(Model)
 
-	if !strings.Contains(model.View(), "Error:") {
-		t.Fatalf("expected error state, got:\n%s", model.View())
-	}
+	assert.Contains(t, model.View(), "Error:")
 }
 
 // --- #42: Changed Files + Diff View ---
@@ -932,17 +799,13 @@ func TestEnterOnFileInFilesTabOpensFileDiffMode(t *testing.T) {
 	}})
 	model = updated.(Model)
 
-	if model.activeTab != TabFiles {
-		t.Fatalf("expected TabFiles, got %v", model.activeTab)
-	}
+	assert.Equal(t, TabFiles, model.activeTab)
 
 	// Press Enter to open selected file
 	updated, _ = model.Update(tea.KeyMsg{Type: tea.KeyEnter})
 	model = updated.(Model)
 
-	if model.mode != ModeFileDiff {
-		t.Fatalf("expected ModeFileDiff after Enter on file, got %v", model.mode)
-	}
+	assert.Equal(t, ModeFileDiff, model.mode)
 }
 
 func TestFileDiffLeftPaneShowsFileListWithCurrentHighlighted(t *testing.T) {
@@ -967,13 +830,9 @@ func TestFileDiffLeftPaneShowsFileListWithCurrentHighlighted(t *testing.T) {
 		t.Fatalf("expected selected file highlighted, got:\n%s", view)
 	}
 
-	if !strings.Contains(view, "model.go") {
-		t.Fatalf("expected model.go in left pane, got:\n%s", view)
-	}
+	assert.Contains(t, view, "model.go")
 
-	if !strings.Contains(view, "main.go") {
-		t.Fatalf("expected second file in left pane, got:\n%s", view)
-	}
+	assert.Contains(t, view, "main.go")
 }
 
 func TestFileDiffRightPaneShowsPerFileDiffRows(t *testing.T) {
@@ -999,17 +858,11 @@ func TestFileDiffRightPaneShowsPerFileDiffRows(t *testing.T) {
 	model = updated.(Model)
 
 	view := model.View()
-	if !strings.Contains(view, "Diff internal/tui/model.go") {
-		t.Fatalf("expected file name in diff header, got:\n%s", view)
-	}
+	assert.Contains(t, view, "Diff internal/tui/model.go")
 
-	if !strings.Contains(view, "before") {
-		t.Fatalf("expected diff row text in right pane, got:\n%s", view)
-	}
+	assert.Contains(t, view, "before")
 
-	if !strings.Contains(view, "added line") {
-		t.Fatalf("expected added line in right pane, got:\n%s", view)
-	}
+	assert.Contains(t, view, "added line")
 }
 
 func TestFileDiffShowsDiscussionGutterWithoutInlineBody(t *testing.T) {
@@ -1063,9 +916,7 @@ func TestFileDiffShowsDiscussionGutterWithoutInlineBody(t *testing.T) {
 	model = updated.(Model)
 
 	view := model.View()
-	if !strings.Contains(view, " 💬 ") {
-		t.Fatalf("expected discussion gutter marker on positioned row, got:\n%s", view)
-	}
+	assert.Contains(t, view, " 💬 ")
 
 	if strings.Contains(view, "fix this") || strings.Contains(view, "alice") || strings.Contains(view, "↳") {
 		t.Fatalf("expected discussion body to stay out of diff rows, got:\n%s", view)
@@ -1098,9 +949,7 @@ func TestRightKeyMovesToNextFile(t *testing.T) {
 	updated, _ := model.Update(tea.KeyMsg{Type: tea.KeyRight})
 	model = updated.(Model)
 
-	if model.DiffViewState.selectedFile != 1 {
-		t.Fatalf("expected selectedFile 1 after right, got %d", model.DiffViewState.selectedFile)
-	}
+	assert.Equal(t, 1, model.DiffViewState.selectedFile)
 
 	view := model.View()
 	if !strings.Contains(view, "\x1b[48;5;63m") || !strings.Contains(view, "b.go") {
@@ -1118,9 +967,7 @@ func TestRightKeyDoesNotExceedLastFile(t *testing.T) {
 	updated, _ := model.Update(tea.KeyMsg{Type: tea.KeyRight})
 	model = updated.(Model)
 
-	if model.DiffViewState.selectedFile != 0 {
-		t.Fatalf("expected selectedFile to stay at 0 (last file), got %d", model.DiffViewState.selectedFile)
-	}
+	assert.Equal(t, 0, model.DiffViewState.selectedFile)
 }
 
 func TestLeftKeyMovesToPreviousFile(t *testing.T) {
@@ -1136,9 +983,7 @@ func TestLeftKeyMovesToPreviousFile(t *testing.T) {
 	updated, _ = model.Update(tea.KeyMsg{Type: tea.KeyLeft})
 	model = updated.(Model)
 
-	if model.DiffViewState.selectedFile != 0 {
-		t.Fatalf("expected selectedFile 0 after left, got %d", model.DiffViewState.selectedFile)
-	}
+	assert.Equal(t, 0, model.DiffViewState.selectedFile)
 
 	view := model.View()
 	if !strings.Contains(view, "\x1b[48;5;63m") || !strings.Contains(view, "a.go") {
@@ -1156,9 +1001,7 @@ func TestLeftKeyDoesNotGoBelowFirstFile(t *testing.T) {
 	updated, _ := model.Update(tea.KeyMsg{Type: tea.KeyLeft})
 	model = updated.(Model)
 
-	if model.DiffViewState.selectedFile != 0 {
-		t.Fatalf("expected selectedFile to stay at 0, got %d", model.DiffViewState.selectedFile)
-	}
+	assert.Equal(t, 0, model.DiffViewState.selectedFile)
 }
 
 func TestEscInFileDiffReturnsToFilesTab(t *testing.T) {
@@ -1171,13 +1014,9 @@ func TestEscInFileDiffReturnsToFilesTab(t *testing.T) {
 	updated, _ := model.Update(tea.KeyMsg{Type: tea.KeyEsc})
 	model = updated.(Model)
 
-	if model.mode != ModeDetail {
-		t.Fatalf("expected ModeDetail after Esc, got %v", model.mode)
-	}
+	assert.Equal(t, ModeDetail, model.mode)
 
-	if model.activeTab != TabFiles {
-		t.Fatalf("expected TabFiles after Esc, got %v", model.activeTab)
-	}
+	assert.Equal(t, TabFiles, model.activeTab)
 }
 
 func TestBackspaceInFileDiffReturnsToFilesTab(t *testing.T) {
@@ -1190,17 +1029,11 @@ func TestBackspaceInFileDiffReturnsToFilesTab(t *testing.T) {
 	updated, _ := model.Update(tea.KeyMsg{Type: tea.KeyBackspace})
 	model = updated.(Model)
 
-	if model.mode != ModeDetail {
-		t.Fatalf("expected ModeDetail after Backspace, got %v", model.mode)
-	}
+	assert.Equal(t, ModeDetail, model.mode)
 
-	if model.activeTab != TabFiles {
-		t.Fatalf("expected TabFiles after Backspace, got %v", model.activeTab)
-	}
+	assert.Equal(t, TabFiles, model.activeTab)
 
-	if !strings.Contains(model.View(), ">Files<") {
-		t.Fatalf("expected Files tab active in view, got:\n%s", model.View())
-	}
+	assert.Contains(t, model.View(), ">Files<")
 }
 
 // --- #43: Draft comments ---
@@ -1260,9 +1093,7 @@ func TestReviewTabAppearsInTabCycleWithDraftCount(t *testing.T) {
 	updated, _ = model.Update(tea.KeyMsg{Type: tea.KeyTab})
 
 	model = updated.(Model)
-	if model.activeTab != TabReview {
-		t.Fatalf("expected Review tab after Files, got %v", model.activeTab)
-	}
+	assert.Equal(t, TabReview, model.activeTab)
 
 	if !strings.Contains(model.View(), ">Review (1)<") || !strings.Contains(model.View(), "main.go:2 Check this") {
 		t.Fatalf("expected Review tab with draft count and context, got:\n%s", model.View())
@@ -1271,9 +1102,7 @@ func TestReviewTabAppearsInTabCycleWithDraftCount(t *testing.T) {
 	updated, _ = model.Update(tea.KeyMsg{Type: tea.KeyTab})
 
 	model = updated.(Model)
-	if model.activeTab != TabSummary {
-		t.Fatalf("expected tab cycle back to Summary, got %v", model.activeTab)
-	}
+	assert.Equal(t, TabSummary, model.activeTab)
 }
 
 func TestReviewTabOpensDraftDiffAndEscReturnsToReview(t *testing.T) {
@@ -1334,9 +1163,7 @@ func TestReviewTabPublishesDraftsWithSummaryAndDiscards(t *testing.T) {
 	updated, cmd := model.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune("p")})
 	model = updated.(Model)
 
-	if cmd == nil {
-		t.Fatal("expected publish command")
-	}
+	assert.NotNil(t, cmd)
 
 	updated, _ = model.Update(cmd())
 	model = updated.(Model)
@@ -1348,19 +1175,13 @@ func TestReviewTabPublishesDraftsWithSummaryAndDiscards(t *testing.T) {
 	updated, cmd = model.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune("D")})
 
 	model = updated.(Model)
-	if len(model.drafts[42]) != 0 {
-		t.Fatalf("expected drafts cleared, got %d", len(model.drafts[42]))
-	}
+	assert.Len(t, model.drafts[42], 0)
 
-	if cmd == nil {
-		t.Fatal("expected discard command")
-	}
+	assert.NotNil(t, cmd)
 
 	cmd()
 
-	if !discarded {
-		t.Fatal("expected discard callback")
-	}
+	assert.True(t, discarded)
 }
 
 func TestDraftInlineCommentCreatesServerDraftAndStoresID(t *testing.T) {
@@ -1395,16 +1216,12 @@ func TestDraftInlineCommentCreatesServerDraftAndStoresID(t *testing.T) {
 	model = updated.(Model)
 	updated, cmd := model.Update(tea.KeyMsg{Type: tea.KeyEnter})
 	model = updated.(Model)
-	if cmd == nil {
-		t.Fatal("expected create draft command")
-	}
+	assert.NotNil(t, cmd)
 
 	updated, _ = model.Update(cmd())
 	model = updated.(Model)
 
-	if !created {
-		t.Fatal("expected draft callback")
-	}
+	assert.True(t, created)
 	if len(model.drafts[42]) != 1 || model.drafts[42][0].ID != 987 {
 		t.Fatalf("expected stored draft id 987, got %+v", model.drafts[42])
 	}
@@ -1423,13 +1240,9 @@ func TestModelStoresDraftCommentForCurrentMR(t *testing.T) {
 	updated, _ := model.Update(draftAddedMsg{iid: 42, draft: draft})
 	model = updated.(Model)
 
-	if len(model.drafts[42]) != 1 {
-		t.Fatalf("expected 1 draft stored, got %d", len(model.drafts[42]))
-	}
+	assert.Len(t, model.drafts[42], 1)
 
-	if model.drafts[42][0].Body != "Fix this please" {
-		t.Fatalf("unexpected draft body: %q", model.drafts[42][0].Body)
-	}
+	assert.Equal(t, "Fix this please", model.drafts[42][0].Body)
 }
 
 func TestDraftMarkerAppearsInGutterWithoutInlineBody(t *testing.T) {
@@ -1445,9 +1258,7 @@ func TestDraftMarkerAppearsInGutterWithoutInlineBody(t *testing.T) {
 	model = updated.(Model)
 
 	view := model.View()
-	if !strings.Contains(view, "📝 ") {
-		t.Fatalf("expected draft gutter marker in diff view, got:\n%s", view)
-	}
+	assert.Contains(t, view, "📝 ")
 
 	if strings.Contains(view, "[DRAFT]") || strings.Contains(view, "Check this") {
 		t.Fatalf("expected draft body to stay out of diff rows, got:\n%s", view)
@@ -1482,9 +1293,7 @@ func TestDraftRangeMarkerSpansMultipleRows(t *testing.T) {
 		return
 	}
 	// If no separator, body must not appear at all (panel hidden or no draft at cursor)
-	if strings.Contains(view, "Range comment") {
-		t.Fatalf("expected range draft body only in Thread Panel, not inline in diff rows:\n%s", view)
-	}
+	assert.NotContains(t, view, "Range comment")
 }
 
 func TestFileDiffGuttersUseTextSymbolsWhenEmojiDisabled(t *testing.T) {
@@ -1505,9 +1314,7 @@ func TestFileDiffGuttersUseTextSymbolsWhenEmojiDisabled(t *testing.T) {
 	}}
 
 	view := model.View()
-	if !strings.Contains(view, "●○ ") {
-		t.Fatalf("expected text draft/discussion gutter markers, got:\n%s", view)
-	}
+	assert.Contains(t, view, "●○ ")
 
 	if strings.Contains(view, "📝") || strings.Contains(view, "💬") {
 		t.Fatalf("expected no emoji markers when emoji disabled, got:\n%s", view)
@@ -1537,14 +1344,10 @@ func TestVKeyStartsRangeSelection(t *testing.T) {
 	updated, _ := model.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune("v")})
 	model = updated.(Model)
 
-	if model.rangeStart != model.diffCursor {
-		t.Fatalf("expected rangeStart == diffCursor (%d), got rangeStart=%d", model.diffCursor, model.rangeStart)
-	}
+	assert.Equal(t, model.diffCursor, model.rangeStart)
 
 	view := model.View()
-	if !strings.Contains(view, "· ") {
-		t.Fatalf("expected range selection gutter marker · in view, got:\n%s", view)
-	}
+	assert.Contains(t, view, "· ")
 }
 
 func TestEscCancelsRangeSelection(t *testing.T) {
@@ -1562,13 +1365,9 @@ func TestEscCancelsRangeSelection(t *testing.T) {
 	updated, _ = model.Update(tea.KeyMsg{Type: tea.KeyEsc})
 	model = updated.(Model)
 
-	if model.rangeStart != -1 {
-		t.Fatalf("expected rangeStart -1 after Esc, got %d", model.rangeStart)
-	}
+	assert.Equal(t, -1, model.rangeStart)
 
-	if model.mode != ModeFileDiff {
-		t.Fatalf("expected to remain in ModeFileDiff after cancelling range, got %v", model.mode)
-	}
+	assert.Equal(t, ModeFileDiff, model.mode)
 }
 
 func TestCKeyEntersCommentInputAndEnterSavesDraft(t *testing.T) {
@@ -1580,9 +1379,7 @@ func TestCKeyEntersCommentInputAndEnterSavesDraft(t *testing.T) {
 	updated, _ := model.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune("c")})
 	model = updated.(Model)
 
-	if !model.commentInput {
-		t.Fatal("expected commentInput to be true after 'c'")
-	}
+	assert.True(t, model.commentInput)
 
 	// Type comment text
 	for _, ch := range "My draft comment" {
@@ -1590,25 +1387,17 @@ func TestCKeyEntersCommentInputAndEnterSavesDraft(t *testing.T) {
 		model = updated.(Model)
 	}
 
-	if model.Value() != "My draft comment" {
-		t.Fatalf("expected buffer 'My draft comment', got %q", model.Value())
-	}
+	assert.Equal(t, "My draft comment", model.Value())
 
 	// Press Enter to save
 	updated, _ = model.Update(tea.KeyMsg{Type: tea.KeyEnter})
 	model = updated.(Model)
 
-	if model.commentInput {
-		t.Fatal("expected commentInput false after Enter")
-	}
+	assert.False(t, model.commentInput)
 
-	if len(model.drafts[42]) != 1 {
-		t.Fatalf("expected 1 draft saved, got %d", len(model.drafts[42]))
-	}
+	assert.Len(t, model.drafts[42], 1)
 
-	if model.drafts[42][0].Body != "My draft comment" {
-		t.Fatalf("unexpected draft body: %q", model.drafts[42][0].Body)
-	}
+	assert.Equal(t, "My draft comment", model.drafts[42][0].Body)
 }
 
 func TestCommentInputBufferAppearsInView(t *testing.T) {
@@ -1622,9 +1411,7 @@ func TestCommentInputBufferAppearsInView(t *testing.T) {
 	model = updated.(Model)
 
 	view := model.View()
-	if !strings.Contains(view, "hello") {
-		t.Fatalf("expected comment buffer in view, got:\n%s", view)
-	}
+	assert.Contains(t, view, "hello")
 }
 
 func TestPKeySubmitsDraftsAndClearsOnSuccess(t *testing.T) {
@@ -1668,22 +1455,16 @@ func TestPKeySubmitsDraftsAndClearsOnSuccess(t *testing.T) {
 	updated, cmd := model.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune("p")})
 	model = updated.(Model)
 
-	if cmd == nil {
-		t.Fatal("expected submit command from 'p'")
-	}
+	assert.NotNil(t, cmd)
 
 	// Execute the command
 	msg := cmd()
 	updated, _ = model.Update(msg)
 	model = updated.(Model)
 
-	if !submitted {
-		t.Fatal("expected submit function to have been called")
-	}
+	assert.True(t, submitted)
 
-	if len(model.drafts[42]) != 0 {
-		t.Fatalf("expected drafts cleared after submit, got %d", len(model.drafts[42]))
-	}
+	assert.Len(t, model.drafts[42], 0)
 }
 
 func TestDKeyDiscardsAllLocalDrafts(t *testing.T) {
@@ -1721,26 +1502,20 @@ func TestDKeyDiscardsAllLocalDrafts(t *testing.T) {
 	updated, _ = model.Update(draftAddedMsg{iid: 42, draft: mr.DraftComment{LocalID: "d2", Body: "also fix"}})
 	model = updated.(Model)
 
-	if len(model.drafts[42]) != 2 {
-		t.Fatalf("setup: expected 2 drafts, got %d", len(model.drafts[42]))
-	}
+	assert.Len(t, model.drafts[42], 2)
 
 	// Press 'D' to discard
 	updated, cmd := model.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune("D")})
 	model = updated.(Model)
 
-	if len(model.drafts[42]) != 0 {
-		t.Fatalf("expected drafts cleared immediately after D, got %d", len(model.drafts[42]))
-	}
+	assert.Len(t, model.drafts[42], 0)
 
 	if cmd != nil {
 		msg := cmd()
 		model.Update(msg)
 	}
 
-	if !discarded {
-		t.Fatal("expected discard function to have been called")
-	}
+	assert.True(t, discarded)
 }
 
 // --- #44: Discussion write actions ---
@@ -1780,23 +1555,17 @@ func TestDiscussionCursorMovesWithJK(t *testing.T) {
 
 	model := discussionsTabModel(t)
 
-	if model.discussionCursor != 0 {
-		t.Fatalf("expected initial cursor 0, got %d", model.discussionCursor)
-	}
+	assert.Equal(t, 0, model.discussionCursor)
 
 	updated, _ := model.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune("j")})
 	model = updated.(Model)
 
-	if model.discussionCursor != 1 {
-		t.Fatalf("expected cursor 1 after j, got %d", model.discussionCursor)
-	}
+	assert.Equal(t, 1, model.discussionCursor)
 
 	updated, _ = model.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune("k")})
 	model = updated.(Model)
 
-	if model.discussionCursor != 0 {
-		t.Fatalf("expected cursor 0 after k, got %d", model.discussionCursor)
-	}
+	assert.Equal(t, 0, model.discussionCursor)
 }
 
 func TestDiscussionCursorDoesNotExceedBounds(t *testing.T) {
@@ -1807,9 +1576,7 @@ func TestDiscussionCursorDoesNotExceedBounds(t *testing.T) {
 	updated, _ := model.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune("k")})
 
 	model = updated.(Model)
-	if model.discussionCursor != 0 {
-		t.Fatalf("expected cursor to stay at 0 (already first), got %d", model.discussionCursor)
-	}
+	assert.Equal(t, 0, model.discussionCursor)
 
 	// Move to last
 	updated, _ = model.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune("j")})
@@ -1817,9 +1584,7 @@ func TestDiscussionCursorDoesNotExceedBounds(t *testing.T) {
 	updated, _ = model.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune("j")})
 
 	model = updated.(Model)
-	if model.discussionCursor != 1 {
-		t.Fatalf("expected cursor to stay at 1 (last), got %d", model.discussionCursor)
-	}
+	assert.Equal(t, 1, model.discussionCursor)
 }
 
 func TestRKeyOpensReplyInputForFocusedDiscussion(t *testing.T) {
@@ -1830,17 +1595,11 @@ func TestRKeyOpensReplyInputForFocusedDiscussion(t *testing.T) {
 	updated, _ := model.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune("r")})
 	model = updated.(Model)
 
-	if !model.replyInput {
-		t.Fatal("expected replyInput true after r")
-	}
+	assert.True(t, model.replyInput)
 
-	if model.replyDraft {
-		t.Fatal("expected replyDraft false for instant reply")
-	}
+	assert.False(t, model.replyDraft)
 
-	if model.replyDiscussionID != "d1" {
-		t.Fatalf("expected replyDiscussionID d1, got %q", model.replyDiscussionID)
-	}
+	assert.Equal(t, "d1", model.replyDiscussionID)
 }
 
 func TestEnterInReplyInputSendsReplyAndAddsNote(t *testing.T) {
@@ -1880,29 +1639,19 @@ func TestEnterInReplyInputSendsReplyAndAddsNote(t *testing.T) {
 	updated, cmd := model.Update(tea.KeyMsg{Type: tea.KeyEnter})
 	model = updated.(Model)
 
-	if model.replyInput {
-		t.Fatal("expected replyInput closed after Enter")
-	}
+	assert.False(t, model.replyInput)
 
-	if cmd == nil {
-		t.Fatal("expected reply command")
-	}
+	assert.NotNil(t, cmd)
 
 	msg := cmd()
 	updated, _ = model.Update(msg)
 	model = updated.(Model)
 
-	if !called {
-		t.Fatal("expected ReplyToDiscussion to be called")
-	}
+	assert.True(t, called)
 
-	if len(model.discussions[42][0].Notes) != 2 {
-		t.Fatalf("expected 2 notes after reply, got %d", len(model.discussions[42][0].Notes))
-	}
+	assert.Len(t, model.discussions[42][0].Notes, 2)
 
-	if model.discussions[42][0].Notes[1].Body != "My reply" {
-		t.Fatalf("unexpected note body: %q", model.discussions[42][0].Notes[1].Body)
-	}
+	assert.Equal(t, "My reply", model.discussions[42][0].Notes[1].Body)
 }
 
 func TestDKeyOpensDraftReplyAndEnterCallsService(t *testing.T) {
@@ -1940,16 +1689,12 @@ func TestDKeyOpensDraftReplyAndEnterCallsService(t *testing.T) {
 	updated, cmd := model.Update(tea.KeyMsg{Type: tea.KeyEnter})
 	model = updated.(Model)
 
-	if cmd == nil {
-		t.Fatal("expected draft reply command")
-	}
+	assert.NotNil(t, cmd)
 
 	updated, _ = model.Update(cmd())
 	model = updated.(Model)
 
-	if !called {
-		t.Fatal("expected DraftReply to be called")
-	}
+	assert.True(t, called)
 	if len(model.drafts[42]) != 1 || model.drafts[42][0].ID != 123 {
 		t.Fatalf("expected stored draft reply id 123, got %+v", model.drafts[42])
 	}
@@ -1981,21 +1726,15 @@ func TestXKeyResolvesOpenDiscussion(t *testing.T) {
 	updated, cmd := model.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune("x")})
 	model = updated.(Model)
 
-	if cmd == nil {
-		t.Fatal("expected resolve command")
-	}
+	assert.NotNil(t, cmd)
 
 	msg := cmd()
 	updated, _ = model.Update(msg)
 	model = updated.(Model)
 
-	if !resolved {
-		t.Fatal("expected ResolveDiscussion to be called")
-	}
+	assert.True(t, resolved)
 
-	if !model.discussions[42][0].Resolved {
-		t.Fatal("expected discussion marked resolved")
-	}
+	assert.True(t, model.discussions[42][0].Resolved)
 }
 
 func TestXKeyUnresolvesResolvedDiscussion(t *testing.T) {
@@ -2019,21 +1758,15 @@ func TestXKeyUnresolvesResolvedDiscussion(t *testing.T) {
 	updated, cmd := model.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune("x")})
 	model = updated.(Model)
 
-	if cmd == nil {
-		t.Fatal("expected unresolve command")
-	}
+	assert.NotNil(t, cmd)
 
 	msg := cmd()
 	updated, _ = model.Update(msg)
 	model = updated.(Model)
 
-	if !unresolved {
-		t.Fatal("expected UnresolveDiscussion to be called")
-	}
+	assert.True(t, unresolved)
 
-	if model.discussions[42][0].Resolved {
-		t.Fatal("expected discussion marked unresolved")
-	}
+	assert.False(t, model.discussions[42][0].Resolved)
 }
 
 func diffViewWithInlineDiscussion(t *testing.T, replyFn ReplyToDiscussionFunc) Model {
@@ -2088,13 +1821,9 @@ func TestRKeyInDiffViewOnInlineDiscussionOpensReplyInput(t *testing.T) {
 	updated, _ := model.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune("r")})
 	model = updated.(Model)
 
-	if !model.replyInput {
-		t.Fatalf("expected replyInput true, got false; mode=%v cursor=%d", model.mode, model.diffCursor)
-	}
+	assert.True(t, model.replyInput)
 
-	if model.replyDiscussionID != "inline-d1" {
-		t.Fatalf("expected replyDiscussionID inline-d1, got %q", model.replyDiscussionID)
-	}
+	assert.Equal(t, "inline-d1", model.replyDiscussionID)
 }
 
 func TestDKeyInDiffViewOpensDraftReplyForInlineDiscussion(t *testing.T) {
@@ -2105,17 +1834,11 @@ func TestDKeyInDiffViewOpensDraftReplyForInlineDiscussion(t *testing.T) {
 	updated, _ := model.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune("d")})
 	model = updated.(Model)
 
-	if !model.replyInput {
-		t.Fatal("expected replyInput true after d")
-	}
+	assert.True(t, model.replyInput)
 
-	if !model.replyDraft {
-		t.Fatal("expected replyDraft true after d")
-	}
+	assert.True(t, model.replyDraft)
 
-	if model.replyDiscussionID != "inline-d1" {
-		t.Fatalf("expected replyDiscussionID inline-d1, got %q", model.replyDiscussionID)
-	}
+	assert.Equal(t, "inline-d1", model.replyDiscussionID)
 }
 
 func TestXKeyInDiffViewResolvesInlineDiscussion(t *testing.T) {
@@ -2161,21 +1884,15 @@ func TestXKeyInDiffViewResolvesInlineDiscussion(t *testing.T) {
 	updated, cmd := model.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune("x")})
 	model = updated.(Model)
 
-	if cmd == nil {
-		t.Fatal("expected resolve command from x")
-	}
+	assert.NotNil(t, cmd)
 
 	msg := cmd()
 	updated, _ = model.Update(msg)
 	model = updated.(Model)
 
-	if !resolved {
-		t.Fatal("expected ResolveDiscussion to be called")
-	}
+	assert.True(t, resolved)
 
-	if !model.discussions[42][0].Resolved {
-		t.Fatal("expected inline discussion marked resolved")
-	}
+	assert.True(t, model.discussions[42][0].Resolved)
 }
 
 // --- #45: Instant comments ---
@@ -2218,13 +1935,9 @@ func TestIKeyOpensInstantInlineCommentInput(t *testing.T) {
 	updated, _ := model.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune("i")})
 	model = updated.(Model)
 
-	if !model.commentInput {
-		t.Fatal("expected commentInput true after i")
-	}
+	assert.True(t, model.commentInput)
 
-	if !model.commentInstant {
-		t.Fatal("expected commentInstant true after i")
-	}
+	assert.True(t, model.commentInstant)
 }
 
 func TestEnterInInstantCommentCallsAPIAndDoesNotSaveDraft(t *testing.T) {
@@ -2253,19 +1966,13 @@ func TestEnterInInstantCommentCallsAPIAndDoesNotSaveDraft(t *testing.T) {
 	updated, cmd := model.Update(tea.KeyMsg{Type: tea.KeyEnter})
 	model = updated.(Model)
 
-	if cmd == nil {
-		t.Fatal("expected API command on Enter for instant comment")
-	}
+	assert.NotNil(t, cmd)
 
 	cmd()
 
-	if !called {
-		t.Fatal("expected PostInlineCommentFunc to be called")
-	}
+	assert.True(t, called)
 
-	if len(model.drafts[42]) != 0 {
-		t.Fatalf("expected no local draft saved, got %d", len(model.drafts[42]))
-	}
+	assert.Len(t, model.drafts[42], 0)
 }
 
 func TestInstantCommentAPIErrorShownInView(t *testing.T) {
@@ -2288,13 +1995,9 @@ func TestInstantCommentAPIErrorShownInView(t *testing.T) {
 		model = updated.(Model)
 	}
 
-	if model.mode != ModeFileDiff {
-		t.Fatalf("expected to stay in ModeFileDiff after error, got %v", model.mode)
-	}
+	assert.Equal(t, ModeFileDiff, model.mode)
 
-	if !strings.Contains(model.View(), "network timeout") {
-		t.Fatalf("expected error in view, got:\n%s", model.View())
-	}
+	assert.Contains(t, model.View(), "network timeout")
 }
 
 func TestMKeyOpensMRCommentInput(t *testing.T) {
@@ -2309,9 +2012,7 @@ func TestMKeyOpensMRCommentInput(t *testing.T) {
 	updated, _ := model.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune("m")})
 	model = updated.(Model)
 
-	if !model.mrCommentInput {
-		t.Fatal("expected mrCommentInput true after m")
-	}
+	assert.True(t, model.mrCommentInput)
 }
 
 func TestEnterInMRCommentInputCallsPostMRCommentFunc(t *testing.T) {
@@ -2340,19 +2041,13 @@ func TestEnterInMRCommentInputCallsPostMRCommentFunc(t *testing.T) {
 	updated, cmd := model.Update(tea.KeyMsg{Type: tea.KeyEnter})
 	model = updated.(Model)
 
-	if model.mrCommentInput {
-		t.Fatal("expected mrCommentInput closed after Enter")
-	}
+	assert.False(t, model.mrCommentInput)
 
-	if cmd == nil {
-		t.Fatal("expected command from Enter in MR comment input")
-	}
+	assert.NotNil(t, cmd)
 
 	cmd()
 
-	if !called {
-		t.Fatal("expected PostMRCommentFunc to be called")
-	}
+	assert.True(t, called)
 }
 
 func TestEscInMRCommentInputCancelsWithoutSending(t *testing.T) {
@@ -2372,21 +2067,13 @@ func TestEscInMRCommentInputCancelsWithoutSending(t *testing.T) {
 	updated, cmd := model.Update(tea.KeyMsg{Type: tea.KeyEsc})
 	model = updated.(Model)
 
-	if model.mrCommentInput {
-		t.Fatal("expected mrCommentInput false after Esc")
-	}
+	assert.False(t, model.mrCommentInput)
 
-	if cmd != nil {
-		t.Fatal("expected no command on Esc")
-	}
+	assert.Nil(t, cmd)
 
-	if called {
-		t.Fatal("expected PostMRCommentFunc NOT to be called after Esc")
-	}
+	assert.False(t, called)
 
-	if model.Value() != "" {
-		t.Fatalf("expected buffer cleared after Esc, got %q", model.Value())
-	}
+	assert.Equal(t, "", model.Value())
 }
 
 func TestMRCommentAPIErrorShownInViewWithoutLosingContext(t *testing.T) {
@@ -2413,13 +2100,9 @@ func TestMRCommentAPIErrorShownInViewWithoutLosingContext(t *testing.T) {
 		model = updated.(Model)
 	}
 
-	if model.mode != ModeDetail {
-		t.Fatalf("expected to stay in ModeDetail after error, got %v", model.mode)
-	}
+	assert.Equal(t, ModeDetail, model.mode)
 
-	if !strings.Contains(model.View(), "forbidden") {
-		t.Fatalf("expected error in view, got:\n%s", model.View())
-	}
+	assert.Contains(t, model.View(), "forbidden")
 }
 
 // --- #46: MR actions + external open ---
@@ -2455,21 +2138,15 @@ func TestAKeyApprovesCurrentMR(t *testing.T) {
 	updated, cmd := model.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune("A")})
 	model = updated.(Model)
 
-	if cmd == nil {
-		t.Fatal("expected approve command")
-	}
+	assert.NotNil(t, cmd)
 
 	msg := cmd()
 	updated, _ = model.Update(msg)
 	model = updated.(Model)
 
-	if !called {
-		t.Fatal("expected ApproveMRFunc to be called")
-	}
+	assert.True(t, called)
 
-	if !strings.Contains(model.View(), "Approved") {
-		t.Fatalf("expected 'Approved' in view, got:\n%s", model.View())
-	}
+	assert.Contains(t, model.View(), "Approved")
 }
 
 func TestMKeySetsMergeConfirmPending(t *testing.T) {
@@ -2482,13 +2159,9 @@ func TestMKeySetsMergeConfirmPending(t *testing.T) {
 	updated, _ := model.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune("M")})
 	model = updated.(Model)
 
-	if !model.mergeConfirmPending {
-		t.Fatal("expected mergeConfirmPending true after first M")
-	}
+	assert.True(t, model.mergeConfirmPending)
 
-	if !strings.Contains(model.View(), "confirm merge") {
-		t.Fatalf("expected confirmation prompt in view, got:\n%s", model.View())
-	}
+	assert.Contains(t, model.View(), "confirm merge")
 }
 
 func TestMKeyAgainConfirmsMerge(t *testing.T) {
@@ -2503,15 +2176,11 @@ func TestMKeyAgainConfirmsMerge(t *testing.T) {
 	model = updated.(Model)
 	_, cmd := model.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune("M")})
 
-	if cmd == nil {
-		t.Fatal("expected merge command on second M")
-	}
+	assert.NotNil(t, cmd)
 
 	cmd()
 
-	if !called {
-		t.Fatal("expected MergeMRFunc to be called")
-	}
+	assert.True(t, called)
 }
 
 func TestOtherKeyAfterMCancelsMerge(t *testing.T) {
@@ -2526,13 +2195,9 @@ func TestOtherKeyAfterMCancelsMerge(t *testing.T) {
 	updated, cmd := model.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune("j")})
 	model = updated.(Model)
 
-	if model.mergeConfirmPending {
-		t.Fatal("expected mergeConfirmPending cleared after non-M key")
-	}
+	assert.False(t, model.mergeConfirmPending)
 
-	if cmd != nil {
-		t.Fatal("expected no merge command")
-	}
+	assert.Nil(t, cmd)
 }
 
 func TestOKeyOpensURLInBrowser(t *testing.T) {
@@ -2549,15 +2214,11 @@ func TestOKeyOpensURLInBrowser(t *testing.T) {
 
 	_, cmd := model.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune("o")})
 
-	if cmd == nil {
-		t.Fatal("expected open URL command")
-	}
+	assert.NotNil(t, cmd)
 
 	cmd()
 
-	if opened != "https://gitlab.com/group/project/-/merge_requests/42" {
-		t.Fatalf("expected MR URL opened, got %q", opened)
-	}
+	assert.Equal(t, "https://gitlab.com/group/project/-/merge_requests/42", opened)
 }
 
 func TestEKeyOpensEditModeOnTitleField(t *testing.T) {
@@ -2570,17 +2231,11 @@ func TestEKeyOpensEditModeOnTitleField(t *testing.T) {
 	updated, _ := model.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune("e")})
 	model = updated.(Model)
 
-	if !model.editInput {
-		t.Fatal("expected editInput true after e")
-	}
+	assert.True(t, model.editInput)
 
-	if model.editField != "title" {
-		t.Fatalf("expected editField 'title', got %q", model.editField)
-	}
+	assert.Equal(t, "title", model.editField)
 
-	if model.Value() != "Port TUI shell to Bubble Tea" {
-		t.Fatalf("expected buffer pre-filled with current title, got %q", model.Value())
-	}
+	assert.Equal(t, "Port TUI shell to Bubble Tea", model.Value())
 }
 
 func TestTabInEditModeMoveToDescriptionField(t *testing.T) {
@@ -2597,13 +2252,9 @@ func TestTabInEditModeMoveToDescriptionField(t *testing.T) {
 	updated, _ = model.Update(tea.KeyMsg{Type: tea.KeyTab})
 	model = updated.(Model)
 
-	if model.editField != "description" {
-		t.Fatalf("expected editField 'description' after Tab, got %q", model.editField)
-	}
+	assert.Equal(t, "description", model.editField)
 
-	if model.editTitle != "New title" {
-		t.Fatalf("expected editTitle saved, got %q", model.editTitle)
-	}
+	assert.Equal(t, "New title", model.editTitle)
 }
 
 func TestEnterInEditModeSavesAndCallsEditMR(t *testing.T) {
@@ -2641,25 +2292,17 @@ func TestEnterInEditModeSavesAndCallsEditMR(t *testing.T) {
 	updated, cmd := model.Update(tea.KeyMsg{Type: tea.KeyEnter})
 	model = updated.(Model)
 
-	if model.editInput {
-		t.Fatal("expected editInput closed after Enter")
-	}
+	assert.False(t, model.editInput)
 
-	if cmd == nil {
-		t.Fatal("expected edit command")
-	}
+	assert.NotNil(t, cmd)
 
 	msg := cmd()
 	updated, _ = model.Update(msg)
 	model = updated.(Model)
 
-	if !called {
-		t.Fatal("expected EditMRFunc to be called")
-	}
+	assert.True(t, called)
 
-	if model.items[0].Title != "New title" {
-		t.Fatalf("expected title updated locally, got %q", model.items[0].Title)
-	}
+	assert.Equal(t, "New title", model.items[0].Title)
 }
 
 func TestEKeyInDiffViewOpensFileInEditor(t *testing.T) {
@@ -2701,19 +2344,13 @@ func TestEKeyInDiffViewOpensFileInEditor(t *testing.T) {
 	// Press 'e' to open in editor
 	_, cmd := model.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune("e")})
 
-	if cmd == nil {
-		t.Fatal("expected open editor command")
-	}
+	assert.NotNil(t, cmd)
 
 	cmd()
 
-	if openedPath != "internal/tui/model.go" {
-		t.Fatalf("expected path internal/tui/model.go, got %q", openedPath)
-	}
+	assert.Equal(t, "internal/tui/model.go", openedPath)
 
-	if openedLine != 11 {
-		t.Fatalf("expected line 11, got %d", openedLine)
-	}
+	assert.Equal(t, 11, openedLine)
 }
 
 // --- #52: Diff View — type markers and readability ---
@@ -2752,9 +2389,7 @@ func TestDiffAdditionRowHasNoZeroOldLineNumber(t *testing.T) {
 
 	view := model.View()
 	// Old line number should be blank, not "   0"
-	if strings.Contains(view, "   0 │") {
-		t.Fatalf("expected no '0' old line number for addition row, got:\n%s", view)
-	}
+	assert.NotContains(t, view, "   0 │")
 }
 
 func TestDiffContextRowHasNoTypeMarker(t *testing.T) {
@@ -2765,9 +2400,7 @@ func TestDiffContextRowHasNoTypeMarker(t *testing.T) {
 	})
 
 	view := model.View()
-	if !strings.Contains(view, "unchanged") {
-		t.Fatalf("expected context row text in view, got:\n%s", view)
-	}
+	assert.Contains(t, view, "unchanged")
 	// Context rows must not be prefixed with + or -
 	if strings.Contains(view, "+ unchanged") || strings.Contains(view, "- unchanged") {
 		t.Fatalf("expected context row to have no +/- marker, got:\n%s", view)
@@ -2782,9 +2415,7 @@ func TestDiffDeletionRowIsMarkedWithMinus(t *testing.T) {
 	})
 
 	view := model.View()
-	if !strings.Contains(view, "- old code") {
-		t.Fatalf("expected deletion row marked with '-', got:\n%s", view)
-	}
+	assert.Contains(t, view, "- old code")
 }
 
 func TestDiffAdditionRowIsMarkedWithPlus(t *testing.T) {
@@ -2795,9 +2426,7 @@ func TestDiffAdditionRowIsMarkedWithPlus(t *testing.T) {
 	})
 
 	view := model.View()
-	if !strings.Contains(view, "+ new feature") {
-		t.Fatalf("expected addition row marked with '+', got:\n%s", view)
-	}
+	assert.Contains(t, view, "+ new feature")
 }
 
 // --- #50: Left panel always read-only, no focus ---
@@ -2810,9 +2439,7 @@ func TestLeftPanelHasNoActiveBorderInDetailMode(t *testing.T) {
 	updated, _ := model.Update(tea.MouseMsg{X: 2, Y: 5, Button: tea.MouseButtonLeft, Action: tea.MouseActionPress})
 	model = updated.(Model)
 
-	if model.focus == FocusList {
-		t.Fatal("focus must never be FocusList in ModeDetail")
-	}
+	assert.NotEqual(t, FocusList, model.focus)
 	// Left panel style uses focused=false → border color 240 (dim), right panel uses focused=true → 63 (bright)
 	// We verify this indirectly: renderList checks m.focus==FocusList||FocusFilter
 	// After our fix, paneStyle(focused=false) is always used for the left panel
@@ -2843,21 +2470,15 @@ func TestMRSectionSelectionTriggersLoadingWhenNotLoaded(t *testing.T) {
 	updated, _ := model.Update(tea.KeyMsg{Type: tea.KeyEnter})
 
 	model = updated.(Model)
-	if model.mode != ModeSections {
-		t.Fatalf("setup: expected ModeSections, got %v", model.mode)
-	}
+	assert.Equal(t, ModeSections, model.mode)
 
 	// Select MR section → should trigger loading
 	updated, cmd := model.Update(tea.KeyMsg{Type: tea.KeyEnter})
 	model = updated.(Model)
 
-	if cmd == nil {
-		t.Fatal("expected loading command when selecting MR section with unloaded project")
-	}
+	assert.NotNil(t, cmd)
 
-	if loadCalled {
-		t.Fatal("expected LoadProject not yet called (command not executed)")
-	}
+	assert.False(t, loadCalled)
 }
 
 func TestMRSectionLoadingCompletionShowsMRList(t *testing.T) {
@@ -2886,18 +2507,12 @@ func TestMRSectionLoadingCompletionShowsMRList(t *testing.T) {
 	})
 	model = updated.(Model)
 
-	if model.mode != ModeEntityList {
-		t.Fatalf("expected ModeEntityList after load, got %v", model.mode)
-	}
+	assert.Equal(t, ModeEntityList, model.mode)
 
-	if len(model.items) != 2 {
-		t.Fatalf("expected 2 MRs loaded, got %d", len(model.items))
-	}
+	assert.Len(t, model.items, 2)
 
 	view := model.View()
-	if !strings.Contains(view, "First MR") {
-		t.Fatalf("expected MR list in view, got:\n%s", view)
-	}
+	assert.Contains(t, view, "First MR")
 }
 
 // --- #53: Two-panel layout for entity list ---
@@ -2922,9 +2537,7 @@ func entityListModel(t *testing.T) Model {
 	})
 
 	model = updated.(Model)
-	if model.mode != ModeEntityList {
-		t.Fatalf("setup: expected ModeEntityList, got %v", model.mode)
-	}
+	assert.Equal(t, ModeEntityList, model.mode)
 
 	return model
 }
@@ -2935,13 +2548,9 @@ func TestEntityListViewShowsSectionsContextOnLeft(t *testing.T) {
 	model := entityListModel(t)
 	view := model.View()
 
-	if !strings.Contains(view, "Merge Requests") {
-		t.Fatalf("expected sections context on left, got:\n%s", view)
-	}
+	assert.Contains(t, view, "Merge Requests")
 
-	if !strings.Contains(view, "Alpha MR") {
-		t.Fatalf("expected entity list on right, got:\n%s", view)
-	}
+	assert.Contains(t, view, "Alpha MR")
 }
 
 func TestEntityListEnterGoesToMRDetail(t *testing.T) {
@@ -2952,9 +2561,7 @@ func TestEntityListEnterGoesToMRDetail(t *testing.T) {
 	updated, _ := model.Update(tea.KeyMsg{Type: tea.KeyEnter})
 	model = updated.(Model)
 
-	if model.mode != ModeDetail {
-		t.Fatalf("expected ModeDetail after Enter in entity list, got %v", model.mode)
-	}
+	assert.Equal(t, ModeDetail, model.mode)
 }
 
 func TestEntityListEscGoesToSections(t *testing.T) {
@@ -2965,9 +2572,7 @@ func TestEntityListEscGoesToSections(t *testing.T) {
 	updated, _ := model.Update(tea.KeyMsg{Type: tea.KeyEsc})
 	model = updated.(Model)
 
-	if model.mode != ModeSections {
-		t.Fatalf("expected ModeSections after Esc in entity list, got %v", model.mode)
-	}
+	assert.Equal(t, ModeSections, model.mode)
 }
 
 // --- #48: Two-panel layout on project picker screen ---
@@ -2978,40 +2583,26 @@ func TestProjectPickerRendersLeftContextPane(t *testing.T) {
 	model := NewModelWithProject(nil, ProjectOptions{
 		Recents: []string{"recent/project"},
 	})
-	if model.mode != ModeProjectSelect {
-		t.Fatalf("expected ModeProjectSelect, got %v", model.mode)
-	}
+	assert.Equal(t, ModeProjectSelect, model.mode)
 
 	view := model.View()
-	if !strings.Contains(view, "gitlab-tui") {
-		t.Fatalf("expected left context pane with 'gitlab-tui', got:\n%s", view)
-	}
+	assert.Contains(t, view, "gitlab-tui")
 
-	if !strings.Contains(view, "Projects") {
-		t.Fatalf("expected 'Projects' heading in right pane, got:\n%s", view)
-	}
+	assert.Contains(t, view, "Projects")
 
-	if !strings.Contains(view, "recent/project") {
-		t.Fatalf("expected project in right pane, got:\n%s", view)
-	}
+	assert.Contains(t, view, "recent/project")
 }
 
 func TestProjectInputRendersLeftContextPane(t *testing.T) {
 	t.Parallel()
 
 	model := NewModelWithProject(nil, ProjectOptions{})
-	if model.mode != ModeProjectInput {
-		t.Fatalf("expected ModeProjectInput, got %v", model.mode)
-	}
+	assert.Equal(t, ModeProjectInput, model.mode)
 
 	view := model.View()
-	if !strings.Contains(view, "gitlab-tui") {
-		t.Fatalf("expected left context pane with 'gitlab-tui', got:\n%s", view)
-	}
+	assert.Contains(t, view, "gitlab-tui")
 
-	if !strings.Contains(view, "Open GitLab project") {
-		t.Fatalf("expected 'Open GitLab project' in right pane, got:\n%s", view)
-	}
+	assert.Contains(t, view, "Open GitLab project")
 }
 
 func TestTabKeyCyclesDetailTabs(t *testing.T) {
@@ -3023,33 +2614,25 @@ func TestTabKeyCyclesDetailTabs(t *testing.T) {
 	updated, _ := model.Update(tea.KeyMsg{Type: tea.KeyTab})
 
 	model = updated.(Model)
-	if model.activeTab != TabDiscussions {
-		t.Fatalf("expected TabDiscussions after first Tab, got %v", model.activeTab)
-	}
+	assert.Equal(t, TabDiscussions, model.activeTab)
 
 	// Discussions → Files
 	updated, _ = model.Update(tea.KeyMsg{Type: tea.KeyTab})
 
 	model = updated.(Model)
-	if model.activeTab != TabFiles {
-		t.Fatalf("expected TabFiles after second Tab, got %v", model.activeTab)
-	}
+	assert.Equal(t, TabFiles, model.activeTab)
 
 	// Files → Review
 	updated, _ = model.Update(tea.KeyMsg{Type: tea.KeyTab})
 
 	model = updated.(Model)
-	if model.activeTab != TabReview {
-		t.Fatalf("expected TabReview after third Tab, got %v", model.activeTab)
-	}
+	assert.Equal(t, TabReview, model.activeTab)
 
 	// Review → Summary (wrap)
 	updated, _ = model.Update(tea.KeyMsg{Type: tea.KeyTab})
 
 	model = updated.(Model)
-	if model.activeTab != TabSummary {
-		t.Fatalf("expected TabSummary after fourth Tab, got %v", model.activeTab)
-	}
+	assert.Equal(t, TabSummary, model.activeTab)
 }
 
 func TestProjectSelectStructuredRecentsDoNotRenderLegacyDuplicate(t *testing.T) {
@@ -3086,18 +2669,12 @@ func TestProjectSelectShowsRecentSectionBeforeAccounts(t *testing.T) {
 	}
 
 	for _, want := range []string{"group/new (work)", "group/old (default)"} {
-		if !strings.Contains(view, want) {
-			t.Fatalf("expected recent entry %q, got %q", want, view)
-		}
+		assert.Contains(t, view, want)
 	}
 
-	if model.ProjectPickerState.projectRows[0].selectable {
-		t.Fatalf("expected Recent header to be non-selectable: %+v", model.ProjectPickerState.projectRows[0])
-	}
+	assert.False(t, model.ProjectPickerState.projectRows[0].selectable)
 
-	if model.ProjectPickerState.selected != 2 {
-		t.Fatalf("expected cursor to skip Recent header and spacer, selected=%d rows=%+v", model.ProjectPickerState.selected, model.ProjectPickerState.projectRows)
-	}
+	assert.Equal(t, 2, model.ProjectPickerState.selected)
 }
 
 func TestProjectSelectHidesRecentSectionWhenEmpty(t *testing.T) {
@@ -3107,9 +2684,7 @@ func TestProjectSelectHidesRecentSectionWhenEmpty(t *testing.T) {
 		LoadProjects: []AccountProjectLoader{{ID: "default", Host: "https://gitlab.com", Load: func() ([]string, error) { return nil, nil }}},
 	})
 
-	if strings.Contains(model.View(), "Recent") {
-		t.Fatalf("expected no Recent section, got %q", model.View())
-	}
+	assert.NotContains(t, model.View(), "Recent")
 }
 
 func TestProjectSelectRecentSelectionUsesProjectPath(t *testing.T) {
@@ -3146,20 +2721,14 @@ func TestProjectSelectFilterMatchesRecentAndAccountProjects(t *testing.T) {
 
 	view := model.View()
 	for _, want := range []string{"team/Alpha (work)", "org/alpha-service"} {
-		if !strings.Contains(view, want) {
-			t.Fatalf("expected filtered view to contain %q, got %q", want, view)
-		}
+		assert.Contains(t, view, want)
 	}
 
 	for _, unwanted := range []string{"group/beta", "org/gamma"} {
-		if strings.Contains(view, unwanted) {
-			t.Fatalf("expected filtered view to hide %q, got %q", unwanted, view)
-		}
+		assert.NotContains(t, view, unwanted)
 	}
 
-	if model.ProjectPickerState.selected != 2 {
-		t.Fatalf("expected cursor on first filtered result, got %d rows %+v", model.ProjectPickerState.selected, model.ProjectPickerState.projectRows)
-	}
+	assert.Equal(t, 2, model.ProjectPickerState.selected)
 }
 
 func TestProjectSelectFilterHidesSectionsWithoutMatchesAndEscResets(t *testing.T) {
@@ -3204,9 +2773,7 @@ func TestProjectSelectFilterShowsNoMatches(t *testing.T) {
 	updated, _ = model.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'z'}})
 	model = updated.(Model)
 
-	if !strings.Contains(model.View(), "No matching projects") {
-		t.Fatalf("expected no-match state, got %q", model.View())
-	}
+	assert.Contains(t, model.View(), "No matching projects")
 }
 
 func TestProjectSelectStartsAccountProjectLoads(t *testing.T) {
@@ -3219,19 +2786,13 @@ func TestProjectSelectStartsAccountProjectLoads(t *testing.T) {
 
 	cmd := model.Init()
 
-	if model.mode != ModeProjectSelect {
-		t.Fatalf("expected project select mode, got %v", model.mode)
-	}
+	assert.Equal(t, ModeProjectSelect, model.mode)
 
-	if cmd == nil {
-		t.Fatal("expected account project load batch")
-	}
+	assert.NotNil(t, cmd)
 
 	view := model.View()
 	for _, want := range []string{"[default]  https://gitlab.com", "[work]  https://gitlab.example.com", "Loading…"} {
-		if !strings.Contains(view, want) {
-			t.Fatalf("expected view to contain %q, got %q", want, view)
-		}
+		assert.Contains(t, view, want)
 	}
 }
 
@@ -3245,13 +2806,9 @@ func TestProjectSelectShowsLoadedAccountProjectsAndSkipsHeaders(t *testing.T) {
 	updated, _ := model.Update(accountProjectsFinishedMsg{accountID: "default", projects: projects})
 	model = updated.(Model)
 
-	if model.ProjectPickerState.projectRows[0].selectable {
-		t.Fatalf("expected account header to be non-selectable: %+v", model.ProjectPickerState.projectRows[0])
-	}
+	assert.False(t, model.ProjectPickerState.projectRows[0].selectable)
 
-	if model.ProjectPickerState.selected != 1 {
-		t.Fatalf("expected first project row selected, got %d rows %+v", model.ProjectPickerState.selected, model.ProjectPickerState.projectRows)
-	}
+	assert.Equal(t, 1, model.ProjectPickerState.selected)
 
 	updated, _ = model.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'j'}})
 
@@ -3275,14 +2832,10 @@ func TestProjectSelectShowsErrorAndRetriesOnlyFailedAccounts(t *testing.T) {
 	updated, _ = model.Update(accountProjectsFinishedMsg{accountID: "ok", projects: []string{"ok/project"}})
 	model = updated.(Model)
 
-	if !strings.Contains(model.View(), "Error: refresh failed  r: retry") {
-		t.Fatalf("expected error row, got %q", model.View())
-	}
+	assert.Contains(t, model.View(), "Error: refresh failed  r: retry")
 
 	_, cmd := model.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'r'}})
-	if cmd == nil {
-		t.Fatal("expected retry command")
-	}
+	assert.NotNil(t, cmd)
 
 	_ = cmd()
 
@@ -3303,13 +2856,9 @@ func TestDownScrollsRightPanelInModeDetail(t *testing.T) {
 	updated, _ := model.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'j'}})
 	model = updated.(Model)
 
-	if model.MRDetailState.YOffset != 6 {
-		t.Fatalf("expected MR detail viewport offset=6 after j in ModeDetail, got %d", model.MRDetailState.YOffset)
-	}
+	assert.Equal(t, 6, model.MRDetailState.YOffset)
 
-	if model.ProjectPickerState.selected != initialSelected {
-		t.Fatalf("expected selected to be unchanged, got %d", model.ProjectPickerState.selected)
-	}
+	assert.Equal(t, initialSelected, model.ProjectPickerState.selected)
 }
 
 func TestUpScrollsRightPanelInModeDetail(t *testing.T) {
@@ -3322,13 +2871,9 @@ func TestUpScrollsRightPanelInModeDetail(t *testing.T) {
 	updated, _ := model.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'k'}})
 	model = updated.(Model)
 
-	if model.MRDetailState.YOffset != 4 {
-		t.Fatalf("expected MR detail viewport offset=4 after k in ModeDetail, got %d", model.MRDetailState.YOffset)
-	}
+	assert.Equal(t, 4, model.MRDetailState.YOffset)
 
-	if model.ProjectPickerState.selected != initialSelected {
-		t.Fatalf("expected selected to be unchanged, got %d", model.ProjectPickerState.selected)
-	}
+	assert.Equal(t, initialSelected, model.ProjectPickerState.selected)
 }
 
 func TestMRDetailViewportOffsetFloorAtZeroInModeDetail(t *testing.T) {
@@ -3340,9 +2885,7 @@ func TestMRDetailViewportOffsetFloorAtZeroInModeDetail(t *testing.T) {
 	updated, _ := model.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'k'}})
 	model = updated.(Model)
 
-	if model.MRDetailState.YOffset != 0 {
-		t.Fatalf("expected MR detail viewport offset to stay 0 (floor), got %d", model.MRDetailState.YOffset)
-	}
+	assert.Equal(t, 0, model.MRDetailState.YOffset)
 }
 
 func TestArrowKeysScrollRightPanelInModeDetail(t *testing.T) {
@@ -3354,16 +2897,12 @@ func TestArrowKeysScrollRightPanelInModeDetail(t *testing.T) {
 	updated, _ := model.Update(tea.KeyMsg{Type: tea.KeyDown})
 
 	model = updated.(Model)
-	if model.MRDetailState.YOffset != 4 {
-		t.Fatalf("expected MR detail viewport offset=4 after ↓ in ModeDetail, got %d", model.MRDetailState.YOffset)
-	}
+	assert.Equal(t, 4, model.MRDetailState.YOffset)
 
 	updated, _ = model.Update(tea.KeyMsg{Type: tea.KeyUp})
 
 	model = updated.(Model)
-	if model.MRDetailState.YOffset != 3 {
-		t.Fatalf("expected MR detail viewport offset=3 after ↑ in ModeDetail, got %d", model.MRDetailState.YOffset)
-	}
+	assert.Equal(t, 3, model.MRDetailState.YOffset)
 }
 
 func TestUpDownInModeEntityListStillMovesSelection(t *testing.T) {
@@ -3377,13 +2916,9 @@ func TestUpDownInModeEntityListStillMovesSelection(t *testing.T) {
 	updated, _ := model.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'j'}})
 	model = updated.(Model)
 
-	if model.EntityListState.mrList.Index() != initialSelected+1 {
-		t.Fatalf("expected selected to increment in ModeEntityList, got %d", model.EntityListState.mrList.Index())
-	}
+	assert.Equal(t, initialSelected+1, model.EntityListState.mrList.Index())
 
-	if model.MRDetailState.YOffset != initialMRDetailViewportOffset {
-		t.Fatalf("expected MR detail viewport offset unchanged in ModeEntityList, got %d", model.MRDetailState.YOffset)
-	}
+	assert.Equal(t, initialMRDetailViewportOffset, model.MRDetailState.YOffset)
 }
 
 // --- #64: Global key suppression in input modes ---
@@ -3415,13 +2950,9 @@ func TestExitingMRCommentInputRestoresGlobalKeys(t *testing.T) {
 	updated, _ = model.Update(tea.KeyMsg{Type: tea.KeyEsc})
 	model = updated.(Model)
 
-	if !model.globals.Quit.Enabled() {
-		t.Fatal("expected Quit to be restored after exiting MR comment input")
-	}
+	assert.True(t, model.globals.Quit.Enabled())
 
-	if !model.globals.Back.Enabled() {
-		t.Fatal("expected Back to be restored after exiting MR comment input")
-	}
+	assert.True(t, model.globals.Back.Enabled())
 }
 
 func TestEnteringEditInputDisablesGlobalKeys(t *testing.T) {
@@ -3451,13 +2982,9 @@ func TestExitingEditInputRestoresGlobalKeys(t *testing.T) {
 	updated, _ = model.Update(tea.KeyMsg{Type: tea.KeyEsc})
 	model = updated.(Model)
 
-	if !model.globals.Quit.Enabled() {
-		t.Fatal("expected Quit to be restored after exiting edit input")
-	}
+	assert.True(t, model.globals.Quit.Enabled())
 
-	if !model.globals.Back.Enabled() {
-		t.Fatal("expected Back to be restored after exiting edit input")
-	}
+	assert.True(t, model.globals.Back.Enabled())
 }
 
 func TestEnteringReplyInputInDiscussionsDisablesGlobalKeys(t *testing.T) {
@@ -3491,13 +3018,9 @@ func TestExitingReplyInputInDiscussionsRestoresGlobalKeys(t *testing.T) {
 	updated, _ = model.Update(tea.KeyMsg{Type: tea.KeyEsc})
 	model = updated.(Model)
 
-	if !model.globals.Quit.Enabled() {
-		t.Fatal("expected Quit to be restored after exiting reply input")
-	}
+	assert.True(t, model.globals.Quit.Enabled())
 
-	if !model.globals.Back.Enabled() {
-		t.Fatal("expected Back to be restored after exiting reply input")
-	}
+	assert.True(t, model.globals.Back.Enabled())
 }
 
 func TestEnteringCommentInputInFileDiffDisablesGlobalKeys(t *testing.T) {
@@ -3535,13 +3058,9 @@ func TestExitingCommentInputInFileDiffRestoresGlobalKeys(t *testing.T) {
 	updated, _ = model.Update(tea.KeyMsg{Type: tea.KeyEsc})
 	model = updated.(Model)
 
-	if !model.globals.Quit.Enabled() {
-		t.Fatal("expected Quit to be restored after exiting comment input")
-	}
+	assert.True(t, model.globals.Quit.Enabled())
 
-	if !model.globals.Back.Enabled() {
-		t.Fatal("expected Back to be restored after exiting comment input")
-	}
+	assert.True(t, model.globals.Back.Enabled())
 }
 
 func TestEnteringFocusFilterDisablesGlobalKeys(t *testing.T) {
@@ -3571,13 +3090,9 @@ func TestExitingFocusFilterRestoresGlobalKeys(t *testing.T) {
 	updated, _ = model.Update(tea.KeyMsg{Type: tea.KeyEsc})
 	model = updated.(Model)
 
-	if !model.globals.Quit.Enabled() {
-		t.Fatal("expected Quit to be restored after exiting filter")
-	}
+	assert.True(t, model.globals.Quit.Enabled())
 
-	if !model.globals.Back.Enabled() {
-		t.Fatal("expected Back to be restored after exiting filter")
-	}
+	assert.True(t, model.globals.Back.Enabled())
 }
 
 func TestEnteringProjectInputModeDisablesGlobalKeys(t *testing.T) {
@@ -3607,9 +3122,7 @@ func TestQInEditInputDoesNotQuit(t *testing.T) {
 	updated, cmd := model.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'q'}})
 	model = updated.(Model)
 
-	if cmd != nil {
-		t.Fatal("expected q in edit mode to be treated as input, not global quit")
-	}
+	assert.Nil(t, cmd)
 
 	if !strings.HasSuffix(model.Value(), "q") {
 		t.Fatalf("expected edit buffer to end with q, got %q", model.Value())
@@ -3625,9 +3138,7 @@ func TestQInFocusFilterDoesNotQuit(t *testing.T) {
 
 	_, cmd := model.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'q'}})
 
-	if cmd != nil {
-		t.Fatal("expected q in filter mode to be treated as input, not global quit")
-	}
+	assert.Nil(t, cmd)
 }
 
 func TestKeyBarShowsInputHintsInFilterMode(t *testing.T) {
@@ -3660,9 +3171,7 @@ func TestProjectSelectEnterOpensSelectedLoadedProjectSections(t *testing.T) {
 	updated, cmd := model.Update(tea.KeyMsg{Type: tea.KeyEnter})
 	model = updated.(Model)
 
-	if cmd != nil {
-		t.Fatal("expected section transition without loading command")
-	}
+	assert.Nil(t, cmd)
 
 	if model.projectPath != "group/project" || model.mode != ModeSections {
 		t.Fatalf("expected selected project sections to open, path=%q mode=%v", model.projectPath, model.mode)
@@ -3683,9 +3192,7 @@ func TestDKeyInModeDetailFlipsDraftOptimistically(t *testing.T) {
 	updated, _ := model.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune("d")})
 	model = updated.(Model)
 
-	if !model.items[0].Draft {
-		t.Fatal("expected Draft to be flipped to true optimistically")
-	}
+	assert.True(t, model.items[0].Draft)
 }
 
 func TestDKeyInModeDetailCallsToggleDraftFunc(t *testing.T) {
@@ -3706,16 +3213,12 @@ func TestDKeyInModeDetailCallsToggleDraftFunc(t *testing.T) {
 	updated, cmd := model.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune("d")})
 	model = updated.(Model)
 
-	if cmd == nil {
-		t.Fatal("expected a command to be returned for ToggleDraftMR")
-	}
+	assert.NotNil(t, cmd)
 
 	msg := cmd()
 	model.Update(msg)
 
-	if calledIID != 42 {
-		t.Fatalf("expected ToggleDraftMR called with iid=42, got %d", calledIID)
-	}
+	assert.Equal(t, 42, calledIID)
 }
 
 func TestDKeyInModeDetailWithNilFuncFlipsDraftLocally(t *testing.T) {
@@ -3730,13 +3233,9 @@ func TestDKeyInModeDetailWithNilFuncFlipsDraftLocally(t *testing.T) {
 	updated, cmd := model.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune("d")})
 	model = updated.(Model)
 
-	if model.items[0].Draft {
-		t.Fatal("expected Draft to be flipped to false")
-	}
+	assert.False(t, model.items[0].Draft)
 
-	if cmd != nil {
-		t.Fatal("expected no command when ToggleDraftMR is nil")
-	}
+	assert.Nil(t, cmd)
 }
 
 func TestDKeyInModeDetailDoesNotTriggerInDiscussionsTab(t *testing.T) {
@@ -3761,13 +3260,9 @@ func TestDKeyInModeDetailDoesNotTriggerInDiscussionsTab(t *testing.T) {
 	updated, _ = model.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune("d")})
 	model = updated.(Model)
 
-	if model.items[0].Draft {
-		t.Fatal("expected Draft NOT to be toggled when in discussions tab")
-	}
+	assert.False(t, model.items[0].Draft)
 
-	if !model.replyInput {
-		t.Fatal("expected replyInput to be opened (draft reply in discussions tab)")
-	}
+	assert.True(t, model.replyInput)
 }
 
 func TestSummaryRendersDraftPrefixForDraftMR(t *testing.T) {
@@ -3781,9 +3276,7 @@ func TestSummaryRendersDraftPrefixForDraftMR(t *testing.T) {
 
 	view := model.renderRight()
 
-	if !strings.Contains(view, "Draft:") {
-		t.Fatalf("expected 'Draft:' prefix in summary for draft MR, got:\n%s", view)
-	}
+	assert.Contains(t, view, "Draft:")
 }
 
 func TestSummaryDoesNotRenderDraftPrefixForNonDraftMR(t *testing.T) {
@@ -3797,9 +3290,7 @@ func TestSummaryDoesNotRenderDraftPrefixForNonDraftMR(t *testing.T) {
 
 	view := model.renderRight()
 
-	if strings.Contains(view, "Draft:") {
-		t.Fatalf("expected no 'Draft:' prefix for non-draft MR, got:\n%s", view)
-	}
+	assert.NotContains(t, view, "Draft:")
 }
 
 func TestSummaryRendersEmojiAuthorWhenEnabled(t *testing.T) {
@@ -3818,13 +3309,9 @@ func TestSummaryRendersEmojiAuthorWhenEnabled(t *testing.T) {
 
 	view := model.renderRight()
 
-	if !strings.Contains(view, "👤") {
-		t.Fatalf("expected 👤 author emoji in summary when enabled, got:\n%s", view)
-	}
+	assert.Contains(t, view, "👤")
 
-	if !strings.Contains(view, "🌿") {
-		t.Fatalf("expected 🌿 branch emoji in summary when enabled, got:\n%s", view)
-	}
+	assert.Contains(t, view, "🌿")
 }
 
 func TestSummaryRendersReviewersAndAssignees(t *testing.T) {
@@ -3843,13 +3330,9 @@ func TestSummaryRendersReviewersAndAssignees(t *testing.T) {
 
 	view := model.renderRight()
 
-	if !strings.Contains(view, "bob") {
-		t.Fatalf("expected reviewer 'bob' in summary, got:\n%s", view)
-	}
+	assert.Contains(t, view, "bob")
 
-	if !strings.Contains(view, "dave") {
-		t.Fatalf("expected assignee 'dave' in summary, got:\n%s", view)
-	}
+	assert.Contains(t, view, "dave")
 }
 
 // --- issue #70: Label Selector ---
@@ -3872,9 +3355,7 @@ func TestLKeyInModeDetailSummaryOpensLabelSelector(t *testing.T) {
 	updated, _ := model.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune("l")})
 	model = updated.(Model)
 
-	if model.mode != ModeLabelSelect {
-		t.Fatalf("expected ModeLabelSelect after 'l', got mode=%v", model.mode)
-	}
+	assert.Equal(t, ModeLabelSelect, model.mode)
 }
 
 func TestLabelSelectorRendersMarkers(t *testing.T) {
@@ -3890,13 +3371,9 @@ func TestLabelSelectorRendersMarkers(t *testing.T) {
 
 	view := model.View()
 
-	if !strings.Contains(view, "●") {
-		t.Fatalf("expected ● marker for selected label 'bug', got:\n%s", view)
-	}
+	assert.Contains(t, view, "●")
 
-	if !strings.Contains(view, "○") {
-		t.Fatalf("expected ○ marker for unselected label 'feature', got:\n%s", view)
-	}
+	assert.Contains(t, view, "○")
 }
 
 func TestLabelSelectorUpDownMoveCursor(t *testing.T) {
@@ -3910,23 +3387,17 @@ func TestLabelSelectorUpDownMoveCursor(t *testing.T) {
 	updated, _ := model.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune("l")})
 	model = updated.(Model)
 
-	if model.LabelSelectorState.cursor != 0 {
-		t.Fatalf("expected cursor at 0, got %d", model.LabelSelectorState.cursor)
-	}
+	assert.Equal(t, 0, model.LabelSelectorState.cursor)
 
 	updated, _ = model.Update(tea.KeyMsg{Type: tea.KeyDown})
 	model = updated.(Model)
 
-	if model.LabelSelectorState.cursor != 1 {
-		t.Fatalf("expected cursor at 1 after down, got %d", model.LabelSelectorState.cursor)
-	}
+	assert.Equal(t, 1, model.LabelSelectorState.cursor)
 
 	updated, _ = model.Update(tea.KeyMsg{Type: tea.KeyUp})
 	model = updated.(Model)
 
-	if model.LabelSelectorState.cursor != 0 {
-		t.Fatalf("expected cursor at 0 after up, got %d", model.LabelSelectorState.cursor)
-	}
+	assert.Equal(t, 0, model.LabelSelectorState.cursor)
 }
 
 func TestLabelSelectorSpaceTogglesSelection(t *testing.T) {
@@ -3945,9 +3416,7 @@ func TestLabelSelectorSpaceTogglesSelection(t *testing.T) {
 	model = updated.(Model)
 
 	for _, label := range model.LabelSelectorState.pending {
-		if label == "bug" {
-			t.Fatal("expected 'bug' to be deselected after Space")
-		}
+		assert.NotEqual(t, "bug", label)
 	}
 
 	// Move to 'feature' and select it
@@ -3964,9 +3433,7 @@ func TestLabelSelectorSpaceTogglesSelection(t *testing.T) {
 		}
 	}
 
-	if !found {
-		t.Fatal("expected 'feature' to be selected after Space on it")
-	}
+	assert.True(t, found)
 }
 
 func TestLabelSelectorEscReturnsToDetailWithoutAPICall(t *testing.T) {
@@ -3991,13 +3458,9 @@ func TestLabelSelectorEscReturnsToDetailWithoutAPICall(t *testing.T) {
 	updated, _ = model.Update(tea.KeyMsg{Type: tea.KeyEsc})
 	model = updated.(Model)
 
-	if model.mode != ModeDetail {
-		t.Fatalf("expected ModeDetail after Esc, got %v", model.mode)
-	}
+	assert.Equal(t, ModeDetail, model.mode)
 
-	if called {
-		t.Fatal("expected UpdateMRLabels NOT to be called on Esc")
-	}
+	assert.False(t, called)
 
 	if len(model.items[0].Labels) != 1 || model.items[0].Labels[0] != "bug" {
 		t.Fatalf("expected MR labels unchanged after Esc, got %v", model.items[0].Labels)
@@ -4036,20 +3499,14 @@ func TestLabelSelectorEnterCallsUpdateMRLabels(t *testing.T) {
 	updated, cmd := model.Update(tea.KeyMsg{Type: tea.KeyEnter})
 	model = updated.(Model)
 
-	if model.mode != ModeDetail {
-		t.Fatalf("expected ModeDetail after Enter, got %v", model.mode)
-	}
+	assert.Equal(t, ModeDetail, model.mode)
 
-	if cmd == nil {
-		t.Fatal("expected command for UpdateMRLabels")
-	}
+	assert.NotNil(t, cmd)
 
 	msg := cmd()
 	model.Update(msg)
 
-	if len(calledWith) != 2 {
-		t.Fatalf("expected UpdateMRLabels called with 2 labels, got %v", calledWith)
-	}
+	assert.Len(t, calledWith, 2)
 }
 
 func TestLabelSelectorEnterUpdatesLabelsOptimistically(t *testing.T) {
@@ -4077,9 +3534,7 @@ func TestLabelSelectorEnterUpdatesLabelsOptimistically(t *testing.T) {
 	model = updated.(Model)
 
 	// Before cmd runs, labels already updated optimistically
-	if len(model.items[0].Labels) != 2 {
-		t.Fatalf("expected 2 labels optimistically, got %v", model.items[0].Labels)
-	}
+	assert.Len(t, model.items[0].Labels, 2)
 }
 
 func TestLabelSelectorReopensWithSavedSelection(t *testing.T) {
@@ -4119,7 +3574,5 @@ func TestLabelSelectorReopensWithSavedSelection(t *testing.T) {
 		}
 	}
 
-	if !featureSelected {
-		t.Fatalf("expected 'feature' in pending after reopen, got %v", model.LabelSelectorState.pending)
-	}
+	assert.True(t, featureSelected)
 }

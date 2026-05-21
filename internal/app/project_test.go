@@ -4,6 +4,9 @@ import (
 	"testing"
 	"time"
 
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+
 	"github.com/aybykovskii/gitlab-tui/internal/config"
 )
 
@@ -16,72 +19,55 @@ func (r fakeRemotes) RemoteURLs() ([]string, error) {
 	return r.urls, r.err
 }
 
-func TestProjectResolverUsesProjectOverrideFirst(t *testing.T) {
-	t.Parallel()
+func TestProjectResolver(t *testing.T) {
+	t.Run("uses project override first", func(t *testing.T) {
+		t.Parallel()
 
-	cfg := config.Default()
-	resolution := ProjectResolver{
-		Config:          cfg,
-		Remotes:         fakeRemotes{urls: []string{"git@gitlab.com:group/project.git"}},
-		ProjectOverride: "override/project",
-	}.Resolve()
+		resolution := ProjectResolver{
+			Config:          config.Default(),
+			Remotes:         fakeRemotes{urls: []string{"git@gitlab.com:group/project.git"}},
+			ProjectOverride: "override/project",
+		}.Resolve()
 
-	if resolution.Source != ProjectSourceOverride {
-		t.Fatalf("expected override source, got %v", resolution.Source)
-	}
+		assert.Equal(t, ProjectSourceOverride, resolution.Source)
+		assert.Equal(t, "override/project", resolution.Path)
+	})
 
-	if resolution.Path != "override/project" {
-		t.Fatalf("expected override/project, got %q", resolution.Path)
-	}
-}
+	t.Run("uses git remote first", func(t *testing.T) {
+		t.Parallel()
 
-func TestProjectResolverUsesGitRemoteFirst(t *testing.T) {
-	t.Parallel()
+		cfg := config.Default()
+		cfg.RecentProjectHistory = []config.RecentProject{{Account: "default", Path: "recent/project", LastUsedAt: time.Now()}}
+		resolution := ProjectResolver{
+			Config:  cfg,
+			Remotes: fakeRemotes{urls: []string{"git@gitlab.com:group/project.git"}},
+		}.Resolve()
 
-	cfg := config.Default()
-	cfg.RecentProjectHistory = []config.RecentProject{{Account: "default", Path: "recent/project", LastUsedAt: time.Now()}}
-	resolution := ProjectResolver{
-		Config:  cfg,
-		Remotes: fakeRemotes{urls: []string{"git@gitlab.com:group/project.git"}},
-	}.Resolve()
+		assert.Equal(t, ProjectSourceGitRemote, resolution.Source)
+		assert.Equal(t, "group/project", resolution.Path)
+	})
 
-	if resolution.Source != ProjectSourceGitRemote {
-		t.Fatalf("expected git remote source, got %v", resolution.Source)
-	}
+	t.Run("falls back to recent projects", func(t *testing.T) {
+		t.Parallel()
 
-	if resolution.Path != "group/project" {
-		t.Fatalf("expected group/project, got %q", resolution.Path)
-	}
-}
+		cfg := config.Default()
+		cfg.RecentProjectHistory = []config.RecentProject{{Account: "default", Path: "recent/project", LastUsedAt: time.Now()}}
+		resolution := ProjectResolver{
+			Config:  cfg,
+			Remotes: fakeRemotes{urls: []string{"git@gitlab.example.com:group/project.git"}},
+		}.Resolve()
 
-func TestProjectResolverFallsBackToRecentProjects(t *testing.T) {
-	t.Parallel()
+		assert.Equal(t, ProjectSourceRecentProjects, resolution.Source)
+		require.Len(t, resolution.Recents, 1)
+		assert.Equal(t, "recent/project", resolution.Recents[0].Path)
+	})
 
-	cfg := config.Default()
-	now := time.Now()
-	cfg.RecentProjectHistory = []config.RecentProject{{Account: "default", Path: "recent/project", LastUsedAt: now}}
-	resolution := ProjectResolver{
-		Config:  cfg,
-		Remotes: fakeRemotes{urls: []string{"git@gitlab.example.com:group/project.git"}},
-	}.Resolve()
+	t.Run("falls back to manual input", func(t *testing.T) {
+		t.Parallel()
 
-	if resolution.Source != ProjectSourceRecentProjects {
-		t.Fatalf("expected recent projects source, got %v", resolution.Source)
-	}
-
-	if len(resolution.Recents) != 1 || resolution.Recents[0].Path != "recent/project" {
-		t.Fatalf("unexpected recents: %+v", resolution.Recents)
-	}
-}
-
-func TestProjectResolverFallsBackToManualInput(t *testing.T) {
-	t.Parallel()
-
-	resolution := ProjectResolver{Config: config.Default(), Remotes: fakeRemotes{}}.Resolve()
-
-	if resolution.Source != ProjectSourceManualInput {
-		t.Fatalf("expected manual input source, got %v", resolution.Source)
-	}
+		resolution := ProjectResolver{Config: config.Default(), Remotes: fakeRemotes{}}.Resolve()
+		assert.Equal(t, ProjectSourceManualInput, resolution.Source)
+	})
 }
 
 func TestRememberResolvedProject(t *testing.T) {
@@ -91,11 +77,7 @@ func TestRememberResolvedProject(t *testing.T) {
 	now := time.Now()
 	RememberResolvedProject(&cfg, "default", "group/project", now)
 
-	if len(cfg.RecentProjectHistory) != 1 {
-		t.Fatalf("expected 1 recent project, got %d", len(cfg.RecentProjectHistory))
-	}
-
-	if cfg.RecentProjectHistory[0].Account != "default" || cfg.RecentProjectHistory[0].Path != "group/project" {
-		t.Fatalf("unexpected recent project: %+v", cfg.RecentProjectHistory[0])
-	}
+	require.Len(t, cfg.RecentProjectHistory, 1)
+	assert.Equal(t, "default", cfg.RecentProjectHistory[0].Account)
+	assert.Equal(t, "group/project", cfg.RecentProjectHistory[0].Path)
 }

@@ -6,144 +6,87 @@ import (
 	"path/filepath"
 	"testing"
 	"time"
+
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
-func TestPathUsesOverride(t *testing.T) {
-	t.Parallel()
+func TestPathResolution(t *testing.T) {
+	t.Run("uses override env", func(t *testing.T) {
+		t.Parallel()
 
-	path, err := (Paths{Env: []string{FileOverrideEnv + "=/tmp/custom.yaml", "XDG_CONFIG_HOME=/tmp/xdg"}}).Path()
-	if err != nil {
-		t.Fatalf("expected no error, got %v", err)
-	}
+		path, err := (Paths{Env: []string{FileOverrideEnv + "=/tmp/custom.yaml", "XDG_CONFIG_HOME=/tmp/xdg"}}).Path()
+		require.NoError(t, err)
+		assert.Equal(t, "/tmp/custom.yaml", path)
+	})
 
-	if path != "/tmp/custom.yaml" {
-		t.Fatalf("expected override path, got %q", path)
-	}
-}
+	t.Run("uses XDG_CONFIG_HOME", func(t *testing.T) {
+		t.Parallel()
 
-func TestPathUsesXDGConfigHome(t *testing.T) {
-	t.Parallel()
+		path, err := (Paths{Env: []string{"XDG_CONFIG_HOME=/tmp/xdg"}}).Path()
+		require.NoError(t, err)
+		assert.Equal(t, filepath.Join("/tmp/xdg", "gitlab-tui", "config.yaml"), path)
+	})
 
-	path, err := (Paths{Env: []string{"XDG_CONFIG_HOME=/tmp/xdg"}}).Path()
-	if err != nil {
-		t.Fatalf("expected no error, got %v", err)
-	}
+	t.Run("falls back to HOME", func(t *testing.T) {
+		t.Parallel()
 
-	want := filepath.Join("/tmp/xdg", "gitlab-tui", "config.yaml")
-	if path != want {
-		t.Fatalf("expected %q, got %q", want, path)
-	}
-}
-
-func TestPathFallsBackToHome(t *testing.T) {
-	t.Parallel()
-
-	path, err := (Paths{Env: []string{"HOME=/tmp/home"}}).Path()
-	if err != nil {
-		t.Fatalf("expected no error, got %v", err)
-	}
-
-	want := filepath.Join("/tmp/home", ".config", "gitlab-tui", "config.yaml")
-	if path != want {
-		t.Fatalf("expected %q, got %q", want, path)
-	}
+		path, err := (Paths{Env: []string{"HOME=/tmp/home"}}).Path()
+		require.NoError(t, err)
+		assert.Equal(t, filepath.Join("/tmp/home", ".config", "gitlab-tui", "config.yaml"), path)
+	})
 }
 
 func TestSaveAndLoad(t *testing.T) {
-	t.Parallel()
+	t.Run("roundtrip preserves defaults", func(t *testing.T) {
+		t.Parallel()
 
-	path := filepath.Join(t.TempDir(), "config.yaml")
-	cfg := Default()
+		path := filepath.Join(t.TempDir(), "config.yaml")
+		require.NoError(t, Save(path, Default()))
 
-	if err := Save(path, cfg); err != nil {
-		t.Fatalf("save config: %v", err)
-	}
+		loaded, err := Load(path)
+		require.NoError(t, err)
 
-	loaded, err := Load(path)
-	if err != nil {
-		t.Fatalf("load config: %v", err)
-	}
+		assert.Equal(t, "default", loaded.DefaultAccount)
+		assert.Equal(t, 10, loaded.RecentProjectsLimit)
 
-	if loaded.DefaultAccount != "default" {
-		t.Fatalf("expected default account, got %q", loaded.DefaultAccount)
-	}
+		account, ok := loaded.Account("default")
+		require.True(t, ok)
+		assert.Equal(t, "https://gitlab.com", account.Host)
+		assert.Equal(t, DefaultTokenEnv, account.TokenEnv)
+	})
 
-	account, ok := loaded.Account("default")
-	if !ok {
-		t.Fatal("expected default account to exist")
-	}
+	t.Run("defaults recent projects limit when missing from file", func(t *testing.T) {
+		t.Parallel()
 
-	if account.Host != "https://gitlab.com" || account.TokenEnv != DefaultTokenEnv {
-		t.Fatalf("unexpected account: %+v", account)
-	}
+		cfg, err := Load("testdata/config.test.yaml")
+		require.NoError(t, err)
+		assert.Equal(t, 10, cfg.RecentProjectsLimit)
+	})
 
-	if loaded.RecentProjectsLimit != 10 {
-		t.Fatalf("expected default recent projects limit 10, got %d", loaded.RecentProjectsLimit)
-	}
-}
+	t.Run("persists zero recent projects limit", func(t *testing.T) {
+		t.Parallel()
 
-func TestLoadDefaultsRecentProjectsLimitWhenMissing(t *testing.T) {
-	t.Parallel()
+		path := filepath.Join(t.TempDir(), "config.yaml")
+		cfg := Default()
+		cfg.RecentProjectsLimit = 0
+		require.NoError(t, Save(path, cfg))
 
-	path := filepath.Join(t.TempDir(), "config.yaml")
-	data := []byte(`default_account: default
-accounts:
-  - id: default
-    host: https://gitlab.com
-    token_env: GITLAB_TOKEN
-`)
-
-	if err := os.WriteFile(path, data, 0o600); err != nil {
-		t.Fatalf("write config: %v", err)
-	}
-
-	cfg, err := Load(path)
-	if err != nil {
-		t.Fatalf("load config: %v", err)
-	}
-
-	if cfg.RecentProjectsLimit != 10 {
-		t.Fatalf("expected default recent projects limit 10, got %d", cfg.RecentProjectsLimit)
-	}
-}
-
-func TestSavePersistsRecentProjectsLimit(t *testing.T) {
-	t.Parallel()
-
-	path := filepath.Join(t.TempDir(), "config.yaml")
-	cfg := Default()
-	cfg.RecentProjectsLimit = 0
-
-	if err := Save(path, cfg); err != nil {
-		t.Fatalf("save config: %v", err)
-	}
-
-	loaded, err := Load(path)
-	if err != nil {
-		t.Fatalf("load config: %v", err)
-	}
-
-	if loaded.RecentProjectsLimit != 0 {
-		t.Fatalf("expected recent projects limit 0, got %d", loaded.RecentProjectsLimit)
-	}
+		loaded, err := Load(path)
+		require.NoError(t, err)
+		assert.Equal(t, 0, loaded.RecentProjectsLimit)
+	})
 }
 
 func TestInitDoesNotOverwriteExistingConfig(t *testing.T) {
 	t.Parallel()
 
 	path := filepath.Join(t.TempDir(), "config.yaml")
-	if err := Save(path, Default()); err != nil {
-		t.Fatalf("save config: %v", err)
-	}
+	require.NoError(t, Save(path, Default()))
 
 	err := Init(path, Default())
-	if err == nil {
-		t.Fatal("expected init to fail for existing config")
-	}
-
-	if errors.Is(err, os.ErrExist) {
-		t.Fatalf("expected contextual error, got %v", err)
-	}
+	require.Error(t, err)
+	assert.False(t, errors.Is(err, os.ErrExist), "expected contextual error, got %v", err)
 }
 
 func TestValidateRequiresDefaultAccountToExist(t *testing.T) {
@@ -151,74 +94,62 @@ func TestValidateRequiresDefaultAccountToExist(t *testing.T) {
 
 	cfg := Default()
 	cfg.DefaultAccount = "missing"
-
-	if err := cfg.Validate(); err == nil {
-		t.Fatal("expected validation error")
-	}
+	assert.Error(t, cfg.Validate())
 }
 
-func TestRecentProjectsReturnsMixedAccountsSortedAndLimited(t *testing.T) {
-	t.Parallel()
+func TestRecentProjects(t *testing.T) {
+	t.Run("returns mixed accounts sorted and limited", func(t *testing.T) {
+		t.Parallel()
 
-	cfg := Default()
-	oldest := time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC)
-	middle := oldest.Add(time.Hour)
-	newest := middle.Add(time.Hour)
-	cfg.RecentProjectsLimit = 2
-	cfg.RecentProjectHistory = []RecentProject{
-		{Account: "default", Path: "group/oldest", LastUsedAt: oldest},
-		{Account: "work", Path: "group/newest", LastUsedAt: newest},
-		{Account: "default", Path: "group/middle", LastUsedAt: middle},
-	}
+		oldest := time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC)
+		middle := oldest.Add(time.Hour)
+		newest := middle.Add(time.Hour)
 
-	projects := cfg.RecentProjects()
+		cfg := Default()
+		cfg.RecentProjectsLimit = 2
+		cfg.RecentProjectHistory = []RecentProject{
+			{Account: "default", Path: "group/oldest", LastUsedAt: oldest},
+			{Account: "work", Path: "group/newest", LastUsedAt: newest},
+			{Account: "default", Path: "group/middle", LastUsedAt: middle},
+		}
 
-	if len(projects) != 2 {
-		t.Fatalf("expected 2 projects, got %d", len(projects))
-	}
+		projects := cfg.RecentProjects()
+		require.Len(t, projects, 2)
+		assert.Equal(t, "group/newest", projects[0].Path)
+		assert.Equal(t, "group/middle", projects[1].Path)
+	})
 
-	if projects[0].Path != "group/newest" || projects[1].Path != "group/middle" {
-		t.Fatalf("unexpected recent projects: %+v", projects)
-	}
-}
+	t.Run("returns empty when limit is zero", func(t *testing.T) {
+		t.Parallel()
 
-func TestRecentProjectsReturnsEmptyWhenLimitIsZero(t *testing.T) {
-	t.Parallel()
+		cfg := Default()
+		cfg.RecentProjectsLimit = 0
+		cfg.RecentProjectHistory = []RecentProject{{Account: "default", Path: "group/project", LastUsedAt: time.Now()}}
 
-	cfg := Default()
-	cfg.RecentProjectsLimit = 0
-	cfg.RecentProjectHistory = []RecentProject{{Account: "default", Path: "group/project", LastUsedAt: time.Now()}}
+		assert.Empty(t, cfg.RecentProjects())
+	})
 
-	projects := cfg.RecentProjects()
+	t.Run("returns all when limit exceeds list", func(t *testing.T) {
+		t.Parallel()
 
-	if len(projects) != 0 {
-		t.Fatalf("expected no recent projects, got %+v", projects)
-	}
-}
+		cfg := Default()
+		cfg.RecentProjectsLimit = 10
+		cfg.RecentProjectHistory = []RecentProject{
+			{Account: "default", Path: "group/one", LastUsedAt: time.Now()},
+			{Account: "work", Path: "group/two", LastUsedAt: time.Now().Add(time.Hour)},
+		}
 
-func TestRecentProjectsReturnsAllWhenLimitExceedsList(t *testing.T) {
-	t.Parallel()
-
-	cfg := Default()
-	cfg.RecentProjectsLimit = 10
-	cfg.RecentProjectHistory = []RecentProject{
-		{Account: "default", Path: "group/one", LastUsedAt: time.Now()},
-		{Account: "work", Path: "group/two", LastUsedAt: time.Now().Add(time.Hour)},
-	}
-
-	projects := cfg.RecentProjects()
-
-	if len(projects) != 2 {
-		t.Fatalf("expected all projects, got %+v", projects)
-	}
+		assert.Len(t, cfg.RecentProjects(), 2)
+	})
 }
 
 func TestRecentProjectsForAccountSortsByLastUsed(t *testing.T) {
 	t.Parallel()
 
-	cfg := Default()
 	older := time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC)
 	newer := older.Add(time.Hour)
+
+	cfg := Default()
 	cfg.RecentProjectHistory = []RecentProject{
 		{Account: "default", Path: "group/old", LastUsedAt: older},
 		{Account: "other", Path: "group/other", LastUsedAt: newer},
@@ -226,54 +157,40 @@ func TestRecentProjectsForAccountSortsByLastUsed(t *testing.T) {
 	}
 
 	projects := cfg.RecentProjectsForAccount("default")
-
-	if len(projects) != 2 {
-		t.Fatalf("expected 2 projects, got %d", len(projects))
-	}
-
-	if projects[0].Path != "group/new" || projects[1].Path != "group/old" {
-		t.Fatalf("unexpected order: %+v", projects)
-	}
+	require.Len(t, projects, 2)
+	assert.Equal(t, "group/new", projects[0].Path)
+	assert.Equal(t, "group/old", projects[1].Path)
 }
 
 func TestRememberProjectUpdatesExistingEntry(t *testing.T) {
 	t.Parallel()
 
-	cfg := Default()
 	older := time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC)
 	newer := older.Add(time.Hour)
+
+	cfg := Default()
 	cfg.RememberProject(RecentProject{Account: "default", Path: "group/project", LastUsedAt: older})
 	cfg.RememberProject(RecentProject{Account: "default", Path: "group/project", LastUsedAt: newer})
 
-	if len(cfg.RecentProjectHistory) != 1 {
-		t.Fatalf("expected 1 recent project, got %d", len(cfg.RecentProjectHistory))
-	}
-
-	if !cfg.RecentProjectHistory[0].LastUsedAt.Equal(newer) {
-		t.Fatalf("expected newer timestamp, got %s", cfg.RecentProjectHistory[0].LastUsedAt)
-	}
+	require.Len(t, cfg.RecentProjectHistory, 1)
+	assert.True(t, cfg.RecentProjectHistory[0].LastUsedAt.Equal(newer))
 }
 
-func TestAccountTokenReadsConfiguredEnv(t *testing.T) {
-	t.Parallel()
+func TestAccountToken(t *testing.T) {
+	t.Run("reads configured env", func(t *testing.T) {
+		t.Parallel()
 
-	account := Account{ID: "work", Host: "https://gitlab.example.com", TokenEnv: "GITLAB_WORK_TOKEN"}
+		account := Account{ID: "work", Host: "https://gitlab.example.com", TokenEnv: "GITLAB_WORK_TOKEN"}
+		token, err := account.Token([]string{"GITLAB_WORK_TOKEN=secret"})
+		require.NoError(t, err)
+		assert.Equal(t, "secret", token)
+	})
 
-	token, err := account.Token([]string{"GITLAB_WORK_TOKEN=secret"})
-	if err != nil {
-		t.Fatalf("expected token, got %v", err)
-	}
+	t.Run("errors when env missing", func(t *testing.T) {
+		t.Parallel()
 
-	if token != "secret" {
-		t.Fatalf("expected token, got %q", token)
-	}
-}
-
-func TestAccountTokenErrorsWhenEnvMissing(t *testing.T) {
-	t.Parallel()
-
-	account := Account{ID: "work", Host: "https://gitlab.example.com", TokenEnv: "GITLAB_WORK_TOKEN"}
-	if _, err := account.Token([]string{"OTHER=secret"}); err == nil {
-		t.Fatal("expected missing env error")
-	}
+		account := Account{ID: "work", Host: "https://gitlab.example.com", TokenEnv: "GITLAB_WORK_TOKEN"}
+		_, err := account.Token([]string{"OTHER=secret"})
+		assert.Error(t, err)
+	})
 }

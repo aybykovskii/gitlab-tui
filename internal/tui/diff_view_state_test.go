@@ -4,6 +4,8 @@ import (
 	"strings"
 	"testing"
 
+
+	"github.com/stretchr/testify/assert"
 	"github.com/aybykovskii/gitlab-tui/internal/mr"
 )
 
@@ -19,9 +21,7 @@ func TestDiffViewStateViewRendersColoredDiffLines(t *testing.T) {
 
 	view := state.View(LayoutState{Width: 100, Height: 20})
 	for _, want := range []string{"\x1b[38;5;240m", "\x1b[38;5;2m", "\x1b[38;5;1m", "+ added", "- removed", "same"} {
-		if !strings.Contains(view, want) {
-			t.Fatalf("expected diff view to contain %q, got:\n%q", want, view)
-		}
+		assert.Contains(t, view, want)
 	}
 }
 
@@ -40,9 +40,7 @@ func TestDiffViewStateViewShowsAndHidesThreadPanel(t *testing.T) {
 	state.threadPanelVisible = false
 	hidden := state.View(LayoutState{Width: 100, Height: 20})
 
-	if strings.Contains(hidden, "Needs work") {
-		t.Fatalf("expected thread panel hidden, got:\n%s", hidden)
-	}
+	assert.NotContains(t, hidden, "Needs work")
 }
 
 func TestDiffViewStateViewRendersMultiDiscussionCounter(t *testing.T) {

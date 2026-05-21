@@ -3,65 +3,44 @@ package app
 import (
 	"testing"
 
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+
 	"github.com/aybykovskii/gitlab-tui/internal/tui"
 )
 
-func TestParseCLIProjectOverride(t *testing.T) {
-	t.Parallel()
+func TestParseCLI(t *testing.T) {
+	t.Run("project override with section", func(t *testing.T) {
+		t.Parallel()
 
-	intent, err := ParseCLI([]string{"--project", "group/project", "pipeline"})
-	if err != nil {
-		t.Fatalf("expected no error, got %v", err)
-	}
+		intent, err := ParseCLI([]string{"--project", "group/project", "pipeline"})
+		require.NoError(t, err)
+		assert.Equal(t, "group/project", intent.ProjectOverride)
+		assert.Equal(t, tui.SectionPipelines, intent.Section)
+	})
 
-	if intent.ProjectOverride != "group/project" {
-		t.Fatalf("expected project override, got %q", intent.ProjectOverride)
-	}
+	t.Run("rejects positional project path", func(t *testing.T) {
+		t.Parallel()
 
-	if intent.Section != tui.SectionPipelines {
-		t.Fatalf("expected pipeline section, got %q", intent.Section)
-	}
-}
+		_, err := ParseCLI([]string{"group/project"})
+		assert.Error(t, err)
+	})
 
-func TestParseCLIRejectsPositionalProjectPath(t *testing.T) {
-	t.Parallel()
+	t.Run("section and entity intent", func(t *testing.T) {
+		t.Parallel()
 
-	_, err := ParseCLI([]string{"group/project"})
-	if err == nil {
-		t.Fatal("expected positional project path to be rejected")
-	}
-}
+		intent, err := ParseCLI([]string{"mr", "123"})
+		require.NoError(t, err)
+		assert.Equal(t, tui.SectionMergeRequests, intent.Section)
+		assert.Equal(t, "123", intent.EntityID)
+		assert.Empty(t, intent.ProjectOverride)
+	})
 
-func TestParseCLISectionEntityIntent(t *testing.T) {
-	t.Parallel()
+	t.Run("errors when --project has no value", func(t *testing.T) {
+		t.Parallel()
 
-	intent, err := ParseCLI([]string{"mr", "123"})
-	if err != nil {
-		t.Fatalf("expected no error, got %v", err)
-	}
-
-	if intent.Section != tui.SectionMergeRequests {
-		t.Fatalf("expected MR section, got %q", intent.Section)
-	}
-
-	if intent.EntityID != "123" {
-		t.Fatalf("expected entity id 123, got %q", intent.EntityID)
-	}
-
-	if intent.ProjectOverride != "" {
-		t.Fatalf("expected no project override, got %q", intent.ProjectOverride)
-	}
-}
-
-func TestParseCLIProjectWithoutValueErrors(t *testing.T) {
-	t.Parallel()
-
-	_, err := ParseCLI([]string{"--project"})
-	if err == nil {
-		t.Fatal("expected error for --project without value")
-	}
-
-	if err.Error() != "--project requires a value" {
-		t.Fatalf("expected informative error, got %q", err.Error())
-	}
+		_, err := ParseCLI([]string{"--project"})
+		require.Error(t, err)
+		assert.Equal(t, "--project requires a value", err.Error())
+	})
 }

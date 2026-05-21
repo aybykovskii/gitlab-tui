@@ -1,34 +1,32 @@
 package mr
 
-import "testing"
+import (
+	"testing"
 
-func TestFilterMatchesTitleAndBranches(t *testing.T) {
-	t.Parallel()
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+)
 
-	items := []MergeRequest{
-		{Title: "Add config", SourceBranch: "go/config", TargetBranch: "main", Author: "alice"},
-		{Title: "Render diff", SourceBranch: "go/diff", TargetBranch: "main", Author: "bob"},
-	}
+func TestFilter(t *testing.T) {
+	t.Run("matches title and branches", func(t *testing.T) {
+		t.Parallel()
 
-	filtered := Filter(items, "diff")
+		items := []MergeRequest{
+			{Title: "Add config", SourceBranch: "go/config", TargetBranch: "main", Author: "alice"},
+			{Title: "Render diff", SourceBranch: "go/diff", TargetBranch: "main", Author: "bob"},
+		}
 
-	if len(filtered) != 1 {
-		t.Fatalf("expected 1 result, got %d", len(filtered))
-	}
+		filtered := Filter(items, "diff")
 
-	if filtered[0].Title != "Render diff" {
-		t.Fatalf("unexpected result: %+v", filtered[0])
-	}
-}
+		require.Len(t, filtered, 1)
+		assert.Equal(t, "Render diff", filtered[0].Title)
+	})
 
-func TestFilterReturnsAllForEmptyQuery(t *testing.T) {
-	t.Parallel()
+	t.Run("returns all for empty query", func(t *testing.T) {
+		t.Parallel()
 
-	items := []MergeRequest{{Title: "A"}, {Title: "B"}}
+		items := []MergeRequest{{Title: "A"}, {Title: "B"}}
 
-	filtered := Filter(items, "   ")
-
-	if len(filtered) != len(items) {
-		t.Fatalf("expected all items, got %d", len(filtered))
-	}
+		assert.Len(t, Filter(items, "   "), len(items))
+	})
 }

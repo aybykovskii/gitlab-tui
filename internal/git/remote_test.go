@@ -1,6 +1,11 @@
 package git
 
-import "testing"
+import (
+	"testing"
+
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+)
 
 type fakeRunner struct {
 	out string
@@ -15,45 +20,31 @@ func TestRemoteURLsDeduplicatesFetchAndPush(t *testing.T) {
 	t.Parallel()
 
 	urls, err := RemoteURLs(fakeRunner{out: "origin\tgit@gitlab.com:group/project.git (fetch)\norigin\tgit@gitlab.com:group/project.git (push)\nupstream\thttps://gitlab.com/other/project.git (fetch)\n"})
-	if err != nil {
-		t.Fatalf("expected no error, got %v", err)
-	}
-
-	if len(urls) != 2 {
-		t.Fatalf("expected 2 unique urls, got %d", len(urls))
-	}
+	require.NoError(t, err)
+	assert.Len(t, urls, 2)
 }
 
-func TestProjectPathFromSSHRemote(t *testing.T) {
-	t.Parallel()
+func TestProjectPathFromRemote(t *testing.T) {
+	t.Run("SSH remote", func(t *testing.T) {
+		t.Parallel()
 
-	path, ok := ProjectPathFromRemote("git@gitlab.com:group/project.git", "https://gitlab.com")
-	if !ok {
-		t.Fatal("expected remote to match")
-	}
+		path, ok := ProjectPathFromRemote("git@gitlab.com:group/project.git", "https://gitlab.com")
+		require.True(t, ok)
+		assert.Equal(t, "group/project", path)
+	})
 
-	if path != "group/project" {
-		t.Fatalf("expected group/project, got %q", path)
-	}
-}
+	t.Run("HTTPS remote with subgroups", func(t *testing.T) {
+		t.Parallel()
 
-func TestProjectPathFromHTTPSRemote(t *testing.T) {
-	t.Parallel()
+		path, ok := ProjectPathFromRemote("https://gitlab.example.com/group/sub/project.git", "https://gitlab.example.com")
+		require.True(t, ok)
+		assert.Equal(t, "group/sub/project", path)
+	})
 
-	path, ok := ProjectPathFromRemote("https://gitlab.example.com/group/sub/project.git", "https://gitlab.example.com")
-	if !ok {
-		t.Fatal("expected remote to match")
-	}
+	t.Run("rejects different host", func(t *testing.T) {
+		t.Parallel()
 
-	if path != "group/sub/project" {
-		t.Fatalf("expected group/sub/project, got %q", path)
-	}
-}
-
-func TestProjectPathRejectsDifferentHost(t *testing.T) {
-	t.Parallel()
-
-	if _, ok := ProjectPathFromRemote("git@gitlab.com:group/project.git", "https://gitlab.example.com"); ok {
-		t.Fatal("expected different host to be rejected")
-	}
+		_, ok := ProjectPathFromRemote("git@gitlab.com:group/project.git", "https://gitlab.example.com")
+		assert.False(t, ok)
+	})
 }

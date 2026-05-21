@@ -6,6 +6,9 @@ import (
 
 	glab "gitlab.com/gitlab-org/api/client-go"
 
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+
 	"github.com/aybykovskii/gitlab-tui/internal/mr"
 )
 
@@ -13,7 +16,6 @@ type fakeDraftNotes struct {
 	createIID     int64
 	createOpt     *glab.CreateDraftNoteOptions
 	publishAllIID int64
-	published     []int64
 	listed        []*glab.DraftNote
 	deleted       []int64
 }
@@ -29,11 +31,6 @@ func (f *fakeDraftNotes) PublishAllDraftNotes(pid any, mergeRequest int64, optio
 	return &glab.Response{}, nil
 }
 
-func (f *fakeDraftNotes) PublishDraftNote(pid any, mergeRequest int64, note int64, options ...glab.RequestOptionFunc) (*glab.Response, error) {
-	f.published = append(f.published, note)
-	return &glab.Response{}, nil
-}
-
 func (f *fakeDraftNotes) ListDraftNotes(pid any, mergeRequest int64, opt *glab.ListDraftNotesOptions, options ...glab.RequestOptionFunc) ([]*glab.DraftNote, *glab.Response, error) {
 	return f.listed, &glab.Response{}, nil
 }
@@ -43,61 +40,53 @@ func (f *fakeDraftNotes) DeleteDraftNote(pid any, mergeRequest int64, note int64
 	return &glab.Response{}, nil
 }
 
-func TestCreateDraftNoteCreatesInlineDraft(t *testing.T) {
-	t.Parallel()
+func TestCreateDraftNote(t *testing.T) {
+	t.Run("creates inline draft", func(t *testing.T) {
+		t.Parallel()
 
-	fake := &fakeDraftNotes{}
-	client := NewClientWithDraftNotes(fake)
-	id, err := client.CreateDraftNote(context.Background(), "group/project", 42, "", "Check this", &mr.DiffPosition{NewPath: "main.go", NewLine: 7})
-	if err != nil {
-		t.Fatalf("CreateDraftNote: %v", err)
-	}
-	if id != 123 || fake.createIID != 42 || fake.createOpt == nil || *fake.createOpt.Note != "Check this" || fake.createOpt.Position == nil {
-		t.Fatalf("unexpected create draft call: id=%d iid=%d opt=%+v", id, fake.createIID, fake.createOpt)
-	}
-	if fake.createOpt.Position.OldLine != nil {
-		t.Fatalf("expected absent old line for new-line draft, got %+v", *fake.createOpt.Position.OldLine)
-	}
+		fake := &fakeDraftNotes{}
+		client := NewClientWithDraftNotes(fake)
+		id, err := client.CreateDraftNote(context.Background(), "group/project", 42, "", "Check this", &mr.DiffPosition{NewPath: "main.go", NewLine: 7})
+		require.NoError(t, err)
+		assert.Equal(t, 123, id)
+		assert.Equal(t, int64(42), fake.createIID)
+		require.NotNil(t, fake.createOpt)
+		assert.Equal(t, "Check this", *fake.createOpt.Note)
+		assert.NotNil(t, fake.createOpt.Position)
+		assert.Nil(t, fake.createOpt.Position.OldLine)
+	})
+
+	t.Run("creates reply draft", func(t *testing.T) {
+		t.Parallel()
+
+		fake := &fakeDraftNotes{}
+		client := NewClientWithDraftNotes(fake)
+		_, err := client.CreateDraftNote(context.Background(), "group/project", 42, "disc-1", "Reply", nil)
+		require.NoError(t, err)
+		require.NotNil(t, fake.createOpt)
+		require.NotNil(t, fake.createOpt.InReplyToDiscussionID)
+		assert.Equal(t, "disc-1", *fake.createOpt.InReplyToDiscussionID)
+	})
 }
 
-func TestCreateDraftNoteCreatesReplyDraft(t *testing.T) {
-	t.Parallel()
+func TestBulkPublishDraftNotes(t *testing.T) {
+	t.Run("noops without IDs", func(t *testing.T) {
+		t.Parallel()
 
-	fake := &fakeDraftNotes{}
-	client := NewClientWithDraftNotes(fake)
-	_, err := client.CreateDraftNote(context.Background(), "group/project", 42, "disc-1", "Reply", nil)
-	if err != nil {
-		t.Fatalf("CreateDraftNote reply: %v", err)
-	}
-	if fake.createOpt.InReplyToDiscussionID == nil || *fake.createOpt.InReplyToDiscussionID != "disc-1" {
-		t.Fatalf("expected reply discussion id, got %+v", fake.createOpt)
-	}
-}
+		fake := &fakeDraftNotes{}
+		client := NewClientWithDraftNotes(fake)
+		require.NoError(t, client.BulkPublishDraftNotes(context.Background(), "group/project", 42, nil))
+		assert.Equal(t, int64(0), fake.publishAllIID)
+	})
 
-func TestBulkPublishDraftNotesNoopsWithoutIDs(t *testing.T) {
-	t.Parallel()
+	t.Run("publishes all drafts once", func(t *testing.T) {
+		t.Parallel()
 
-	fake := &fakeDraftNotes{}
-	client := NewClientWithDraftNotes(fake)
-	if err := client.BulkPublishDraftNotes(context.Background(), "group/project", 42, nil); err != nil {
-		t.Fatalf("BulkPublishDraftNotes: %v", err)
-	}
-	if fake.publishAllIID != 0 || len(fake.published) != 0 {
-		t.Fatalf("expected no publish calls, publishAll=%d published=%+v", fake.publishAllIID, fake.published)
-	}
-}
-
-func TestBulkPublishDraftNotesPublishesProvidedIDs(t *testing.T) {
-	t.Parallel()
-
-	fake := &fakeDraftNotes{}
-	client := NewClientWithDraftNotes(fake)
-	if err := client.BulkPublishDraftNotes(context.Background(), "group/project", 42, []int{1, 2}); err != nil {
-		t.Fatalf("BulkPublishDraftNotes: %v", err)
-	}
-	if len(fake.published) != 2 || fake.published[0] != 1 || fake.published[1] != 2 {
-		t.Fatalf("unexpected published ids: %+v", fake.published)
-	}
+		fake := &fakeDraftNotes{}
+		client := NewClientWithDraftNotes(fake)
+		require.NoError(t, client.BulkPublishDraftNotes(context.Background(), "group/project", 42, []int{1, 2}))
+		assert.Equal(t, int64(42), fake.publishAllIID)
+	})
 }
 
 func TestDeleteAllDraftNotesDeletesListedDrafts(t *testing.T) {
@@ -105,10 +94,6 @@ func TestDeleteAllDraftNotesDeletesListedDrafts(t *testing.T) {
 
 	fake := &fakeDraftNotes{listed: []*glab.DraftNote{{ID: 10}, {ID: 11}}}
 	client := NewClientWithDraftNotes(fake)
-	if err := client.DeleteAllDraftNotes(context.Background(), "group/project", 42); err != nil {
-		t.Fatalf("DeleteAllDraftNotes: %v", err)
-	}
-	if len(fake.deleted) != 2 || fake.deleted[0] != 10 || fake.deleted[1] != 11 {
-		t.Fatalf("unexpected deleted ids: %+v", fake.deleted)
-	}
+	require.NoError(t, client.DeleteAllDraftNotes(context.Background(), "group/project", 42))
+	assert.Equal(t, []int64{10, 11}, fake.deleted)
 }

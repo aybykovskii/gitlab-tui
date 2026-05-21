@@ -3,6 +3,8 @@ package tui
 import (
 	"testing"
 
+
+	"github.com/stretchr/testify/assert"
 	tea "github.com/charmbracelet/bubbletea"
 )
 
@@ -35,9 +37,7 @@ func TestInputStateIsActiveWhenAnyFlagSet(t *testing.T) {
 			state.replyInput = true
 		}
 
-		if !state.Active() {
-			t.Fatalf("expected Active()=true when %s is set", name)
-		}
+		assert.True(t, state.Active())
 	}
 }
 
@@ -48,9 +48,7 @@ func TestInputStateValueIsEmptyAfterBegin(t *testing.T) {
 	state.BeginWithValue("some prior value")
 	state.Begin()
 
-	if state.Value() != "" {
-		t.Fatalf("expected empty value after Begin(), got %q", state.Value())
-	}
+	assert.Equal(t, "", state.Value())
 }
 
 func TestInputStateBeginWithValueSetsValue(t *testing.T) {
@@ -59,9 +57,7 @@ func TestInputStateBeginWithValueSetsValue(t *testing.T) {
 	state := NewInputState()
 	state.BeginWithValue("Draft: My feature")
 
-	if state.Value() != "Draft: My feature" {
-		t.Fatalf("expected %q, got %q", "Draft: My feature", state.Value())
-	}
+	assert.Equal(t, "Draft: My feature", state.Value())
 }
 
 func TestInputStateUpdateRoutesCharacterKeysToTextInput(t *testing.T) {
@@ -73,9 +69,7 @@ func TestInputStateUpdateRoutesCharacterKeysToTextInput(t *testing.T) {
 	state.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'h'}})
 	state.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'i'}})
 
-	if state.Value() != "hi" {
-		t.Fatalf("expected value %q after typing, got %q", "hi", state.Value())
-	}
+	assert.Equal(t, "hi", state.Value())
 }
 
 func TestInputStateResetClearsValue(t *testing.T) {
@@ -85,7 +79,5 @@ func TestInputStateResetClearsValue(t *testing.T) {
 	state.BeginWithValue("typed text")
 	state.Reset()
 
-	if state.Value() != "" {
-		t.Fatalf("expected empty value after Reset(), got %q", state.Value())
-	}
+	assert.Equal(t, "", state.Value())
 }

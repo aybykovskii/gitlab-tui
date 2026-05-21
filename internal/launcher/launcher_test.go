@@ -4,53 +4,50 @@ import (
 	"errors"
 	"runtime"
 	"testing"
+
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
-func TestOpenURLRunsPlatformCommand(t *testing.T) {
-	var name string
-	var args []string
-	old := commandRunner
-	commandRunner = func(gotName string, gotArgs ...string) error {
-		name = gotName
-		args = gotArgs
-		return nil
-	}
-	t.Cleanup(func() { commandRunner = old })
+func TestOpenURL(t *testing.T) {
+	t.Run("runs platform command", func(t *testing.T) {
+		var name string
+		var args []string
+		old := commandRunner
+		commandRunner = func(gotName string, gotArgs ...string) error {
+			name = gotName
+			args = gotArgs
+			return nil
+		}
+		t.Cleanup(func() { commandRunner = old })
 
-	if err := OpenURL("https://gitlab.example.com/group/project"); err != nil {
+		err := OpenURL("https://gitlab.example.com/group/project")
 		if runtime.GOOS == "darwin" || runtime.GOOS == "linux" {
-			t.Fatalf("OpenURL: %v", err)
+			require.NoError(t, err)
+			expected := "xdg-open"
+			if runtime.GOOS == "darwin" {
+				expected = "open"
+			}
+			assert.Equal(t, expected, name)
+			assert.Equal(t, []string{"https://gitlab.example.com/group/project"}, args)
 		}
-		return
-	}
+	})
 
-	expected := "xdg-open"
-	if runtime.GOOS == "darwin" {
-		expected = "open"
-	}
-	if name != expected || len(args) != 1 || args[0] != "https://gitlab.example.com/group/project" {
-		t.Fatalf("unexpected command %q args %+v", name, args)
-	}
-}
+	t.Run("returns command error", func(t *testing.T) {
+		old := commandRunner
+		commandRunner = func(string, ...string) error { return errors.New("boom") }
+		t.Cleanup(func() { commandRunner = old })
 
-func TestOpenURLReturnsCommandError(t *testing.T) {
-	old := commandRunner
-	commandRunner = func(string, ...string) error { return errors.New("boom") }
-	t.Cleanup(func() { commandRunner = old })
-
-	err := OpenURL("https://gitlab.example.com")
-	if runtime.GOOS == "darwin" || runtime.GOOS == "linux" {
-		if err == nil {
-			t.Fatal("expected command error")
+		err := OpenURL("https://gitlab.example.com")
+		if runtime.GOOS == "darwin" || runtime.GOOS == "linux" {
+			assert.Error(t, err)
 		}
-	}
+	})
 }
 
 func TestOpenEditorRequiresEditor(t *testing.T) {
 	t.Setenv("EDITOR", "")
-	if err := OpenEditor("file.go", 12); err == nil {
-		t.Fatal("expected unset EDITOR error")
-	}
+	assert.Error(t, OpenEditor("file.go", 12))
 }
 
 func TestOpenEditorBuildsLineFlags(t *testing.T) {
@@ -80,20 +77,9 @@ func TestOpenEditorBuildsLineFlags(t *testing.T) {
 			t.Cleanup(func() { commandRunner = old })
 			t.Setenv("EDITOR", tc.editor)
 
-			if err := OpenEditor("file.go", 12); err != nil {
-				t.Fatalf("OpenEditor: %v", err)
-			}
-			if gotName != tc.name {
-				t.Fatalf("expected editor %q, got %q", tc.name, gotName)
-			}
-			if len(gotArgs) != len(tc.want) {
-				t.Fatalf("expected args %+v, got %+v", tc.want, gotArgs)
-			}
-			for i := range tc.want {
-				if gotArgs[i] != tc.want[i] {
-					t.Fatalf("expected args %+v, got %+v", tc.want, gotArgs)
-				}
-			}
+			require.NoError(t, OpenEditor("file.go", 12))
+			assert.Equal(t, tc.name, gotName)
+			assert.Equal(t, tc.want, gotArgs)
 		})
 	}
 }

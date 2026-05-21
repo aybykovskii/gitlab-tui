@@ -2,21 +2,20 @@ package main
 
 import (
 	"os"
-	"slices"
 	"testing"
 
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 	"gopkg.in/yaml.v3"
 )
 
-func TestGolangCILintConfigUsesV2WithExpandedLintersAndFormatters(t *testing.T) {
+func TestGolangCILintConfig(t *testing.T) {
 	t.Parallel()
 
 	data, err := os.ReadFile(".golangci.yml")
-	if err != nil {
-		t.Fatalf("read .golangci.yml: %v", err)
-	}
+	require.NoError(t, err)
 
-	var config struct {
+	var cfg struct {
 		Version string `yaml:"version"`
 		Linters struct {
 			Default string   `yaml:"default"`
@@ -27,29 +26,10 @@ func TestGolangCILintConfigUsesV2WithExpandedLintersAndFormatters(t *testing.T) 
 		} `yaml:"formatters"`
 	}
 
-	if err := yaml.Unmarshal(data, &config); err != nil {
-		t.Fatalf("parse .golangci.yml: %v", err)
-	}
+	require.NoError(t, yaml.Unmarshal(data, &cfg))
 
-	if config.Version != "2" {
-		t.Fatalf("version = %q, want 2", config.Version)
-	}
-
-	if config.Linters.Default != "none" {
-		t.Fatalf("linters.default = %q, want none", config.Linters.Default)
-	}
-
-	wantLinters := []string{"bodyclose", "dupl", "errcheck", "gocritic", "gocyclo", "godot", "govet", "ineffassign", "mnd", "prealloc", "revive", "staticcheck", "unparam", "unused", "wsl"}
-	for _, linter := range wantLinters {
-		if !slices.Contains(config.Linters.Enable, linter) {
-			t.Fatalf("linters.enable missing %q", linter)
-		}
-	}
-
-	wantFormatters := []string{"gofmt", "gofumpt", "goimports"}
-	for _, formatter := range wantFormatters {
-		if !slices.Contains(config.Formatters.Enable, formatter) {
-			t.Fatalf("formatters.enable missing %q", formatter)
-		}
-	}
+	assert.Equal(t, "2", cfg.Version)
+	assert.Equal(t, "none", cfg.Linters.Default)
+	assert.Subset(t, cfg.Linters.Enable, []string{"bodyclose", "dupl", "errcheck", "gocritic", "gocyclo", "godot", "govet", "ineffassign", "mnd", "prealloc", "revive", "staticcheck", "unparam", "unused", "wsl"})
+	assert.Subset(t, cfg.Formatters.Enable, []string{"gofmt", "gofumpt", "goimports"})
 }

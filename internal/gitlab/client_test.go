@@ -6,6 +6,9 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+
 	glab "gitlab.com/gitlab-org/api/client-go"
 )
 
@@ -13,6 +16,7 @@ type fakeMergeRequests struct {
 	calls     int
 	pages     [][]*glab.BasicMergeRequest
 	acceptIID int64
+	diffRefs  glab.MergeRequestDiffRefs
 }
 
 type fakeIssues struct {
@@ -76,8 +80,17 @@ func (f *fakeMergeRequests) ListProjectMergeRequests(pid any, opt *glab.ListProj
 	return f.pages[page-1], response, nil
 }
 
+func (f *fakeMergeRequests) GetMergeRequest(pid any, mergeRequest int64, opt *glab.GetMergeRequestsOptions, options ...glab.RequestOptionFunc) (*glab.MergeRequest, *glab.Response, error) {
+	refs := f.diffRefs
+	if refs == (glab.MergeRequestDiffRefs{}) {
+		refs = glab.MergeRequestDiffRefs{BaseSha: "base", HeadSha: "head", StartSha: "start"}
+	}
+
+	return &glab.MergeRequest{DiffRefs: refs}, &glab.Response{}, nil
+}
+
 func (f *fakeMergeRequests) ListMergeRequestDiffs(pid any, mergeRequest int64, opt *glab.ListMergeRequestDiffsOptions, options ...glab.RequestOptionFunc) ([]*glab.MergeRequestDiff, *glab.Response, error) {
-	return []*glab.MergeRequestDiff{{Diff: "@@ -1 +1 @@\n-old\n+new"}}, &glab.Response{}, nil
+	return []*glab.MergeRequestDiff{{OldPath: "main.go", NewPath: "main.go", Diff: "@@ -1 +1 @@\n-old\n+new"}}, &glab.Response{}, nil
 }
 
 func (f *fakeMergeRequests) AcceptMergeRequest(pid any, mergeRequest int64, opt *glab.AcceptMergeRequestOptions, options ...glab.RequestOptionFunc) (*glab.MergeRequest, *glab.Response, error) {
@@ -207,131 +220,114 @@ func (f *fakeProjects) ListProjects(opt *glab.ListProjectsOptions, options ...gl
 	return f.projects, &glab.Response{}, f.err
 }
 
-func TestListProjectsReturnsProjectPaths(t *testing.T) {
-	t.Parallel()
+func TestListProjects(t *testing.T) {
+	t.Run("returns project paths", func(t *testing.T) {
+		t.Parallel()
 
-	projects := &fakeProjects{projects: []*glab.Project{
-		{PathWithNamespace: "group/new"},
-		{PathWithNamespace: "team/old"},
-	}}
-	client := NewClientWithProjects(projects)
+		projects := &fakeProjects{projects: []*glab.Project{
+			{PathWithNamespace: "group/new"},
+			{PathWithNamespace: "team/old"},
+		}}
+		client := NewClientWithProjects(projects)
 
-	paths, err := client.ListProjects(context.Background(), 5)
-	if err != nil {
-		t.Fatalf("expected no error, got %v", err)
-	}
+		paths, err := client.ListProjects(context.Background(), 5)
+		require.NoError(t, err)
+		assert.Equal(t, []string{"group/new", "team/old"}, paths)
+		assert.Equal(t, int64(5), projects.limit)
+		assert.Equal(t, int64(1), projects.page)
+		assert.True(t, projects.membership)
+		assert.Empty(t, projects.orderBy)
+	})
 
-	if len(paths) != 2 || paths[0] != "group/new" || paths[1] != "team/old" {
-		t.Fatalf("unexpected project paths: %+v", paths)
-	}
+	t.Run("returns empty list", func(t *testing.T) {
+		t.Parallel()
 
-	if projects.limit != 5 || projects.page != 1 || !projects.membership || projects.orderBy != "" {
-		t.Fatalf("unexpected list options: limit=%d page=%d membership=%t orderBy=%q", projects.limit, projects.page, projects.membership, projects.orderBy)
-	}
+		client := NewClientWithProjects(&fakeProjects{})
+
+		paths, err := client.ListProjects(context.Background(), 10)
+		require.NoError(t, err)
+		assert.Empty(t, paths)
+	})
+
+	t.Run("returns API error", func(t *testing.T) {
+		t.Parallel()
+
+		apiErr := errors.New("api failed")
+		client := NewClientWithProjects(&fakeProjects{err: apiErr})
+
+		_, err := client.ListProjects(context.Background(), 10)
+		assert.ErrorIs(t, err, apiErr)
+	})
 }
 
-func TestListProjectsReturnsEmptyList(t *testing.T) {
-	t.Parallel()
+func TestOpenMergeRequests(t *testing.T) {
+	t.Run("maps all pages", func(t *testing.T) {
+		t.Parallel()
 
-	client := NewClientWithProjects(&fakeProjects{})
+		fake := &fakeMergeRequests{pages: [][]*glab.BasicMergeRequest{
+			{{IID: 1, Title: "First", State: "opened", SourceBranch: "feature/a", TargetBranch: "main", Author: &glab.BasicUser{Username: "alice"}}},
+			{{IID: 2, Title: "Second", State: "opened", SourceBranch: "feature/b", TargetBranch: "main", Author: &glab.BasicUser{Name: "Bob"}}},
+		}}
+		client := NewClientWithMergeRequests(fake)
 
-	paths, err := client.ListProjects(context.Background(), 10)
-	if err != nil {
-		t.Fatalf("expected no error, got %v", err)
-	}
+		items, err := client.OpenMergeRequests(context.Background(), "group/project")
+		require.NoError(t, err)
+		require.Len(t, items, 2)
+		assert.Equal(t, 1, items[0].IID)
+		assert.Equal(t, "alice", items[0].Author)
+		assert.Equal(t, 2, items[1].IID)
+		assert.Equal(t, "Bob", items[1].Author)
+		assert.Equal(t, 2, fake.calls)
+	})
 
-	if len(paths) != 0 {
-		t.Fatalf("expected empty project paths, got %+v", paths)
-	}
+	t.Run("adds approval counts", func(t *testing.T) {
+		t.Parallel()
+
+		client := NewClientWithServices(&fakeMergeRequests{pages: [][]*glab.BasicMergeRequest{{{IID: 3, Title: "MR"}}}}, &fakeApprovals{
+			configs: map[int64]*glab.MergeRequestApprovals{3: {ApprovalsRequired: 2, ApprovalsLeft: 1}},
+		})
+
+		items, err := client.OpenMergeRequests(context.Background(), "group/project")
+		require.NoError(t, err)
+		assert.Equal(t, "1/2", items[0].Approvals)
+	})
 }
 
-func TestListProjectsReturnsAPIError(t *testing.T) {
-	t.Parallel()
+func TestListProjectIssues(t *testing.T) {
+	t.Run("passes state and maps items", func(t *testing.T) {
+		t.Parallel()
 
-	apiErr := errors.New("api failed")
-	client := NewClientWithProjects(&fakeProjects{err: apiErr})
+		issues := &fakeIssues{items: []*glab.Issue{{
+			IID:            79,
+			Title:          "Issues API",
+			State:          "opened",
+			Author:         &glab.IssueAuthor{Name: "Alice", Username: "alice"},
+			UserNotesCount: 2,
+		}}}
+		client := NewClientWithIssues(issues)
 
-	_, err := client.ListProjects(context.Background(), 10)
+		items, err := client.ListProjectIssues(context.Background(), "group/project", "opened", "api")
+		require.NoError(t, err)
+		assert.Equal(t, "opened", issues.state)
+		assert.Equal(t, "api", issues.search)
+		assert.Equal(t, int64(50), issues.limit)
+		assert.Equal(t, int64(1), issues.page)
+		require.Len(t, items, 1)
+		assert.Equal(t, 79, items[0].IID)
+		assert.Equal(t, "Issues API", items[0].Title)
+		assert.Equal(t, "Alice", items[0].Author)
+		assert.Equal(t, 2, items[0].CommentCount)
+	})
 
-	if !errors.Is(err, apiErr) {
-		t.Fatalf("expected API error, got %v", err)
-	}
-}
+	t.Run("returns empty list", func(t *testing.T) {
+		t.Parallel()
 
-func TestOpenMergeRequestsMapsAllPages(t *testing.T) {
-	t.Parallel()
+		client := NewClientWithIssues(&fakeIssues{})
 
-	fake := &fakeMergeRequests{pages: [][]*glab.BasicMergeRequest{
-		{{IID: 1, Title: "First", State: "opened", SourceBranch: "feature/a", TargetBranch: "main", Author: &glab.BasicUser{Username: "alice"}}},
-		{{IID: 2, Title: "Second", State: "opened", SourceBranch: "feature/b", TargetBranch: "main", Author: &glab.BasicUser{Name: "Bob"}}},
-	}}
-	client := NewClientWithMergeRequests(fake)
-
-	items, err := client.OpenMergeRequests(context.Background(), "group/project")
-	if err != nil {
-		t.Fatalf("expected no error, got %v", err)
-	}
-
-	if len(items) != 2 {
-		t.Fatalf("expected 2 items, got %d", len(items))
-	}
-
-	if items[0].IID != 1 || items[0].Author != "alice" {
-		t.Fatalf("unexpected first item: %+v", items[0])
-	}
-
-	if items[1].IID != 2 || items[1].Author != "Bob" {
-		t.Fatalf("unexpected second item: %+v", items[1])
-	}
-
-	if fake.calls != 2 {
-		t.Fatalf("expected 2 calls, got %d", fake.calls)
-	}
-}
-
-func TestListProjectIssuesPassesStateAndMapsItems(t *testing.T) {
-	t.Parallel()
-
-	issues := &fakeIssues{items: []*glab.Issue{{
-		IID:            79,
-		Title:          "Issues API",
-		State:          "opened",
-		Author:         &glab.IssueAuthor{Name: "Alice", Username: "alice"},
-		UserNotesCount: 2,
-	}}}
-	client := NewClientWithIssues(issues)
-
-	items, err := client.ListProjectIssues(context.Background(), "group/project", "opened", "api")
-	if err != nil {
-		t.Fatalf("expected no error, got %v", err)
-	}
-
-	if issues.state != "opened" || issues.search != "api" || issues.limit != 50 || issues.page != 1 {
-		t.Fatalf("unexpected list options: state=%q search=%q limit=%d page=%d", issues.state, issues.search, issues.limit, issues.page)
-	}
-
-	if len(items) != 1 {
-		t.Fatalf("expected 1 item, got %d", len(items))
-	}
-
-	if items[0].IID != 79 || items[0].Title != "Issues API" || items[0].Author != "Alice" || items[0].CommentCount != 2 {
-		t.Fatalf("unexpected mapped issue: %+v", items[0])
-	}
-}
-
-func TestListProjectIssuesReturnsEmptyList(t *testing.T) {
-	t.Parallel()
-
-	client := NewClientWithIssues(&fakeIssues{})
-
-	items, err := client.ListProjectIssues(context.Background(), "group/project", "closed", "")
-	if err != nil {
-		t.Fatalf("expected no error, got %v", err)
-	}
-
-	if len(items) != 0 {
-		t.Fatalf("expected empty issues, got %+v", items)
-	}
+		items, err := client.ListProjectIssues(context.Background(), "group/project", "closed", "")
+		require.NoError(t, err)
+		assert.Empty(t, items)
+	})
 }
 
 func TestListIssueDiscussionsMapsComments(t *testing.T) {
@@ -344,79 +340,80 @@ func TestListIssueDiscussionsMapsComments(t *testing.T) {
 	client := NewClientWithDiscussions(discussions)
 
 	items, err := client.ListIssueDiscussions(context.Background(), "group/project", 79)
-	if err != nil {
-		t.Fatalf("expected no error, got %v", err)
-	}
-
-	if discussions.issueIID != 79 {
-		t.Fatalf("expected issue iid 79, got %d", discussions.issueIID)
-	}
-
-	if len(items) != 1 || items[0].ID != "issue-discussion-1" {
-		t.Fatalf("unexpected discussions: %+v", items)
-	}
-
-	if len(items[0].Notes) != 1 || items[0].Notes[0].Author != "Alice" || items[0].Notes[0].Body != "Looks good" {
-		t.Fatalf("unexpected notes: %+v", items[0].Notes)
-	}
+	require.NoError(t, err)
+	assert.Equal(t, int64(79), discussions.issueIID)
+	require.Len(t, items, 1)
+	assert.Equal(t, "issue-discussion-1", items[0].ID)
+	require.Len(t, items[0].Notes, 1)
+	assert.Equal(t, "Alice", items[0].Notes[0].Author)
+	assert.Equal(t, "Looks good", items[0].Notes[0].Body)
 }
 
-func TestIssueUpdateActionsMapOptions(t *testing.T) {
-	t.Parallel()
+func TestIssueUpdateActions(t *testing.T) {
+	t.Run("edit maps title and description", func(t *testing.T) {
+		t.Parallel()
 
-	issues := &fakeIssues{}
-	client := NewClientWithIssues(issues)
+		issues := &fakeIssues{}
+		client := NewClientWithIssues(issues)
 
-	if err := client.EditIssue(context.Background(), "group/project", 84, "New title", "New description"); err != nil {
-		t.Fatalf("expected no error, got %v", err)
-	}
+		require.NoError(t, client.EditIssue(context.Background(), "group/project", 84, "New title", "New description"))
+		assert.Equal(t, int64(84), issues.updateIID)
+		assert.Equal(t, "New title", issues.title)
+		assert.Equal(t, "New description", issues.description)
+	})
 
-	if issues.updateIID != 84 || issues.title != "New title" || issues.description != "New description" {
-		t.Fatalf("unexpected edit update: %+v", issues)
-	}
+	t.Run("update labels sets labels string", func(t *testing.T) {
+		t.Parallel()
 
-	if err := client.UpdateIssueLabels(context.Background(), "group/project", 84, []string{"bug", "tui"}); err != nil {
-		t.Fatalf("expected no error, got %v", err)
-	}
+		issues := &fakeIssues{}
+		client := NewClientWithIssues(issues)
 
-	if issues.labels != "bug,tui" {
-		t.Fatalf("unexpected labels update: %q", issues.labels)
-	}
+		require.NoError(t, client.UpdateIssueLabels(context.Background(), "group/project", 84, []string{"bug", "tui"}))
+		assert.Equal(t, "bug,tui", issues.labels)
+	})
 
-	if err := client.AssignSelfIssue(context.Background(), "group/project", 84); err != nil {
-		t.Fatalf("expected no error, got %v", err)
-	}
+	t.Run("assign self sets assignee", func(t *testing.T) {
+		t.Parallel()
 
-	if issues.assigneeID != 0 {
-		t.Fatalf("unexpected assign self id: %d", issues.assigneeID)
-	}
+		issues := &fakeIssues{}
+		client := NewClientWithIssues(issues)
 
-	if err := client.UnassignSelfIssue(context.Background(), "group/project", 84); err != nil {
-		t.Fatalf("expected no error, got %v", err)
-	}
+		require.NoError(t, client.AssignSelfIssue(context.Background(), "group/project", 84))
+		assert.Equal(t, int64(0), issues.assigneeID)
+	})
+
+	t.Run("unassign self noops", func(t *testing.T) {
+		t.Parallel()
+
+		issues := &fakeIssues{}
+		client := NewClientWithIssues(issues)
+
+		require.NoError(t, client.UnassignSelfIssue(context.Background(), "group/project", 84))
+	})
 }
 
-func TestCloseAndReopenIssueUpdateStateEvent(t *testing.T) {
-	t.Parallel()
+func TestCloseAndReopenIssue(t *testing.T) {
+	t.Run("close sets state event", func(t *testing.T) {
+		t.Parallel()
 
-	issues := &fakeIssues{}
-	client := NewClientWithIssues(issues)
+		issues := &fakeIssues{}
+		client := NewClientWithIssues(issues)
 
-	if err := client.CloseIssue(context.Background(), "group/project", 83); err != nil {
-		t.Fatalf("expected no error, got %v", err)
-	}
+		require.NoError(t, client.CloseIssue(context.Background(), "group/project", 83))
+		assert.Equal(t, int64(83), issues.updateIID)
+		assert.Equal(t, "close", issues.stateEvent)
+	})
 
-	if issues.updateIID != 83 || issues.stateEvent != "close" {
-		t.Fatalf("unexpected close update: iid=%d state=%q", issues.updateIID, issues.stateEvent)
-	}
+	t.Run("reopen sets state event", func(t *testing.T) {
+		t.Parallel()
 
-	if err := client.ReopenIssue(context.Background(), "group/project", 83); err != nil {
-		t.Fatalf("expected no error, got %v", err)
-	}
+		issues := &fakeIssues{}
+		client := NewClientWithIssues(issues)
 
-	if issues.updateIID != 83 || issues.stateEvent != "reopen" {
-		t.Fatalf("unexpected reopen update: iid=%d state=%q", issues.updateIID, issues.stateEvent)
-	}
+		require.NoError(t, client.ReopenIssue(context.Background(), "group/project", 83))
+		assert.Equal(t, int64(83), issues.updateIID)
+		assert.Equal(t, "reopen", issues.stateEvent)
+	})
 }
 
 func TestAddIssueCommentCreatesIssueDiscussion(t *testing.T) {
@@ -425,129 +422,134 @@ func TestAddIssueCommentCreatesIssueDiscussion(t *testing.T) {
 	discussions := &fakeDiscussions{}
 	client := NewClientWithDiscussions(discussions)
 
-	if err := client.AddIssueComment(context.Background(), "group/project", 82, "General comment"); err != nil {
-		t.Fatalf("expected no error, got %v", err)
-	}
-
-	if discussions.commentIID != 82 || discussions.commentBody != "General comment" {
-		t.Fatalf("unexpected issue comment: iid=%d body=%q", discussions.commentIID, discussions.commentBody)
-	}
+	require.NoError(t, client.AddIssueComment(context.Background(), "group/project", 82, "General comment"))
+	assert.Equal(t, int64(82), discussions.commentIID)
+	assert.Equal(t, "General comment", discussions.commentBody)
 }
 
-func TestOpenMergeRequestsAddsApprovalCounts(t *testing.T) {
-	t.Parallel()
+func TestMapDiscussion(t *testing.T) {
+	t.Run("maps notes and resolution", func(t *testing.T) {
+		t.Parallel()
 
-	client := NewClientWithServices(&fakeMergeRequests{pages: [][]*glab.BasicMergeRequest{{{IID: 3, Title: "MR"}}}}, &fakeApprovals{
-		configs: map[int64]*glab.MergeRequestApprovals{3: {ApprovalsRequired: 2, ApprovalsLeft: 1}},
+		item := MapDiscussion(&glab.Discussion{
+			ID: "abc123",
+			Notes: []*glab.Note{
+				{Author: glab.NoteAuthor{Name: "Alice", Username: "alice"}, Body: "Needs a fix", Resolved: false},
+				{Author: glab.NoteAuthor{Name: "Bob", Username: "bob"}, Body: "Fixed", Resolved: true, Resolvable: true},
+			},
+		})
+
+		assert.Equal(t, "abc123", item.ID)
+		assert.False(t, item.Resolved)
+		require.Len(t, item.Notes, 2)
+		assert.Equal(t, "Alice", item.Notes[0].Author)
+		assert.Equal(t, "Needs a fix", item.Notes[0].Body)
 	})
 
-	items, err := client.OpenMergeRequests(context.Background(), "group/project")
-	if err != nil {
-		t.Fatalf("expected no error, got %v", err)
-	}
+	t.Run("excludes system notes", func(t *testing.T) {
+		t.Parallel()
 
-	if items[0].Approvals != "1/2" {
-		t.Fatalf("expected approval counts, got %q", items[0].Approvals)
-	}
-}
+		item := MapDiscussion(&glab.Discussion{
+			ID: "sys1",
+			Notes: []*glab.Note{
+				{Author: glab.NoteAuthor{Name: "GitLab"}, Body: "changed milestone", System: true},
+				{Author: glab.NoteAuthor{Name: "Alice"}, Body: "Real comment"},
+			},
+		})
 
-func TestMapDiscussionMapsNotesAndResolution(t *testing.T) {
-	t.Parallel()
-
-	resolved := true
-	item := MapDiscussion(&glab.Discussion{
-		ID: "abc123",
-		Notes: []*glab.Note{
-			{Author: glab.NoteAuthor{Name: "Alice", Username: "alice"}, Body: "Needs a fix", Resolved: false},
-			{Author: glab.NoteAuthor{Name: "Bob", Username: "bob"}, Body: "Fixed", Resolved: true, Resolvable: true},
-		},
+		require.Len(t, item.Notes, 1)
+		assert.Equal(t, "Alice", item.Notes[0].Author)
 	})
-	_ = resolved
-
-	if item.ID != "abc123" {
-		t.Fatalf("expected ID abc123, got %q", item.ID)
-	}
-
-	if item.Resolved {
-		t.Fatal("expected discussion to be unresolved (first note is unresolved)")
-	}
-
-	if len(item.Notes) != 2 {
-		t.Fatalf("expected 2 notes, got %d", len(item.Notes))
-	}
-
-	if item.Notes[0].Author != "Alice" || item.Notes[0].Body != "Needs a fix" {
-		t.Fatalf("unexpected first note: %+v", item.Notes[0])
-	}
 }
 
-func TestMapDiscussionExcludesSystemNotes(t *testing.T) {
-	t.Parallel()
+func TestMapChangedFile(t *testing.T) {
+	t.Run("maps path markers and line counts", func(t *testing.T) {
+		t.Parallel()
 
-	item := MapDiscussion(&glab.Discussion{
-		ID: "sys1",
-		Notes: []*glab.Note{
-			{Author: glab.NoteAuthor{Name: "GitLab"}, Body: "changed milestone", System: true},
-			{Author: glab.NoteAuthor{Name: "Alice"}, Body: "Real comment"},
-		},
+		item := MapChangedFile(&glab.MergeRequestDiff{
+			NewPath:     "internal/tui/model.go",
+			OldPath:     "internal/tui/model.go",
+			NewFile:     false,
+			DeletedFile: false,
+			RenamedFile: false,
+			Diff:        "@@ -10,3 +10,4 @@\n context\n-old\n+new\n+added\n",
+		})
+
+		assert.Equal(t, "internal/tui/model.go", item.Path)
+		assert.False(t, item.IsNew)
+		assert.False(t, item.IsDeleted)
+		assert.False(t, item.IsRenamed)
+		assert.Equal(t, 2, item.AddedLines)
+		assert.Equal(t, 1, item.RemovedLines)
 	})
-	if len(item.Notes) != 1 {
-		t.Fatalf("expected 1 non-system note, got %d", len(item.Notes))
-	}
 
-	if item.Notes[0].Author != "Alice" {
-		t.Fatalf("expected Alice, got %q", item.Notes[0].Author)
-	}
-}
+	t.Run("marks new and deleted files", func(t *testing.T) {
+		t.Parallel()
 
-func TestMapChangedFileMapsPathMarkersAndLineCounts(t *testing.T) {
-	t.Parallel()
+		newFile := MapChangedFile(&glab.MergeRequestDiff{NewPath: "new.go", NewFile: true, Diff: "@@ -0,0 +1 @@\n+hello\n"})
+		assert.True(t, newFile.IsNew)
+		assert.Equal(t, 1, newFile.AddedLines)
 
-	item := MapChangedFile(&glab.MergeRequestDiff{
-		NewPath:     "internal/tui/model.go",
-		OldPath:     "internal/tui/model.go",
-		NewFile:     false,
-		DeletedFile: false,
-		RenamedFile: false,
-		Diff:        "@@ -10,3 +10,4 @@\n context\n-old\n+new\n+added\n",
+		deleted := MapChangedFile(&glab.MergeRequestDiff{OldPath: "old.go", DeletedFile: true, Diff: "@@ -1 +0,0 @@\n-bye\n"})
+		assert.True(t, deleted.IsDeleted)
+		assert.Equal(t, "old.go", deleted.Path)
 	})
-	if item.Path != "internal/tui/model.go" {
-		t.Fatalf("expected path, got %q", item.Path)
-	}
-
-	if item.IsNew || item.IsDeleted || item.IsRenamed {
-		t.Fatalf("unexpected markers: %+v", item)
-	}
-
-	if item.AddedLines != 2 {
-		t.Fatalf("expected 2 added lines, got %d", item.AddedLines)
-	}
-
-	if item.RemovedLines != 1 {
-		t.Fatalf("expected 1 removed line, got %d", item.RemovedLines)
-	}
 }
 
-func TestMapChangedFileMarksNewAndDeletedFiles(t *testing.T) {
+func TestMergeRequestChangedFilesCarriesDiffRefs(t *testing.T) {
 	t.Parallel()
 
-	newFile := MapChangedFile(&glab.MergeRequestDiff{NewPath: "new.go", NewFile: true, Diff: "@@ -0,0 +1 @@\n+hello\n"})
-	if !newFile.IsNew {
-		t.Fatal("expected IsNew=true")
-	}
+	fake := &fakeMergeRequests{diffRefs: glab.MergeRequestDiffRefs{BaseSha: "base-sha", HeadSha: "head-sha", StartSha: "start-sha"}}
+	client := NewClientWithMergeRequests(fake)
 
-	if newFile.AddedLines != 1 {
-		t.Fatalf("expected 1 added line, got %d", newFile.AddedLines)
-	}
+	files, err := client.MergeRequestChangedFiles(context.Background(), "group/project", 42)
+	require.NoError(t, err)
+	require.Len(t, files, 1)
+	assert.Equal(t, "base-sha", files[0].BaseSHA)
+	assert.Equal(t, "head-sha", files[0].HeadSHA)
+	assert.Equal(t, "start-sha", files[0].StartSHA)
+}
 
-	deleted := MapChangedFile(&glab.MergeRequestDiff{OldPath: "old.go", DeletedFile: true, Diff: "@@ -1 +0,0 @@\n-bye\n"})
-	if !deleted.IsDeleted {
-		t.Fatal("expected IsDeleted=true")
-	}
+func TestMapMergeRequest(t *testing.T) {
+	t.Run("fills labels and draft", func(t *testing.T) {
+		t.Parallel()
 
-	if deleted.Path != "old.go" {
-		t.Fatalf("expected old.go path for deleted file, got %q", deleted.Path)
-	}
+		item := MapMergeRequest(&glab.BasicMergeRequest{
+			IID:    10,
+			Title:  "Draft: My MR",
+			Draft:  true,
+			Labels: glab.Labels{"backend", "performance"},
+			Assignees: []*glab.BasicUser{
+				{Name: "Alice", Username: "alice"},
+				{Name: "", Username: "bob"},
+			},
+			Reviewers: []*glab.BasicUser{
+				{Name: "Carol", Username: "carol"},
+			},
+		})
+
+		assert.True(t, item.Draft)
+		assert.Equal(t, []string{"backend", "performance"}, item.Labels)
+		assert.Equal(t, []string{"Alice", "bob"}, item.Assignees)
+		assert.Equal(t, []string{"Carol"}, item.Reviewers)
+	})
+
+	t.Run("keeps previous MR info", func(t *testing.T) {
+		t.Parallel()
+
+		item := MapMergeRequest(&glab.BasicMergeRequest{
+			IID:                 3,
+			Title:               "MR",
+			DetailedMergeStatus: "success",
+			WebURL:              "https://gitlab.com/group/project/-/merge_requests/3",
+			Author:              &glab.BasicUser{Name: "Alice Doe", Username: "alice"},
+		})
+
+		assert.Equal(t, "success", item.Pipeline)
+		assert.Equal(t, "Alice Doe", item.Author)
+		assert.Equal(t, "alice", item.AuthorUsername)
+		assert.Equal(t, "https://gitlab.com/group/project/-/merge_requests/3", item.WebURL)
+	})
 }
 
 // --- #67: Labels, Draft, Reviewers, Assignees ---
@@ -574,203 +576,105 @@ func (f *fakeMergeRequestEdit) UpdateMergeRequest(pid any, mergeRequest int64, o
 	return &glab.MergeRequest{}, &glab.Response{}, f.err
 }
 
-func TestMapMergeRequestFillsLabelsAndDraft(t *testing.T) {
-	t.Parallel()
+func TestListProjectLabels(t *testing.T) {
+	t.Run("returns mapped labels", func(t *testing.T) {
+		t.Parallel()
 
-	item := MapMergeRequest(&glab.BasicMergeRequest{
-		IID:    10,
-		Title:  "Draft: My MR",
-		Draft:  true,
-		Labels: glab.Labels{"backend", "performance"},
-		Assignees: []*glab.BasicUser{
-			{Name: "Alice", Username: "alice"},
-			{Name: "", Username: "bob"},
-		},
-		Reviewers: []*glab.BasicUser{
-			{Name: "Carol", Username: "carol"},
-		},
+		fake := &fakeLabels{labels: []*glab.Label{
+			{Name: "backend", Color: "#e11d48"},
+			{Name: "bug", Color: "#dc2626"},
+		}}
+		client := NewClientWithLabels(fake)
+
+		labels, err := client.ListProjectLabels(context.Background(), "group/project")
+		require.NoError(t, err)
+		require.Len(t, labels, 2)
+		assert.Equal(t, "backend", labels[0].Name)
+		assert.Equal(t, "#e11d48", labels[0].Color)
+		assert.Equal(t, "bug", labels[1].Name)
+		assert.Equal(t, "#dc2626", labels[1].Color)
 	})
 
-	if !item.Draft {
-		t.Fatal("expected Draft=true")
-	}
+	t.Run("returns API error", func(t *testing.T) {
+		t.Parallel()
 
-	if len(item.Labels) != 2 || item.Labels[0] != "backend" || item.Labels[1] != "performance" {
-		t.Fatalf("expected labels [backend performance], got %v", item.Labels)
-	}
+		apiErr := errors.New("labels api failed")
+		client := NewClientWithLabels(&fakeLabels{err: apiErr})
 
-	if len(item.Assignees) != 2 || item.Assignees[0] != "Alice" || item.Assignees[1] != "bob" {
-		t.Fatalf("expected assignees [Alice bob], got %v", item.Assignees)
-	}
-
-	if len(item.Reviewers) != 1 || item.Reviewers[0] != "Carol" {
-		t.Fatalf("expected reviewers [Carol], got %v", item.Reviewers)
-	}
-}
-
-func TestListProjectLabelsReturnsMappedLabels(t *testing.T) {
-	t.Parallel()
-
-	fake := &fakeLabels{labels: []*glab.Label{
-		{Name: "backend", Color: "#e11d48"},
-		{Name: "bug", Color: "#dc2626"},
-	}}
-	client := NewClientWithLabels(fake)
-
-	labels, err := client.ListProjectLabels(context.Background(), "group/project")
-	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
-	}
-
-	if len(labels) != 2 {
-		t.Fatalf("expected 2 labels, got %d", len(labels))
-	}
-
-	if labels[0].Name != "backend" || labels[0].Color != "#e11d48" {
-		t.Fatalf("unexpected first label: %+v", labels[0])
-	}
-
-	if labels[1].Name != "bug" || labels[1].Color != "#dc2626" {
-		t.Fatalf("unexpected second label: %+v", labels[1])
-	}
-}
-
-func TestListProjectLabelsReturnsAPIError(t *testing.T) {
-	t.Parallel()
-
-	apiErr := errors.New("labels api failed")
-	client := NewClientWithLabels(&fakeLabels{err: apiErr})
-
-	_, err := client.ListProjectLabels(context.Background(), "group/project")
-	if !errors.Is(err, apiErr) {
-		t.Fatalf("expected API error, got %v", err)
-	}
-}
-
-func TestUpdateMRLabelsSetsLabelsOnMR(t *testing.T) {
-	t.Parallel()
-
-	fake := &fakeMergeRequestEdit{}
-	client := NewClientWithMergeRequestEdit(fake)
-
-	err := client.UpdateMRLabels(context.Background(), "group/project", 42, []string{"backend", "bug"})
-	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
-	}
-
-	if fake.lastIID != 42 {
-		t.Fatalf("expected iid=42, got %d", fake.lastIID)
-	}
-
-	if fake.lastOpts == nil || fake.lastOpts.Labels == nil {
-		t.Fatal("expected UpdateMergeRequest to be called with labels")
-	}
-
-	got := []string(*fake.lastOpts.Labels)
-	if len(got) != 2 || got[0] != "backend" || got[1] != "bug" {
-		t.Fatalf("unexpected labels: %v", got)
-	}
-}
-
-func TestUpdateMRLabelsReturnsAPIError(t *testing.T) {
-	t.Parallel()
-
-	apiErr := errors.New("update failed")
-	client := NewClientWithMergeRequestEdit(&fakeMergeRequestEdit{err: apiErr})
-
-	err := client.UpdateMRLabels(context.Background(), "group/project", 42, []string{"backend"})
-	if !errors.Is(err, apiErr) {
-		t.Fatalf("expected API error, got %v", err)
-	}
-}
-
-func TestToggleDraftMRAddsDraftPrefix(t *testing.T) {
-	t.Parallel()
-
-	fake := &fakeMergeRequestEdit{}
-	client := NewClientWithMergeRequestEdit(fake)
-
-	err := client.ToggleDraftMR(context.Background(), "group/project", 42, "My MR", true)
-	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
-	}
-
-	if fake.lastOpts == nil || fake.lastOpts.Title == nil {
-		t.Fatal("expected UpdateMergeRequest to be called with title")
-	}
-
-	if *fake.lastOpts.Title != "Draft: My MR" {
-		t.Fatalf("expected title 'Draft: My MR', got %q", *fake.lastOpts.Title)
-	}
-}
-
-func TestToggleDraftMRRemovesDraftPrefix(t *testing.T) {
-	t.Parallel()
-
-	fake := &fakeMergeRequestEdit{}
-	client := NewClientWithMergeRequestEdit(fake)
-
-	err := client.ToggleDraftMR(context.Background(), "group/project", 42, "Draft: My MR", false)
-	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
-	}
-
-	if fake.lastOpts == nil || fake.lastOpts.Title == nil {
-		t.Fatal("expected UpdateMergeRequest to be called with title")
-	}
-
-	if *fake.lastOpts.Title != "My MR" {
-		t.Fatalf("expected title 'My MR' after removing draft prefix, got %q", *fake.lastOpts.Title)
-	}
-}
-
-func TestToggleDraftMRDoesNotDoublePrefixAlreadyDraft(t *testing.T) {
-	t.Parallel()
-
-	fake := &fakeMergeRequestEdit{}
-	client := NewClientWithMergeRequestEdit(fake)
-
-	err := client.ToggleDraftMR(context.Background(), "group/project", 42, "Draft: My MR", true)
-	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
-	}
-
-	if *fake.lastOpts.Title != "Draft: My MR" {
-		t.Fatalf("expected no double prefix, got %q", *fake.lastOpts.Title)
-	}
-}
-
-func TestToggleDraftMRReturnsAPIError(t *testing.T) {
-	t.Parallel()
-
-	apiErr := errors.New("edit failed")
-	client := NewClientWithMergeRequestEdit(&fakeMergeRequestEdit{err: apiErr})
-
-	err := client.ToggleDraftMR(context.Background(), "group/project", 42, "My MR", true)
-	if !errors.Is(err, apiErr) {
-		t.Fatalf("expected API error, got %v", err)
-	}
-}
-
-func TestMapMergeRequestKeepsPreviousMRInfo(t *testing.T) {
-	t.Parallel()
-
-	item := MapMergeRequest(&glab.BasicMergeRequest{
-		IID:                 3,
-		Title:               "MR",
-		DetailedMergeStatus: "success",
-		WebURL:              "https://gitlab.com/group/project/-/merge_requests/3",
-		Author:              &glab.BasicUser{Name: "Alice Doe", Username: "alice"},
+		_, err := client.ListProjectLabels(context.Background(), "group/project")
+		assert.ErrorIs(t, err, apiErr)
 	})
-	if item.Pipeline != "success" {
-		t.Fatalf("expected success pipeline, got %q", item.Pipeline)
-	}
+}
 
-	if item.Author != "Alice Doe" || item.AuthorUsername != "alice" {
-		t.Fatalf("unexpected author: %+v", item)
-	}
+func TestUpdateMRLabels(t *testing.T) {
+	t.Run("sets labels on MR", func(t *testing.T) {
+		t.Parallel()
 
-	if item.WebURL != "https://gitlab.com/group/project/-/merge_requests/3" {
-		t.Fatalf("unexpected web URL: %q", item.WebURL)
-	}
+		fake := &fakeMergeRequestEdit{}
+		client := NewClientWithMergeRequestEdit(fake)
+
+		require.NoError(t, client.UpdateMRLabels(context.Background(), "group/project", 42, []string{"backend", "bug"}))
+		assert.Equal(t, int64(42), fake.lastIID)
+		require.NotNil(t, fake.lastOpts)
+		require.NotNil(t, fake.lastOpts.Labels)
+		assert.Equal(t, []string{"backend", "bug"}, []string(*fake.lastOpts.Labels))
+	})
+
+	t.Run("returns API error", func(t *testing.T) {
+		t.Parallel()
+
+		apiErr := errors.New("update failed")
+		client := NewClientWithMergeRequestEdit(&fakeMergeRequestEdit{err: apiErr})
+
+		err := client.UpdateMRLabels(context.Background(), "group/project", 42, []string{"backend"})
+		assert.ErrorIs(t, err, apiErr)
+	})
+}
+
+func TestToggleDraftMR(t *testing.T) {
+	t.Run("adds draft prefix", func(t *testing.T) {
+		t.Parallel()
+
+		fake := &fakeMergeRequestEdit{}
+		client := NewClientWithMergeRequestEdit(fake)
+
+		require.NoError(t, client.ToggleDraftMR(context.Background(), "group/project", 42, "My MR", true))
+		require.NotNil(t, fake.lastOpts)
+		require.NotNil(t, fake.lastOpts.Title)
+		assert.Equal(t, "Draft: My MR", *fake.lastOpts.Title)
+	})
+
+	t.Run("removes draft prefix", func(t *testing.T) {
+		t.Parallel()
+
+		fake := &fakeMergeRequestEdit{}
+		client := NewClientWithMergeRequestEdit(fake)
+
+		require.NoError(t, client.ToggleDraftMR(context.Background(), "group/project", 42, "Draft: My MR", false))
+		require.NotNil(t, fake.lastOpts)
+		require.NotNil(t, fake.lastOpts.Title)
+		assert.Equal(t, "My MR", *fake.lastOpts.Title)
+	})
+
+	t.Run("does not double prefix already draft", func(t *testing.T) {
+		t.Parallel()
+
+		fake := &fakeMergeRequestEdit{}
+		client := NewClientWithMergeRequestEdit(fake)
+
+		require.NoError(t, client.ToggleDraftMR(context.Background(), "group/project", 42, "Draft: My MR", true))
+		require.NotNil(t, fake.lastOpts)
+		require.NotNil(t, fake.lastOpts.Title)
+		assert.Equal(t, "Draft: My MR", *fake.lastOpts.Title)
+	})
+
+	t.Run("returns API error", func(t *testing.T) {
+		t.Parallel()
+
+		apiErr := errors.New("edit failed")
+		client := NewClientWithMergeRequestEdit(&fakeMergeRequestEdit{err: apiErr})
+
+		err := client.ToggleDraftMR(context.Background(), "group/project", 42, "My MR", true)
+		assert.ErrorIs(t, err, apiErr)
+	})
 }

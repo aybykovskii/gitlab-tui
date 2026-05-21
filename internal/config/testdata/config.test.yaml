@@ -1,0 +1,5 @@
+default_account: default
+accounts:
+  - id: default
+    host: https://gitlab.com
+    token_env: GITLAB_TOKEN

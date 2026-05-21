@@ -3,6 +3,8 @@ package tui
 import (
 	"strings"
 	"testing"
+
+	"github.com/stretchr/testify/assert"
 )
 
 func TestProjectPickerStateViewRendersRecentProjectsAtTop(t *testing.T) {
@@ -16,9 +18,7 @@ func TestProjectPickerStateViewRendersRecentProjectsAtTop(t *testing.T) {
 	view := state.View(LayoutState{Mode: ModeProjectSelect})
 
 	for _, want := range []string{"Recent", "group/recent-project (acme)"} {
-		if !strings.Contains(view, want) {
-			t.Fatalf("expected %q in view, got:\n%s", want, view)
-		}
+		assert.Contains(t, view, want)
 	}
 }
 
@@ -47,9 +47,7 @@ func TestProjectPickerStateViewRendersAccountSectionHeader(t *testing.T) {
 
 	view := state.View(LayoutState{Mode: ModeProjectSelect})
 
-	if !strings.Contains(view, "[myaccount]  gitlab.example.com") {
-		t.Fatalf("expected account section header, got:\n%s", view)
-	}
+	assert.Contains(t, view, "[myaccount]  gitlab.example.com")
 }
 
 func TestProjectPickerStateViewShowsLoadingIndicatorForPendingAccount(t *testing.T) {
@@ -62,9 +60,7 @@ func TestProjectPickerStateViewShowsLoadingIndicatorForPendingAccount(t *testing
 
 	view := state.View(LayoutState{Mode: ModeProjectSelect})
 
-	if !strings.Contains(view, "Loading…") {
-		t.Fatalf("expected loading indicator, got:\n%s", view)
-	}
+	assert.Contains(t, view, "Loading…")
 }
 
 func TestProjectPickerStateViewShowsErrorIndicatorForFailedAccount(t *testing.T) {
@@ -78,9 +74,7 @@ func TestProjectPickerStateViewShowsErrorIndicatorForFailedAccount(t *testing.T)
 
 	view := state.View(LayoutState{Mode: ModeProjectSelect})
 
-	if !strings.Contains(view, "Error: connection refused") {
-		t.Fatalf("expected error indicator, got:\n%s", view)
-	}
+	assert.Contains(t, view, "Error: connection refused")
 }
 
 func TestProjectPickerStateViewFiltersProjectsByQuery(t *testing.T) {
@@ -98,13 +92,9 @@ func TestProjectPickerStateViewFiltersProjectsByQuery(t *testing.T) {
 
 	view := state.View(LayoutState{Mode: ModeProjectSelect})
 
-	if !strings.Contains(view, "group/visible-project") {
-		t.Fatalf("expected visible project in filtered view, got:\n%s", view)
-	}
+	assert.Contains(t, view, "group/visible-project")
 
-	if strings.Contains(view, "group/hidden-project") {
-		t.Fatalf("expected hidden project to be filtered out, got:\n%s", view)
-	}
+	assert.NotContains(t, view, "group/hidden-project")
 }
 
 func TestProjectPickerStateViewRendersInputFormInProjectInputMode(t *testing.T) {
@@ -116,8 +106,6 @@ func TestProjectPickerStateViewRendersInputFormInProjectInputMode(t *testing.T) 
 	view := state.View(LayoutState{Mode: ModeProjectInput})
 
 	for _, want := range []string{"Open GitLab project", "Project path:", "group/typed-path"} {
-		if !strings.Contains(view, want) {
-			t.Fatalf("expected %q in input mode view, got:\n%s", want, view)
-		}
+		assert.Contains(t, view, want)
 	}
 }

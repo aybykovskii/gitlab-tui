@@ -1,6 +1,11 @@
 package diff
 
-import "testing"
+import (
+	"testing"
+
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+)
 
 func TestProjectDiscussionsAttachesToMatchingRow(t *testing.T) {
 	t.Parallel()
@@ -17,21 +22,10 @@ func TestProjectDiscussionsAttachesToMatchingRow(t *testing.T) {
 
 	annotated := ProjectDiscussions(rows, discussions, "main.go")
 
-	if len(annotated) != 2 {
-		t.Fatalf("expected 2 annotated rows, got %d", len(annotated))
-	}
-
-	if len(annotated[0].Discussions) != 0 {
-		t.Fatalf("expected no discussions on row 0, got %d", len(annotated[0].Discussions))
-	}
-
-	if len(annotated[1].Discussions) != 1 {
-		t.Fatalf("expected 1 discussion on row 1, got %d", len(annotated[1].Discussions))
-	}
-
-	if annotated[1].Discussions[0].ID != "d1" {
-		t.Fatalf("expected discussion d1 on row 1, got %q", annotated[1].Discussions[0].ID)
-	}
+	require.Len(t, annotated, 2)
+	assert.Empty(t, annotated[0].Discussions)
+	require.Len(t, annotated[1].Discussions, 1)
+	assert.Equal(t, "d1", annotated[1].Discussions[0].ID)
 }
 
 func TestParseUnifiedDiffRows(t *testing.T) {
@@ -43,23 +37,21 @@ func TestParseUnifiedDiffRows(t *testing.T) {
 +new
 +added`)
 
-	if len(rows) != 4 {
-		t.Fatalf("expected 4 rows, got %d", len(rows))
-	}
+	require.Len(t, rows, 4)
 
-	if rows[0].OldLine != 10 || rows[0].NewLine != 10 || rows[0].OldText != "context" || rows[0].NewText != "context" {
-		t.Fatalf("unexpected context row: %+v", rows[0])
-	}
+	assert.Equal(t, 10, rows[0].OldLine)
+	assert.Equal(t, 10, rows[0].NewLine)
+	assert.Equal(t, "context", rows[0].OldText)
+	assert.Equal(t, "context", rows[0].NewText)
 
-	if rows[1].OldLine != 11 || rows[1].NewLine != 0 || rows[1].OldText != "old" {
-		t.Fatalf("unexpected removed row: %+v", rows[1])
-	}
+	assert.Equal(t, 11, rows[1].OldLine)
+	assert.Equal(t, 0, rows[1].NewLine)
+	assert.Equal(t, "old", rows[1].OldText)
 
-	if rows[2].OldLine != 0 || rows[2].NewLine != 11 || rows[2].NewText != "new" {
-		t.Fatalf("unexpected added row: %+v", rows[2])
-	}
+	assert.Equal(t, 0, rows[2].OldLine)
+	assert.Equal(t, 11, rows[2].NewLine)
+	assert.Equal(t, "new", rows[2].NewText)
 
-	if rows[3].NewLine != 12 || rows[3].NewText != "added" {
-		t.Fatalf("unexpected second added row: %+v", rows[3])
-	}
+	assert.Equal(t, 12, rows[3].NewLine)
+	assert.Equal(t, "added", rows[3].NewText)
 }

@@ -4,6 +4,8 @@ import (
 	"strings"
 	"testing"
 
+
+	"github.com/stretchr/testify/assert"
 	tea "github.com/charmbracelet/bubbletea"
 
 	"github.com/aybykovskii/gitlab-tui/internal/mr"
@@ -71,13 +73,9 @@ func TestThreadPanelShowsDiscussionAtCursorLine(t *testing.T) {
 
 	view := model.renderFileDiffPane()
 
-	if !strings.Contains(view, "alice") {
-		t.Fatalf("expected Thread Panel to show discussion author, got: %q", view)
-	}
+	assert.Contains(t, view, "alice")
 
-	if !strings.Contains(view, "Nice change!") {
-		t.Fatalf("expected Thread Panel to show note body, got: %q", view)
-	}
+	assert.Contains(t, view, "Nice change!")
 }
 
 // Cycle 2 — no panel when cursor is on a line without a thread.
@@ -90,9 +88,7 @@ func TestThreadPanelAbsentOnNonCommentedLine(t *testing.T) {
 
 	view := model.renderFileDiffPane()
 
-	if strings.Contains(view, "alice") {
-		t.Fatalf("expected no Thread Panel, but got author in view: %q", view)
-	}
+	assert.NotContains(t, view, "alice")
 }
 
 // Cycle 3 — `t` hides Thread Panel; gutter marker ○ remains visible.
@@ -108,13 +104,9 @@ func TestToggleTHidesThreadPanelButKeepsGutterMarker(t *testing.T) {
 
 	view := model.renderFileDiffPane()
 
-	if strings.Contains(view, "alice") {
-		t.Fatalf("expected Thread Panel hidden after 't', but author still visible: %q", view)
-	}
+	assert.NotContains(t, view, "alice")
 
-	if !strings.Contains(view, "○") {
-		t.Fatalf("expected gutter marker ○ to remain after 't', got: %q", view)
-	}
+	assert.Contains(t, view, "○")
 }
 
 // Cycle 4 — `t` twice restores the Thread Panel.
@@ -131,9 +123,7 @@ func TestToggleTTwiceRestoresThreadPanel(t *testing.T) {
 
 	view := model.renderFileDiffPane()
 
-	if !strings.Contains(view, "alice") {
-		t.Fatalf("expected Thread Panel visible again after second 't', got: %q", view)
-	}
+	assert.Contains(t, view, "alice")
 }
 
 // Cycle 5 — Resolved discussion renders with resolved indicator.
@@ -176,9 +166,7 @@ func TestDraftCommentShowsDraftIndicatorInThreadPanel(t *testing.T) {
 		t.Fatalf("expected draft indicator in Thread Panel, got: %q", view)
 	}
 
-	if !strings.Contains(view, "WIP note") {
-		t.Fatalf("expected draft body in Thread Panel, got: %q", view)
-	}
+	assert.Contains(t, view, "WIP note")
 }
 
 // Cycle 7 — `r` key opens reply input when cursor is on a Discussion line.
@@ -192,13 +180,9 @@ func TestFileDiffRKeyOpensReplyInputAtCursorDiscussion(t *testing.T) {
 	updated, _ := model.Update(keyMsg("r"))
 	model = updated.(Model)
 
-	if !model.replyInput {
-		t.Fatal("expected replyInput to be true after 'r' on discussion line")
-	}
+	assert.True(t, model.replyInput)
 
-	if model.replyDiscussionID != "d1" {
-		t.Fatalf("expected replyDiscussionID d1, got %q", model.replyDiscussionID)
-	}
+	assert.Equal(t, "d1", model.replyDiscussionID)
 }
 
 // Cycle 8 — `x` key toggles resolved on the discussion at cursor.

@@ -4,6 +4,8 @@ import (
 	"strings"
 	"testing"
 
+
+	"github.com/stretchr/testify/assert"
 	"github.com/aybykovskii/gitlab-tui/internal/issue"
 	"github.com/aybykovskii/gitlab-tui/internal/mr"
 )
@@ -15,9 +17,7 @@ func TestIssueDetailStateHandlesDiscussionsFinished(t *testing.T) {
 	s := NewIssueDetailState()
 	s.Update(issueDiscussionsFinishedMsg{iid: 9, discussions: discussions})
 
-	if len(s.discussions[9]) != 1 {
-		t.Fatalf("expected 1 discussion stored, got %d", len(s.discussions[9]))
-	}
+	assert.Len(t, s.discussions[9], 1)
 }
 
 func TestIssueDetailStateViewRendersActiveTabs(t *testing.T) {
@@ -41,9 +41,7 @@ func TestIssueDetailStateViewRendersActiveTabs(t *testing.T) {
 			state.activeTab = tc.tab
 
 			view := state.View(LayoutState{Width: 80, Height: 20}, item)
-			if !strings.Contains(view, tc.want) {
-				t.Fatalf("expected tab bar %q in view:\n%s", tc.want, view)
-			}
+			assert.Contains(t, view, tc.want)
 		})
 	}
 }
@@ -69,7 +67,5 @@ func TestIssueDetailStateViewRendersDiscussions(t *testing.T) {
 	item := issue.Issue{IID: 82, Title: "Discuss issue"}
 
 	view := state.View(LayoutState{Width: 80, Height: 20}, item)
-	if !strings.Contains(view, "Needs detail") {
-		t.Fatalf("expected discussion body in view:\n%s", view)
-	}
+	assert.Contains(t, view, "Needs detail")
 }
